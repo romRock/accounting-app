@@ -8,6 +8,95 @@ import { generateTokens, verifyRefreshToken } from './utils';
 
 const prisma = new PrismaClient();
 
+export const register = async (req: Request, res: Response) => {
+  try {
+    const { firstName, lastName, email, username, password } = req.body;
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email, isActive: true, isDeleted: false },
+          { username, isActive: true, isDeleted: false },
+        ],
+      },
+    });
+
+    if (existingUser) {
+      throw createError('User with this email or username already exists', 409);
+    }
+
+    // Get or create default admin role
+    let adminRole = await prisma.role.findFirst({
+      where: { name: 'Admin', isActive: true, isDeleted: false },
+    });
+
+    if (!adminRole) {
+      // Create default admin role if it doesn't exist
+      adminRole = await prisma.role.create({
+        data: {
+          name: 'Admin',
+          description: 'Full system administrator',
+          permissions: {
+            users: { read: true, write: true, delete: true },
+            roles: { read: true, write: true, delete: true },
+            cities: { read: true, write: true, delete: true },
+            parties: { read: true, write: true, delete: true },
+            branches: { read: true, write: true, delete: true },
+            transactions: { read: true, write: true, delete: true },
+            accounting: { read: true, write: true, delete: true },
+            reports: { read: true, write: true },
+            dashboard: { read: true },
+          },
+          isActive: true,
+        },
+      });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Create user
+    const user = await prisma.user.create({
+      data: {
+        firstName,
+        lastName,
+        email,
+        username,
+        password: hashedPassword,
+        roleId: adminRole.id,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        role: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            permissions: true,
+          },
+        },
+      },
+    });
+
+    res.status(201).json({
+      message: 'User created successfully',
+      user,
+    });
+  } catch (error) {
+    throw error;
+  }
+};
+
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = loginSchema.parse(req.body);

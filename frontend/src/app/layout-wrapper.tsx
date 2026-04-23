@@ -17,13 +17,13 @@ export default function LayoutWrapper({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated && pathname !== '/login') {
+    if (!isAuthenticated && pathname !== '/login' && pathname !== '/signup') {
       router.push('/login');
       return;
     }
   }, [isAuthenticated, pathname, router]);
 
-  if (pathname === '/login') {
+  if (pathname === '/login' || pathname === '/signup') {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="max-w-md w-full space-y-8 p-8">

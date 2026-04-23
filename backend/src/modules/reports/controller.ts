@@ -445,7 +445,7 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
     );
 
     res.json({
-      balanceSummary: balanceSummary.map(entry => ({
+      balanceSummary: balanceSummary.map((entry: any) => ({
         accountType: entry.accountType,
         accountId: entry.accountId,
         currentBalance: entry._max.balance || 0,

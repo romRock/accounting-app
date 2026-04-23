@@ -200,7 +200,6 @@ export const createUser = async (req: Request, res: Response) => {
         phone,
         roleId,
         branchId,
-        createdBy: userId!,
       },
       select: {
         id: true,
@@ -352,8 +351,8 @@ export const updateUser = async (req: Request, res: Response) => {
         entity: 'User',
         entityId: userIdParam,
         action: 'UPDATE',
-        oldValues: existingUser,
-        newValues: user,
+        oldValues: JSON.stringify(existingUser),
+        newValues: JSON.stringify(user),
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
         createdBy: userId!,
@@ -403,7 +402,7 @@ export const deleteUser = async (req: Request, res: Response) => {
         entity: 'User',
         entityId: userIdParam,
         action: 'DELETE',
-        oldValues: existingUser,
+        oldValues: JSON.stringify(existingUser),
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
         createdBy: userId!,
@@ -483,7 +482,6 @@ export const createRole = async (req: Request, res: Response) => {
         name,
         description,
         permissions,
-        createdBy: userId!,
       },
     });
 
@@ -553,8 +551,8 @@ export const updateRole = async (req: Request, res: Response) => {
         entity: 'Role',
         entityId: roleId,
         action: 'UPDATE',
-        oldValues: existingRole,
-        newValues: role,
+        oldValues: JSON.stringify(existingRole),
+        newValues: JSON.stringify(role),
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
         createdBy: userId!,
@@ -621,7 +619,7 @@ export const deleteRole = async (req: Request, res: Response) => {
         entity: 'Role',
         entityId: roleId,
         action: 'DELETE',
-        oldValues: existingRole,
+        oldValues: JSON.stringify(existingRole),
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
         createdBy: userId!,
@@ -717,7 +715,6 @@ export const createCity = async (req: Request, res: Response) => {
         name,
         code,
         state,
-        createdBy: userId!,
       },
     });
 
@@ -792,8 +789,8 @@ export const updateCity = async (req: Request, res: Response) => {
         entity: 'City',
         entityId: cityId,
         action: 'UPDATE',
-        oldValues: existingCity,
-        newValues: city,
+        oldValues: JSON.stringify(existingCity),
+        newValues: JSON.stringify(city),
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
         createdBy: userId!,
@@ -869,7 +866,7 @@ export const deleteCity = async (req: Request, res: Response) => {
         entity: 'City',
         entityId: cityId,
         action: 'DELETE',
-        oldValues: existingCity,
+        oldValues: JSON.stringify(existingCity),
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
         createdBy: userId!,
@@ -958,8 +955,6 @@ export const createParty = async (req: Request, res: Response) => {
       cityId,
     } = req.body;
 
-    const userId = req.user?.id;
-
     const party = await prisma.party.create({
       data: {
         name,
@@ -969,7 +964,6 @@ export const createParty = async (req: Request, res: Response) => {
         panNumber,
         gstNumber,
         cityId,
-        createdBy: userId!,
       },
       include: {
         city: true,
@@ -1040,8 +1034,8 @@ export const updateParty = async (req: Request, res: Response) => {
         entity: 'Party',
         entityId: partyId,
         action: 'UPDATE',
-        oldValues: existingParty,
-        newValues: party,
+        oldValues: JSON.stringify(existingParty),
+        newValues: JSON.stringify(party),
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
         createdBy: userId!,
@@ -1108,7 +1102,7 @@ export const deleteParty = async (req: Request, res: Response) => {
         entity: 'Party',
         entityId: partyId,
         action: 'DELETE',
-        oldValues: existingParty,
+        oldValues: JSON.stringify(existingParty),
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
         createdBy: userId!,
@@ -1189,8 +1183,6 @@ export const createBranch = async (req: Request, res: Response) => {
       email,
     } = req.body;
 
-    const userId = req.user?.id;
-
     // Check if branch already exists
     const existingBranch = await prisma.branch.findFirst({
       where: {
@@ -1214,7 +1206,6 @@ export const createBranch = async (req: Request, res: Response) => {
         address,
         phone,
         email,
-        createdBy: userId!,
       },
     });
 
@@ -1298,8 +1289,8 @@ export const updateBranch = async (req: Request, res: Response) => {
         entity: 'Branch',
         entityId: branchId,
         action: 'UPDATE',
-        oldValues: existingBranch,
-        newValues: branch,
+        oldValues: JSON.stringify(existingBranch),
+        newValues: JSON.stringify(branch),
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
         createdBy: userId!,
@@ -1366,7 +1357,7 @@ export const deleteBranch = async (req: Request, res: Response) => {
         entity: 'Branch',
         entityId: branchId,
         action: 'DELETE',
-        oldValues: existingBranch,
+        oldValues: JSON.stringify(existingBranch),
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
         createdBy: userId!,
@@ -1457,7 +1448,6 @@ export const createCommissionRate = async (req: Request, res: Response) => {
         rate: Number(rate),
         minAmount: minAmount ? Number(minAmount) : null,
         maxAmount: maxAmount ? Number(maxAmount) : null,
-        createdBy: userId!,
       },
     });
 
@@ -1520,8 +1510,8 @@ export const updateCommissionRate = async (req: Request, res: Response) => {
         entity: 'CommissionRate',
         entityId: commissionRateId,
         action: 'UPDATE',
-        oldValues: existingRate,
-        newValues: commissionRate,
+        oldValues: JSON.stringify(existingRate),
+        newValues: JSON.stringify(commissionRate),
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
         createdBy: userId!,
@@ -1575,7 +1565,7 @@ export const deleteCommissionRate = async (req: Request, res: Response) => {
         entity: 'CommissionRate',
         entityId: commissionRateId,
         action: 'DELETE',
-        oldValues: existingRate,
+        oldValues: JSON.stringify(existingRate),
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
         createdBy: userId!,

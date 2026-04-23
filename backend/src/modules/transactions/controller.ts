@@ -309,8 +309,8 @@ export const updateTransaction = async (req: Request, res: Response) => {
         entity: 'Transaction',
         entityId: id as string,
         action: 'UPDATE',
-        oldValues: existingTransaction,
-        newValues: transaction,
+        oldValues: JSON.stringify(existingTransaction),
+        newValues: JSON.stringify(transaction),
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
         createdBy: userId!,
@@ -359,7 +359,7 @@ export const deleteTransaction = async (req: Request, res: Response) => {
         entity: 'Transaction',
         entityId: id as string,
         action: 'DELETE',
-        oldValues: existingTransaction,
+        oldValues: JSON.stringify(existingTransaction),
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
         createdBy: userId!,
@@ -477,5 +477,8 @@ async function createLedgerEntries(transaction: any) {
     });
   }
 
-  await prisma.ledgerEntry.createMany({ data: entries });
+  // SQLite doesn't support createMany, so create entries individually
+  for (const entry of entries) {
+    await prisma.ledgerEntry.create({ data: entry });
+  }
 }

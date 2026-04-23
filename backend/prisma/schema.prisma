@@ -49,7 +49,7 @@ model Role {
   id          String   @id @default(cuid())
   name        String   @unique
   description String?
-  permissions Json     // Store permissions as JSON
+  permissions String     // Store permissions as JSON string
   isActive    Boolean  @default(true)
   isDeleted   Boolean  @default(false)
   createdAt   DateTime @default(now())
@@ -133,16 +133,16 @@ model Transaction {
   id              String    @id @default(cuid())
   transactionId   String    @unique // Auto-generated unique transaction ID
   date            DateTime
-  type            TransactionType
+  type            String
   fromCityId      String
   toCityId        String
   partyId         String
-  amount          Decimal   @db.Decimal(15, 2) // High precision for financial data
-  commission      Decimal   @db.Decimal(15, 2)
-  paymentType     PaymentType
+  amount          Float   // High precision for financial data
+  commission      Float
+  paymentType     String
   referenceId     String?
   notes           String?
-  status          TransactionStatus @default(PENDING)
+  status          String @default("PENDING")
   isActive        Boolean   @default(true)
   isDeleted       Boolean   @default(false)
   createdAt       DateTime  @default(now())
@@ -179,9 +179,9 @@ model LedgerEntry {
   accountId   String    // Account identifier (could be party, branch, etc.)
   accountType String    // Type of account (party, branch, cash, etc.)
   description String
-  debitAmount Decimal?  @db.Decimal(15, 2)
-  creditAmount Decimal? @db.Decimal(15, 2)
-  balance     Decimal   @db.Decimal(15, 2) // Running balance
+  debitAmount Float?
+  creditAmount Float?
+  balance     Float   // Running balance
   isActive    Boolean   @default(true)
   isDeleted   Boolean   @default(false)
   createdAt   DateTime  @default(now())
@@ -208,11 +208,11 @@ model LedgerEntry {
 model BalanceSheet {
   id              String    @id @default(cuid())
   date            DateTime
-  openingBalance  Decimal   @db.Decimal(15, 2)
-  closingBalance  Decimal   @db.Decimal(15, 2)
-  totalAssets     Decimal   @db.Decimal(15, 2)
-  totalLiabilities Decimal  @db.Decimal(15, 2)
-  totalEquity     Decimal   @db.Decimal(15, 2)
+  openingBalance  Float
+  closingBalance  Float
+  totalAssets     Float
+  totalLiabilities Float
+  totalEquity     Float
   branchId        String?
   isActive        Boolean   @default(true)
   isDeleted       Boolean   @default(false)
@@ -233,8 +233,8 @@ model AuditLog {
   entity      String   // Table name
   entityId    String   // ID of the record
   action      String   // CREATE, UPDATE, DELETE
-  oldValues   Json?    // Previous values
-  newValues   Json?    // New values
+  oldValues   String?    // Previous values as JSON string
+  newValues   String?    // New values as JSON string
   ipAddress   String?
   userAgent   String?
   isActive    Boolean  @default(true)
@@ -280,9 +280,9 @@ model CommissionRate {
   fromCityId    String
   toCityId      String
   rateType      String   // PERCENTAGE or FIXED
-  rate          Decimal  @db.Decimal(15, 2)
-  minAmount     Decimal? @db.Decimal(15, 2)
-  maxAmount     Decimal? @db.Decimal(15, 2)
+  rate          Float
+  minAmount     Float?
+  maxAmount     Float?
   isActive      Boolean  @default(true)
   isDeleted     Boolean  @default(false)
   createdAt     DateTime @default(now())
@@ -295,19 +295,3 @@ model CommissionRate {
   @@index([createdAt])
 }
 
-// Enums
-enum TransactionType {
-  INWARD
-  OUTWARD
-}
-
-enum PaymentType {
-  CASH
-  CREDIT
-}
-
-enum TransactionStatus {
-  PENDING
-  COMPLETED
-  CANCELLED
-}

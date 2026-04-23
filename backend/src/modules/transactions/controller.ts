@@ -124,7 +124,7 @@ export const getTransactions = async (req: Request, res: Response) => {
     } = req.query;
 
     const userId = req.user?.id;
-    const userRole = req.user?.role?.name;
+    const userRole = req.user?.role.name;
     const userBranchId = req.user?.branchId;
 
     // Build where clause
@@ -200,7 +200,7 @@ export const getTransactions = async (req: Request, res: Response) => {
 export const getTransactionById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userRole = req.user?.role?.name;
+    const userRole = req.user?.role.name;
     const userBranchId = req.user?.branchId;
 
     const where: any = {
@@ -263,7 +263,7 @@ export const updateTransaction = async (req: Request, res: Response) => {
     // Check if transaction exists and user has permission
     const existingTransaction = await prisma.transaction.findFirst({
       where: {
-        id: id as string,
+        id,
         isActive: true,
         isDeleted: false,
       },
@@ -307,7 +307,7 @@ export const updateTransaction = async (req: Request, res: Response) => {
     await prisma.auditLog.create({
       data: {
         entity: 'Transaction',
-        entityId: id as string,
+        entityId: id,
         action: 'UPDATE',
         oldValues: existingTransaction,
         newValues: transaction,
@@ -334,7 +334,7 @@ export const deleteTransaction = async (req: Request, res: Response) => {
     // Check if transaction exists
     const existingTransaction = await prisma.transaction.findFirst({
       where: {
-        id: id as string,
+        id,
         isActive: true,
         isDeleted: false,
       },
@@ -357,7 +357,7 @@ export const deleteTransaction = async (req: Request, res: Response) => {
     await prisma.auditLog.create({
       data: {
         entity: 'Transaction',
-        entityId: id as string,
+        entityId: id,
         action: 'DELETE',
         oldValues: existingTransaction,
         ipAddress: req.ip,
@@ -376,7 +376,7 @@ export const getTransactionStats = async (req: Request, res: Response) => {
   try {
     const { dateFrom, dateTo } = req.query;
     const userBranchId = req.user?.branchId;
-    const userRole = req.user?.role?.name;
+    const userRole = req.user?.role.name;
 
     const where: any = {
       isActive: true,

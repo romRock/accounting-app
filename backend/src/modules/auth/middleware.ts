@@ -16,16 +16,16 @@ declare global {
         firstName: string;
         lastName: string;
         roleId: string;
-        branchId: string | null | undefined;
+        branchId?: string;
         role: {
           name: string;
           permissions: any;
-        } | undefined;
-        branch: {
+        };
+        branch?: {
           id: string;
           name: string;
           code: string;
-        } | undefined;
+        };
       };
     }
   }
@@ -72,9 +72,9 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       firstName: user.firstName,
       lastName: user.lastName,
       roleId: user.roleId,
-      branchId: user.branchId || undefined,
-      role: user.role || undefined,
-      branch: user.branch || undefined,
+      branchId: user.branchId,
+      role: user.role,
+      branch: user.branch,
     };
 
     next();
@@ -93,11 +93,9 @@ export const requireRole = (roles: string[]) => {
       return next(createError('Authentication required', 401));
     }
 
-    if (!req.user.role) {
-      return next(createError('Role not found', 401));
-    }
-
-    if (!req.user.role?.name || !roles.includes(req.user.role.name)) {
+    const userRole = req.user.role.name;
+    
+    if (!roles.includes(userRole)) {
       return next(createError('Insufficient permissions', 403));
     }
 
@@ -111,7 +109,7 @@ export const requirePermission = (permission: string) => {
       return next(createError('Authentication required', 401));
     }
 
-    const userPermissions = req.user.role?.permissions;
+    const userPermissions = req.user.role.permissions;
     
     if (!userPermissions || !userPermissions[permission]) {
       return next(createError('Insufficient permissions', 403));

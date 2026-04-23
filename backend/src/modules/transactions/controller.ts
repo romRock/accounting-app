@@ -204,7 +204,7 @@ export const getTransactionById = async (req: Request, res: Response) => {
     const userBranchId = req.user?.branchId;
 
     const where: any = {
-      id,
+      id: id as string,
       isActive: true,
       isDeleted: false,
     };
@@ -263,7 +263,7 @@ export const updateTransaction = async (req: Request, res: Response) => {
     // Check if transaction exists and user has permission
     const existingTransaction = await prisma.transaction.findFirst({
       where: {
-        id,
+        id: id as string,
         isActive: true,
         isDeleted: false,
       },
@@ -275,7 +275,7 @@ export const updateTransaction = async (req: Request, res: Response) => {
 
     // Update transaction
     const transaction = await prisma.transaction.update({
-      where: { id },
+      where: { id: id as string },
       data: {
         date: date ? new Date(date) : undefined,
         type: type as TransactionType,
@@ -307,7 +307,7 @@ export const updateTransaction = async (req: Request, res: Response) => {
     await prisma.auditLog.create({
       data: {
         entity: 'Transaction',
-        entityId: id,
+        entityId: id as string,
         action: 'UPDATE',
         oldValues: existingTransaction,
         newValues: transaction,
@@ -334,7 +334,7 @@ export const deleteTransaction = async (req: Request, res: Response) => {
     // Check if transaction exists
     const existingTransaction = await prisma.transaction.findFirst({
       where: {
-        id,
+        id: id as string,
         isActive: true,
         isDeleted: false,
       },
@@ -346,7 +346,7 @@ export const deleteTransaction = async (req: Request, res: Response) => {
 
     // Soft delete transaction
     await prisma.transaction.update({
-      where: { id },
+      where: { id: id as string },
       data: {
         isActive: false,
         isDeleted: true,
@@ -357,7 +357,7 @@ export const deleteTransaction = async (req: Request, res: Response) => {
     await prisma.auditLog.create({
       data: {
         entity: 'Transaction',
-        entityId: id,
+        entityId: id as string,
         action: 'DELETE',
         oldValues: existingTransaction,
         ipAddress: req.ip,

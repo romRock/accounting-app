@@ -1,6 +1,12 @@
 import { Request, Response } from 'express';
-import { PrismaClient, TransactionType } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { createError } from '../../middlewares/errorHandler';
+
+// Define TransactionType enum locally since Prisma exports are not available
+const TransactionType = {
+  INWARD: 'INWARD',
+  OUTWARD: 'OUTWARD',
+} as const;
 
 const prisma = new PrismaClient();
 
@@ -342,7 +348,7 @@ export const getBranchPerformanceReport = async (req: Request, res: Response) =>
     });
 
     // Get branch details
-    const branchIds = branchPerformance.map(bp => bp.branchId);
+    const branchIds = branchPerformance.map((bp: any) => bp.branchId).filter((id: any): id is string => id !== null);
     const branches = await prisma.branch.findMany({
       where: {
         id: { in: branchIds },
@@ -352,8 +358,8 @@ export const getBranchPerformanceReport = async (req: Request, res: Response) =>
     });
 
     // Combine performance data with branch details
-    const performanceReport = branchPerformance.map(perf => {
-      const branch = branches.find(b => b.id === perf.branchId);
+    const performanceReport = branchPerformance.map((perf: any) => {
+      const branch = branches.find((b: any) => b.id === perf.branchId);
       return {
         branchId: perf.branchId,
         branchName: branch?.name || 'Unknown',
@@ -366,10 +372,10 @@ export const getBranchPerformanceReport = async (req: Request, res: Response) =>
 
     // Calculate overall totals
     const overallTotals = performanceReport.reduce(
-      (acc, curr) => ({
+      (acc: any, curr: any) => ({
         totalTransactions: acc.totalTransactions + curr.totalTransactions,
-        totalAmount: acc.totalAmount + curr.totalAmount,
-        totalCommission: acc.totalCommission + curr.totalCommission,
+        totalAmount: Number(acc.totalAmount) + Number(curr.totalAmount),
+        totalCommission: Number(acc.totalCommission) + Number(curr.totalCommission),
       }),
       { totalTransactions: 0, totalAmount: 0, totalCommission: 0 }
     );

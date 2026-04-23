@@ -72,9 +72,9 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       firstName: user.firstName,
       lastName: user.lastName,
       roleId: user.roleId,
-      branchId: user.branchId,
-      role: user.role,
-      branch: user.branch,
+      branchId: user.branchId || undefined,
+      role: user.role || undefined,
+      branch: user.branch || undefined,
     };
 
     next();

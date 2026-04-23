@@ -157,7 +157,7 @@ export const getLedgerEntryById = async (req: Request, res: Response) => {
     const userBranchId = req.user?.branchId;
 
     const where: any = {
-      id,
+      id: id as string,
       isActive: true,
       isDeleted: false,
     };
@@ -215,7 +215,7 @@ export const updateLedgerEntry = async (req: Request, res: Response) => {
     // Check if ledger entry exists
     const existingEntry = await prisma.ledgerEntry.findFirst({
       where: {
-        id,
+        id: id as string,
         isActive: true,
         isDeleted: false,
       },
@@ -227,7 +227,7 @@ export const updateLedgerEntry = async (req: Request, res: Response) => {
 
     // Update ledger entry
     const ledgerEntry = await prisma.ledgerEntry.update({
-      where: { id },
+      where: { id: id as string },
       data: {
         date: date ? new Date(date) : undefined,
         accountId,
@@ -251,7 +251,7 @@ export const updateLedgerEntry = async (req: Request, res: Response) => {
     await prisma.auditLog.create({
       data: {
         entity: 'LedgerEntry',
-        entityId: id,
+        entityId: id as string,
         action: 'UPDATE',
         oldValues: existingEntry,
         newValues: ledgerEntry,
@@ -278,7 +278,7 @@ export const deleteLedgerEntry = async (req: Request, res: Response) => {
     // Check if ledger entry exists
     const existingEntry = await prisma.ledgerEntry.findFirst({
       where: {
-        id,
+        id: id as string,
         isActive: true,
         isDeleted: false,
       },
@@ -290,7 +290,7 @@ export const deleteLedgerEntry = async (req: Request, res: Response) => {
 
     // Soft delete ledger entry
     await prisma.ledgerEntry.update({
-      where: { id },
+      where: { id: id as string },
       data: {
         isActive: false,
         isDeleted: true,
@@ -301,7 +301,7 @@ export const deleteLedgerEntry = async (req: Request, res: Response) => {
     await prisma.auditLog.create({
       data: {
         entity: 'LedgerEntry',
-        entityId: id,
+        entityId: id as string,
         action: 'DELETE',
         oldValues: existingEntry,
         ipAddress: req.ip,
@@ -403,15 +403,15 @@ export const getTrialBalance = async (req: Request, res: Response) => {
     });
 
     // Calculate totals
-    const totalDebits = trialBalance.reduce((sum, entry) => 
-      sum + (entry._sum.debitAmount || 0), 0
+    const totalDebits = trialBalance.reduce((sum: number, entry: any) => 
+      sum + Number(entry._sum.debitAmount || 0), 0
     );
-    const totalCredits = trialBalance.reduce((sum, entry) => 
-      sum + (entry._sum.creditAmount || 0), 0
+    const totalCredits = trialBalance.reduce((sum: number, entry: any) => 
+      sum + Number(entry._sum.creditAmount || 0), 0
     );
 
     res.json({
-      trialBalance: trialBalance.map(entry => ({
+      trialBalance: trialBalance.map((entry: any) => ({
         accountType: entry.accountType,
         totalDebits: entry._sum.debitAmount || 0,
         totalCredits: entry._sum.creditAmount || 0,

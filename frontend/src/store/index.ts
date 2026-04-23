@@ -46,7 +46,7 @@ export const useAuthStore = create<AuthState>()(
       login: async (email: string, password: string) => {
         set({ isLoading: true });
         try {
-          const response = await fetch('/api/auth/login', {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/login`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -78,7 +78,7 @@ export const useAuthStore = create<AuthState>()(
         
         // Call logout API if refresh token exists
         if (refreshToken) {
-          fetch('/api/auth/logout', {
+          fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/logout`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -108,7 +108,7 @@ export const useAuthStore = create<AuthState>()(
         }
 
         try {
-          const response = await fetch('/api/auth/refresh', {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/refresh`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -163,7 +163,7 @@ export const apiCall = async (url: string, options: RequestInit = {}) => {
       ...options.headers,
     };
 
-    const response = await fetch(url, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${url}`, {
       ...options,
       headers,
     });
@@ -175,7 +175,7 @@ export const apiCall = async (url: string, options: RequestInit = {}) => {
       
       if (newToken) {
         // Retry with new token
-        return fetch(url, {
+        return fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${url}`, {
           ...options,
           headers: {
             ...headers,

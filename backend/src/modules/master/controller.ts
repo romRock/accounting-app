@@ -5,6 +5,14 @@ import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
+// Helper function to handle query parameters that can be arrays
+const getFirstValue = (value: any): string | undefined => {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+  return value;
+};
+
 // User Management
 export const getUsers = async (req: Request, res: Response) => {
   try {
@@ -22,25 +30,30 @@ export const getUsers = async (req: Request, res: Response) => {
     };
 
     if (search) {
-      where.OR = [
-        { firstName: { contains: search as string, mode: 'insensitive' } },
-        { lastName: { contains: search as string, mode: 'insensitive' } },
-        { email: { contains: search as string, mode: 'insensitive' } },
-        { username: { contains: search as string, mode: 'insensitive' } },
-      ];
+      const searchValue = getFirstValue(search);
+      if (searchValue) {
+        where.OR = [
+          { firstName: { contains: searchValue, mode: 'insensitive' } },
+          { lastName: { contains: searchValue, mode: 'insensitive' } },
+          { email: { contains: searchValue, mode: 'insensitive' } },
+          { username: { contains: searchValue, mode: 'insensitive' } },
+        ];
+      }
     }
 
-    if (roleId) where.roleId = roleId as string;
-    if (branchId) where.branchId = branchId as string;
+    if (roleId) {
+      const roleIdValue = getFirstValue(roleId);
+      if (roleIdValue) where.roleId = roleIdValue;
+    }
+    if (branchId) {
+      const branchIdValue = getFirstValue(branchId);
+      if (branchIdValue) where.branchId = branchIdValue;
+    }
     if (isActive !== undefined) where.isActive = isActive === 'true';
 
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         where,
-        include: {
-          role: true,
-          branch: true,
-        },
         select: {
           id: true,
           email: true,
@@ -55,7 +68,7 @@ export const getUsers = async (req: Request, res: Response) => {
             select: {
               id: true,
               name: true,
-              description: true,
+              permissions: true,
             },
           },
           branch: {
@@ -63,6 +76,10 @@ export const getUsers = async (req: Request, res: Response) => {
               id: true,
               name: true,
               code: true,
+              address: true,
+              phone: true,
+              email: true,
+              isActive: true,
             },
           },
         },
@@ -90,13 +107,14 @@ export const getUsers = async (req: Request, res: Response) => {
 export const getUserById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const userId = getFirstValue(id);
+    
+    if (!userId) {
+      throw createError('User ID is required', 400);
+    }
 
     const user = await prisma.user.findFirst({
-      where: { id, isDeleted: false },
-      include: {
-        role: true,
-        branch: true,
-      },
+      where: { id: userId, isDeleted: false },
       select: {
         id: true,
         email: true,
@@ -123,6 +141,7 @@ export const getUserById = async (req: Request, res: Response) => {
             address: true,
             phone: true,
             email: true,
+            isActive: true,
           },
         },
       },
@@ -183,10 +202,6 @@ export const createUser = async (req: Request, res: Response) => {
         branchId,
         createdBy: userId!,
       },
-      include: {
-        role: true,
-        branch: true,
-      },
       select: {
         id: true,
         email: true,
@@ -201,7 +216,7 @@ export const createUser = async (req: Request, res: Response) => {
           select: {
             id: true,
             name: true,
-            description: true,
+            permissions: true,
           },
         },
         branch: {
@@ -209,6 +224,10 @@ export const createUser = async (req: Request, res: Response) => {
             id: true,
             name: true,
             code: true,
+            address: true,
+            phone: true,
+            email: true,
+            isActive: true,
           },
         },
       },
@@ -226,6 +245,11 @@ export const createUser = async (req: Request, res: Response) => {
 export const updateUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const userIdParam = getFirstValue(id);
+    
+    if (!userIdParam) {
+      throw createError('User ID is required', 400);
+    }
     const {
       email,
       username,
@@ -242,7 +266,7 @@ export const updateUser = async (req: Request, res: Response) => {
 
     // Check if user exists
     const existingUser = await prisma.user.findFirst({
-      where: { id, isDeleted: false },
+      where: { id: userIdParam, isDeleted: false },
     });
 
     if (!existingUser) {
@@ -254,7 +278,7 @@ export const updateUser = async (req: Request, res: Response) => {
       const duplicateUser = await prisma.user.findFirst({
         where: {
           AND: [
-            { id: { not: id } },
+            { id: { not: userIdParam } },
             { isDeleted: false },
             {
               OR: [
@@ -289,12 +313,8 @@ export const updateUser = async (req: Request, res: Response) => {
     }
 
     const user = await prisma.user.update({
-      where: { id },
+      where: { id: userIdParam },
       data: updateData,
-      include: {
-        role: true,
-        branch: true,
-      },
       select: {
         id: true,
         email: true,
@@ -317,6 +337,10 @@ export const updateUser = async (req: Request, res: Response) => {
             id: true,
             name: true,
             code: true,
+            address: true,
+            phone: true,
+            email: true,
+            isActive: true,
           },
         },
       },
@@ -326,7 +350,7 @@ export const updateUser = async (req: Request, res: Response) => {
     await prisma.auditLog.create({
       data: {
         entity: 'User',
-        entityId: id,
+        entityId: userIdParam,
         action: 'UPDATE',
         oldValues: existingUser,
         newValues: user,
@@ -348,11 +372,16 @@ export const updateUser = async (req: Request, res: Response) => {
 export const deleteUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const userIdParam = getFirstValue(id);
     const userId = req.user?.id;
+    
+    if (!userIdParam) {
+      throw createError('User ID is required', 400);
+    }
 
     // Check if user exists
     const existingUser = await prisma.user.findFirst({
-      where: { id, isDeleted: false },
+      where: { id: userIdParam, isDeleted: false },
     });
 
     if (!existingUser) {
@@ -361,7 +390,7 @@ export const deleteUser = async (req: Request, res: Response) => {
 
     // Soft delete user
     await prisma.user.update({
-      where: { id },
+      where: { id: userIdParam },
       data: {
         isActive: false,
         isDeleted: true,
@@ -372,7 +401,7 @@ export const deleteUser = async (req: Request, res: Response) => {
     await prisma.auditLog.create({
       data: {
         entity: 'User',
-        entityId: id,
+        entityId: userIdParam,
         action: 'DELETE',
         oldValues: existingUser,
         ipAddress: req.ip,
@@ -407,10 +436,15 @@ export const getRoles = async (req: Request, res: Response) => {
 export const getRoleById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const roleId = getFirstValue(id);
+    
+    if (!roleId) {
+      throw createError('Role ID is required', 400);
+    }
 
     const role = await prisma.role.findFirst({
       where: {
-        id,
+        id: roleId,
         isActive: true,
         isDeleted: false,
       },
@@ -465,13 +499,18 @@ export const createRole = async (req: Request, res: Response) => {
 export const updateRole = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const roleId = getFirstValue(id);
     const { name, description, permissions } = req.body;
     const userId = req.user?.id;
+    
+    if (!roleId) {
+      throw createError('Role ID is required', 400);
+    }
 
     // Check if role exists
     const existingRole = await prisma.role.findFirst({
       where: {
-        id,
+        id: roleId,
         isActive: true,
         isDeleted: false,
       },
@@ -486,7 +525,7 @@ export const updateRole = async (req: Request, res: Response) => {
       const duplicateRole = await prisma.role.findFirst({
         where: {
           AND: [
-            { id: { not: id } },
+            { id: { not: roleId } },
             { name },
             { isActive: true },
             { isDeleted: false },
@@ -500,7 +539,7 @@ export const updateRole = async (req: Request, res: Response) => {
     }
 
     const role = await prisma.role.update({
-      where: { id },
+      where: { id: roleId },
       data: {
         name,
         description,
@@ -512,7 +551,7 @@ export const updateRole = async (req: Request, res: Response) => {
     await prisma.auditLog.create({
       data: {
         entity: 'Role',
-        entityId: id,
+        entityId: roleId,
         action: 'UPDATE',
         oldValues: existingRole,
         newValues: role,
@@ -534,12 +573,17 @@ export const updateRole = async (req: Request, res: Response) => {
 export const deleteRole = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const roleId = getFirstValue(id);
     const userId = req.user?.id;
+    
+    if (!roleId) {
+      throw createError('Role ID is required', 400);
+    }
 
     // Check if role exists
     const existingRole = await prisma.role.findFirst({
       where: {
-        id,
+        id: roleId,
         isActive: true,
         isDeleted: false,
       },
@@ -552,7 +596,7 @@ export const deleteRole = async (req: Request, res: Response) => {
     // Check if role is being used by any users
     const usersWithRole = await prisma.user.count({
       where: {
-        roleId: id,
+        roleId: roleId,
         isActive: true,
         isDeleted: false,
       },
@@ -564,7 +608,7 @@ export const deleteRole = async (req: Request, res: Response) => {
 
     // Soft delete role
     await prisma.role.update({
-      where: { id },
+      where: { id: roleId },
       data: {
         isActive: false,
         isDeleted: true,
@@ -575,7 +619,7 @@ export const deleteRole = async (req: Request, res: Response) => {
     await prisma.auditLog.create({
       data: {
         entity: 'Role',
-        entityId: id,
+        entityId: roleId,
         action: 'DELETE',
         oldValues: existingRole,
         ipAddress: req.ip,
@@ -623,10 +667,15 @@ export const getCities = async (req: Request, res: Response) => {
 export const getCityById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const cityId = getFirstValue(id);
+    
+    if (!cityId) {
+      throw createError('City ID is required', 400);
+    }
 
     const city = await prisma.city.findFirst({
       where: {
-        id,
+        id: cityId,
         isActive: true,
         isDeleted: false,
       },
@@ -684,13 +733,18 @@ export const createCity = async (req: Request, res: Response) => {
 export const updateCity = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const cityId = getFirstValue(id);
     const { name, code, state } = req.body;
     const userId = req.user?.id;
+    
+    if (!cityId) {
+      throw createError('City ID is required', 400);
+    }
 
     // Check if city exists
     const existingCity = await prisma.city.findFirst({
       where: {
-        id,
+        id: cityId,
         isActive: true,
         isDeleted: false,
       },
@@ -705,7 +759,7 @@ export const updateCity = async (req: Request, res: Response) => {
       const duplicateCity = await prisma.city.findFirst({
         where: {
           AND: [
-            { id: { not: id } },
+            { id: { not: cityId } },
             { isActive: true },
             { isDeleted: false },
             {
@@ -724,7 +778,7 @@ export const updateCity = async (req: Request, res: Response) => {
     }
 
     const city = await prisma.city.update({
-      where: { id },
+      where: { id: cityId },
       data: {
         name,
         code,
@@ -736,7 +790,7 @@ export const updateCity = async (req: Request, res: Response) => {
     await prisma.auditLog.create({
       data: {
         entity: 'City',
-        entityId: id,
+        entityId: cityId,
         action: 'UPDATE',
         oldValues: existingCity,
         newValues: city,
@@ -758,12 +812,17 @@ export const updateCity = async (req: Request, res: Response) => {
 export const deleteCity = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const cityId = getFirstValue(id);
     const userId = req.user?.id;
+    
+    if (!cityId) {
+      throw createError('City ID is required', 400);
+    }
 
     // Check if city exists
     const existingCity = await prisma.city.findFirst({
       where: {
-        id,
+        id: cityId,
         isActive: true,
         isDeleted: false,
       },
@@ -777,14 +836,14 @@ export const deleteCity = async (req: Request, res: Response) => {
     const [fromTransactions, toTransactions] = await Promise.all([
       prisma.transaction.count({
         where: {
-          fromCityId: id,
+          fromCityId: cityId,
           isActive: true,
           isDeleted: false,
         },
       }),
       prisma.transaction.count({
         where: {
-          toCityId: id,
+          toCityId: cityId,
           isActive: true,
           isDeleted: false,
         },
@@ -797,7 +856,7 @@ export const deleteCity = async (req: Request, res: Response) => {
 
     // Soft delete city
     await prisma.city.update({
-      where: { id },
+      where: { id: cityId },
       data: {
         isActive: false,
         isDeleted: true,
@@ -808,7 +867,7 @@ export const deleteCity = async (req: Request, res: Response) => {
     await prisma.auditLog.create({
       data: {
         entity: 'City',
-        entityId: id,
+        entityId: cityId,
         action: 'DELETE',
         oldValues: existingCity,
         ipAddress: req.ip,
@@ -860,10 +919,15 @@ export const getParties = async (req: Request, res: Response) => {
 export const getPartyById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const partyId = getFirstValue(id);
+    
+    if (!partyId) {
+      throw createError('Party ID is required', 400);
+    }
 
     const party = await prisma.party.findFirst({
       where: {
-        id,
+        id: partyId,
         isActive: true,
         isDeleted: false,
       },
@@ -924,6 +988,7 @@ export const createParty = async (req: Request, res: Response) => {
 export const updateParty = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const partyId = getFirstValue(id);
     const {
       name,
       phone,
@@ -935,11 +1000,15 @@ export const updateParty = async (req: Request, res: Response) => {
     } = req.body;
 
     const userId = req.user?.id;
+    
+    if (!partyId) {
+      throw createError('Party ID is required', 400);
+    }
 
     // Check if party exists
     const existingParty = await prisma.party.findFirst({
       where: {
-        id,
+        id: partyId,
         isActive: true,
         isDeleted: false,
       },
@@ -950,7 +1019,7 @@ export const updateParty = async (req: Request, res: Response) => {
     }
 
     const party = await prisma.party.update({
-      where: { id },
+      where: { id: partyId },
       data: {
         name,
         phone,
@@ -969,7 +1038,7 @@ export const updateParty = async (req: Request, res: Response) => {
     await prisma.auditLog.create({
       data: {
         entity: 'Party',
-        entityId: id,
+        entityId: partyId,
         action: 'UPDATE',
         oldValues: existingParty,
         newValues: party,
@@ -991,12 +1060,17 @@ export const updateParty = async (req: Request, res: Response) => {
 export const deleteParty = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const partyId = getFirstValue(id);
     const userId = req.user?.id;
+    
+    if (!partyId) {
+      throw createError('Party ID is required', 400);
+    }
 
     // Check if party exists
     const existingParty = await prisma.party.findFirst({
       where: {
-        id,
+        id: partyId,
         isActive: true,
         isDeleted: false,
       },
@@ -1009,7 +1083,7 @@ export const deleteParty = async (req: Request, res: Response) => {
     // Check if party is being used in any transactions
     const transactions = await prisma.transaction.count({
       where: {
-        partyId: id,
+        partyId: partyId,
         isActive: true,
         isDeleted: false,
       },
@@ -1021,7 +1095,7 @@ export const deleteParty = async (req: Request, res: Response) => {
 
     // Soft delete party
     await prisma.party.update({
-      where: { id },
+      where: { id: partyId },
       data: {
         isActive: false,
         isDeleted: true,
@@ -1032,7 +1106,7 @@ export const deleteParty = async (req: Request, res: Response) => {
     await prisma.auditLog.create({
       data: {
         entity: 'Party',
-        entityId: id,
+        entityId: partyId,
         action: 'DELETE',
         oldValues: existingParty,
         ipAddress: req.ip,
@@ -1058,10 +1132,13 @@ export const getBranches = async (req: Request, res: Response) => {
     };
 
     if (search) {
-      where.OR = [
-        { name: { contains: search as string, mode: 'insensitive' } },
-        { code: { contains: search as string, mode: 'insensitive' } },
-      ];
+      const searchValue = getFirstValue(search);
+      if (searchValue) {
+        where.OR = [
+          { name: { contains: searchValue, mode: 'insensitive' } },
+          { code: { contains: searchValue, mode: 'insensitive' } },
+        ];
+      }
     }
 
     const branches = await prisma.branch.findMany({
@@ -1078,10 +1155,15 @@ export const getBranches = async (req: Request, res: Response) => {
 export const getBranchById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const branchId = getFirstValue(id);
+    
+    if (!branchId) {
+      throw createError('Branch ID is required', 400);
+    }
 
     const branch = await prisma.branch.findFirst({
       where: {
-        id,
+        id: branchId,
         isActive: true,
         isDeleted: false,
       },
@@ -1148,6 +1230,7 @@ export const createBranch = async (req: Request, res: Response) => {
 export const updateBranch = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const branchId = getFirstValue(id);
     const {
       name,
       code,
@@ -1157,11 +1240,15 @@ export const updateBranch = async (req: Request, res: Response) => {
     } = req.body;
 
     const userId = req.user?.id;
+    
+    if (!branchId) {
+      throw createError('Branch ID is required', 400);
+    }
 
     // Check if branch exists
     const existingBranch = await prisma.branch.findFirst({
       where: {
-        id,
+        id: branchId,
         isActive: true,
         isDeleted: false,
       },
@@ -1176,7 +1263,7 @@ export const updateBranch = async (req: Request, res: Response) => {
       const duplicateBranch = await prisma.branch.findFirst({
         where: {
           AND: [
-            { id: { not: id } },
+            { id: { not: branchId } },
             { isActive: true },
             { isDeleted: false },
             {
@@ -1195,7 +1282,7 @@ export const updateBranch = async (req: Request, res: Response) => {
     }
 
     const branch = await prisma.branch.update({
-      where: { id },
+      where: { id: branchId },
       data: {
         name,
         code,
@@ -1209,7 +1296,7 @@ export const updateBranch = async (req: Request, res: Response) => {
     await prisma.auditLog.create({
       data: {
         entity: 'Branch',
-        entityId: id,
+        entityId: branchId,
         action: 'UPDATE',
         oldValues: existingBranch,
         newValues: branch,
@@ -1231,12 +1318,17 @@ export const updateBranch = async (req: Request, res: Response) => {
 export const deleteBranch = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const branchId = getFirstValue(id);
     const userId = req.user?.id;
+    
+    if (!branchId) {
+      throw createError('Branch ID is required', 400);
+    }
 
     // Check if branch exists
     const existingBranch = await prisma.branch.findFirst({
       where: {
-        id,
+        id: branchId,
         isActive: true,
         isDeleted: false,
       },
@@ -1249,7 +1341,7 @@ export const deleteBranch = async (req: Request, res: Response) => {
     // Check if branch is being used by any users
     const users = await prisma.user.count({
       where: {
-        branchId: id,
+        branchId: branchId,
         isActive: true,
         isDeleted: false,
       },
@@ -1261,7 +1353,7 @@ export const deleteBranch = async (req: Request, res: Response) => {
 
     // Soft delete branch
     await prisma.branch.update({
-      where: { id },
+      where: { id: branchId },
       data: {
         isActive: false,
         isDeleted: true,
@@ -1272,7 +1364,7 @@ export const deleteBranch = async (req: Request, res: Response) => {
     await prisma.auditLog.create({
       data: {
         entity: 'Branch',
-        entityId: id,
+        entityId: branchId,
         action: 'DELETE',
         oldValues: existingBranch,
         ipAddress: req.ip,
@@ -1297,15 +1389,17 @@ export const getCommissionRates = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    if (fromCityId) where.fromCityId = fromCityId as string;
-    if (toCityId) where.toCityId = toCityId as string;
+    if (fromCityId) {
+      const fromCityIdValue = getFirstValue(fromCityId);
+      if (fromCityIdValue) where.fromCityId = fromCityIdValue;
+    }
+    if (toCityId) {
+      const toCityIdValue = getFirstValue(toCityId);
+      if (toCityIdValue) where.toCityId = toCityIdValue;
+    }
 
     const commissionRates = await prisma.commissionRate.findMany({
       where,
-      include: {
-        fromCity: true,
-        toCity: true,
-      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -1318,16 +1412,17 @@ export const getCommissionRates = async (req: Request, res: Response) => {
 export const getCommissionRateById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const commissionRateId = getFirstValue(id);
+    
+    if (!commissionRateId) {
+      throw createError('Commission rate ID is required', 400);
+    }
 
     const commissionRate = await prisma.commissionRate.findFirst({
       where: {
-        id,
+        id: commissionRateId,
         isActive: true,
         isDeleted: false,
-      },
-      include: {
-        fromCity: true,
-        toCity: true,
       },
     });
 
@@ -1364,10 +1459,6 @@ export const createCommissionRate = async (req: Request, res: Response) => {
         maxAmount: maxAmount ? Number(maxAmount) : null,
         createdBy: userId!,
       },
-      include: {
-        fromCity: true,
-        toCity: true,
-      },
     });
 
     res.status(201).json({
@@ -1382,6 +1473,7 @@ export const createCommissionRate = async (req: Request, res: Response) => {
 export const updateCommissionRate = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const commissionRateId = getFirstValue(id);
     const {
       fromCityId,
       toCityId,
@@ -1392,11 +1484,15 @@ export const updateCommissionRate = async (req: Request, res: Response) => {
     } = req.body;
 
     const userId = req.user?.id;
+    
+    if (!commissionRateId) {
+      throw createError('Commission rate ID is required', 400);
+    }
 
     // Check if commission rate exists
     const existingRate = await prisma.commissionRate.findFirst({
       where: {
-        id,
+        id: commissionRateId,
         isActive: true,
         isDeleted: false,
       },
@@ -1407,7 +1503,7 @@ export const updateCommissionRate = async (req: Request, res: Response) => {
     }
 
     const commissionRate = await prisma.commissionRate.update({
-      where: { id },
+      where: { id: commissionRateId },
       data: {
         fromCityId,
         toCityId,
@@ -1416,17 +1512,13 @@ export const updateCommissionRate = async (req: Request, res: Response) => {
         minAmount: minAmount ? Number(minAmount) : null,
         maxAmount: maxAmount ? Number(maxAmount) : null,
       },
-      include: {
-        fromCity: true,
-        toCity: true,
-      },
     });
 
     // Create audit log
     await prisma.auditLog.create({
       data: {
         entity: 'CommissionRate',
-        entityId: id,
+        entityId: commissionRateId,
         action: 'UPDATE',
         oldValues: existingRate,
         newValues: commissionRate,
@@ -1448,12 +1540,17 @@ export const updateCommissionRate = async (req: Request, res: Response) => {
 export const deleteCommissionRate = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const commissionRateId = getFirstValue(id);
     const userId = req.user?.id;
+    
+    if (!commissionRateId) {
+      throw createError('Commission rate ID is required', 400);
+    }
 
     // Check if commission rate exists
     const existingRate = await prisma.commissionRate.findFirst({
       where: {
-        id,
+        id: commissionRateId,
         isActive: true,
         isDeleted: false,
       },
@@ -1465,7 +1562,7 @@ export const deleteCommissionRate = async (req: Request, res: Response) => {
 
     // Soft delete commission rate
     await prisma.commissionRate.update({
-      where: { id },
+      where: { id: commissionRateId },
       data: {
         isActive: false,
         isDeleted: true,
@@ -1476,7 +1573,7 @@ export const deleteCommissionRate = async (req: Request, res: Response) => {
     await prisma.auditLog.create({
       data: {
         entity: 'CommissionRate',
-        entityId: id,
+        entityId: commissionRateId,
         action: 'DELETE',
         oldValues: existingRate,
         ipAddress: req.ip,

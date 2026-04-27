@@ -3,59 +3,192 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { apiCall } from '@/store';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell
+} from 'recharts';
+import { 
+  TrendingUp, 
+  TrendingDown, 
+  DollarSign, 
+  Users, 
+  Clock, 
+  Activity,
+  ArrowUpRight,
+  ArrowDownRight,
+  RefreshCw
+} from 'lucide-react';
 
-interface DashboardStats {
-  totalTransactions: number;
-  totalAmount: number;
-  totalCommission: number;
-  inwardTransactions: number;
-  outwardTransactions: number;
-  pendingTransactions: number;
-  completedTransactions: number;
-}
-
+// Mock Data Interfaces
 interface Transaction {
   id: string;
-  transactionId: string;
   date: string;
-  type: string;
-  fromCity: { name: string };
-  toCity: { name: string };
-  party: { name: string };
+  time: string;
+  type: 'INWARD' | 'OUTWARD';
   amount: number;
   commission: number;
-  status: string;
+  center: string;
+  status: 'pending' | 'completed' | 'failed';
+  partyName: string;
+  cityName: string;
 }
 
+interface AccountingEntry {
+  id: string;
+  date: string;
+  amountType: 'INCOME' | 'EXPENSE';
+  amount: number;
+  category: string;
+  account: string;
+  remark: string;
+}
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: 'active' | 'inactive';
+}
+
+interface Category {
+  id: string;
+  name: string;
+  type: 'INCOME' | 'EXPENSE';
+}
+
+// Mock Data Store
+const mockTransactions: Transaction[] = [
+  { id: '1', date: '2025-01-27', time: '09:15', type: 'INWARD', amount: 5000, commission: 50, center: 'MUMBAI', status: 'completed', partyName: 'Raj Kumar', cityName: 'Mumbai' },
+  { id: '2', date: '2025-01-27', time: '10:30', type: 'OUTWARD', amount: 3000, commission: 30, center: 'DELHI', status: 'completed', partyName: 'Amit Singh', cityName: 'Delhi' },
+  { id: '3', date: '2025-01-27', time: '11:45', type: 'INWARD', amount: 7500, commission: 75, center: 'PUNE', status: 'pending', partyName: 'Priya Sharma', cityName: 'Pune' },
+  { id: '4', date: '2025-01-27', time: '13:00', type: 'OUTWARD', amount: 2000, commission: 20, center: 'BANGALORE', status: 'completed', partyName: 'Vijay Kumar', cityName: 'Bangalore' },
+  { id: '5', date: '2025-01-27', time: '14:15', type: 'INWARD', amount: 4500, commission: 45, center: 'CHENNAI', status: 'pending', partyName: 'Neha Gupta', cityName: 'Chennai' },
+  { id: '6', date: '2025-01-27', time: '15:30', type: 'OUTWARD', amount: 6000, commission: 60, center: 'KOLKATA', status: 'completed', partyName: 'Sanjay Patel', cityName: 'Kolkata' },
+  { id: '7', date: '2025-01-27', time: '16:45', type: 'INWARD', amount: 8000, commission: 80, center: 'HYDERABAD', status: 'completed', partyName: 'Anita Reddy', cityName: 'Hyderabad' },
+  { id: '8', date: '2025-01-27', time: '17:00', type: 'OUTWARD', amount: 3500, commission: 35, center: 'AHMEDABAD', status: 'pending', partyName: 'Rahul Shah', cityName: 'Ahmedabad' },
+];
+
+const mockAccountingEntries: AccountingEntry[] = [
+  { id: '1', date: '2025-01-27', amountType: 'INCOME', amount: 12000, category: 'Sales Revenue', account: 'Cash Account', remark: 'Daily sales' },
+  { id: '2', date: '2025-01-27', amountType: 'EXPENSE', amount: 3000, category: 'Office Supplies', account: 'Bank Account', remark: 'Stationery purchase' },
+  { id: '3', date: '2025-01-27', amountType: 'INCOME', amount: 8000, category: 'Service Income', account: 'Cash Account', remark: 'Consulting fees' },
+  { id: '4', date: '2025-01-27', amountType: 'EXPENSE', amount: 2500, category: 'Utilities', account: 'Bank Account', remark: 'Electricity bill' },
+  { id: '5', date: '2025-01-27', amountType: 'EXPENSE', amount: 1500, category: 'Transportation', account: 'Cash Account', remark: 'Fuel expenses' },
+];
+
+const mockUsers: User[] = [
+  { id: '1', name: 'Admin User', email: 'admin@company.com', role: 'admin', status: 'active' },
+  { id: '2', name: 'John Doe', email: 'john@company.com', role: 'operator', status: 'active' },
+  { id: '3', name: 'Jane Smith', email: 'jane@company.com', role: 'operator', status: 'active' },
+  { id: '4', name: 'Bob Wilson', email: 'bob@company.com', role: 'manager', status: 'inactive' },
+  { id: '5', name: 'Alice Brown', email: 'alice@company.com', role: 'operator', status: 'active' },
+];
+
+const mockCategories: Category[] = [
+  { id: '1', name: 'Sales Revenue', type: 'INCOME' },
+  { id: '2', name: 'Service Income', type: 'INCOME' },
+  { id: '3', name: 'Office Supplies', type: 'EXPENSE' },
+  { id: '4', name: 'Utilities', type: 'EXPENSE' },
+  { id: '5', name: 'Transportation', type: 'EXPENSE' },
+];
+
 export default function DashboardPage() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [quickForm, setQuickForm] = useState({
+    amount: '',
+    type: 'INWARD' as 'INWARD' | 'OUTWARD',
+    center: ''
+  });
+  const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
+  const [accountingEntries] = useState<AccountingEntry[]>(mockAccountingEntries);
+  const [users] = useState<User[]>(mockUsers);
+  const [categories] = useState<Category[]>(mockCategories);
 
+  // Handle events from layout-wrapper
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const [statsResponse, transactionsResponse] = await Promise.all([
-          apiCall('/api/transactions/stats'),
-          apiCall('/api/transactions')
-        ]);
-
-        const statsData = await statsResponse.json();
-        const transactionsData = await transactionsResponse.json();
-
-        setStats(statsData);
-        setRecentTransactions(transactionsData.transactions || []);
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
-      } finally {
-        setLoading(false);
-      }
+    const handleDateChange = (e: CustomEvent) => {
+      setSelectedDate(e.detail);
     };
 
-    fetchDashboardData();
+    const handleRefresh = () => {
+      // Refresh logic here - for now just re-render
+      setTransactions([...mockTransactions]);
+    };
+
+    window.addEventListener('setDashboardDate', handleDateChange as EventListener);
+    window.addEventListener('refreshDashboard', handleRefresh as EventListener);
+    
+    return () => {
+      window.removeEventListener('setDashboardDate', handleDateChange as EventListener);
+      window.removeEventListener('refreshDashboard', handleRefresh as EventListener);
+    };
   }, []);
 
+  // Calculate KPIs
+  const todayTransactions = transactions.filter(t => t.date === selectedDate);
+  const outwardBooking = todayTransactions.filter(t => t.type === 'OUTWARD').reduce((sum, t) => sum + t.amount, 0);
+  const inwardBooking = todayTransactions.filter(t => t.type === 'INWARD').reduce((sum, t) => sum + t.amount, 0);
+  const centerCommission = todayTransactions.reduce((sum, t) => sum + t.commission, 0);
+  const totalUsers = users.filter(u => u.status === 'active').length;
+  const pendingBooking = todayTransactions.filter(t => t.status === 'pending').length;
+  const totalTransactionsToday = todayTransactions.length;
+
+  // Today's accounting data
+  const todayIncome = accountingEntries
+    .filter(e => e.date === selectedDate && e.amountType === 'INCOME')
+    .reduce((sum, e) => sum + e.amount, 0);
+  const todayExpense = accountingEntries
+    .filter(e => e.date === selectedDate && e.amountType === 'EXPENSE')
+    .reduce((sum, e) => sum + e.amount, 0);
+  const netBalance = todayIncome - todayExpense;
+
+  // Chart data preparation
+  const hourlyData = Array.from({ length: 8 }, (_, i) => {
+    const hour = 9 + i;
+    const hourTransactions = todayTransactions.filter(t => {
+      const transactionHour = parseInt(t.time.split(':')[0]);
+      return transactionHour === hour;
+    });
+    
+    return {
+      hour: `${hour}:00`,
+      outward: hourTransactions.filter(t => t.type === 'OUTWARD').reduce((sum, t) => sum + t.amount, 0),
+      inward: hourTransactions.filter(t => t.type === 'INWARD').reduce((sum, t) => sum + t.amount, 0),
+    };
+  });
+
+  const incomeExpenseData = [
+    { name: 'Income', value: todayIncome, color: '#10b981' },
+    { name: 'Expense', value: todayExpense, color: '#ef4444' },
+  ];
+
+  const categoryData = categories.map(cat => {
+    const categoryTotal = accountingEntries
+      .filter(e => e.category === cat.name && e.date === selectedDate)
+      .reduce((sum, e) => sum + e.amount, 0);
+    return {
+      name: cat.name,
+      value: categoryTotal,
+      color: cat.type === 'INCOME' ? '#10b981' : '#ef4444'
+    };
+  }).filter(cat => cat.value > 0);
+
+  const recentTransactions = transactions.slice(0, 10);
+
+  // Format utilities
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -71,179 +204,366 @@ export default function DashboardPage() {
     });
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
+  // Quick transaction handler
+  const handleQuickTransaction = () => {
+    if (quickForm.amount && quickForm.center) {
+      const newTransaction: Transaction = {
+        id: String(transactions.length + 1),
+        date: selectedDate,
+        time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+        type: quickForm.type,
+        amount: parseFloat(quickForm.amount),
+        commission: parseFloat(quickForm.amount) * 0.01, // 1% commission
+        center: quickForm.center.toUpperCase(),
+        status: 'pending',
+        partyName: 'Quick Entry',
+        cityName: quickForm.center
+      };
+      
+      setTransactions([newTransaction, ...transactions]);
+      setQuickForm({ amount: '', type: 'INWARD', center: '' });
+    }
+  };
+
+  // Navigation handlers
+  const navigateToPage = (page: string) => {
+    window.location.href = `/${page}`;
+  };
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-        <p className="text-gray-400 mt-2">Welcome back! Here's an overview of your business.</p>
-      </div>
+    <div className="bg-white min-h-screen w-full">
+      <div className="pt-16 space-y-4 sm:space-y-6 p-6">
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="bg-gradient-to-br from-blue-900/50 to-blue-800/30 border-blue-800/50">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-blue-300">Total Transactions</CardTitle>
-            <svg className="h-4 w-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-            </svg>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">{stats?.totalTransactions || 0}</div>
-            <p className="text-xs text-blue-400 mt-1">All time transactions</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-green-900/50 to-green-800/30 border-green-800/50">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-green-300">Total Amount</CardTitle>
-            <svg className="h-4 w-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">{formatCurrency(stats?.totalAmount || 0)}</div>
-            <p className="text-xs text-green-400 mt-1">Total transaction value</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-purple-900/50 to-purple-800/30 border-purple-800/50">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-purple-300">Commission Earned</CardTitle>
-            <svg className="h-4 w-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12z" />
-            </svg>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">{formatCurrency(stats?.totalCommission || 0)}</div>
-            <p className="text-xs text-purple-400 mt-1">Total commission income</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-orange-900/50 to-orange-800/30 border-orange-800/50">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-orange-300">Pending</CardTitle>
-            <svg className="h-4 w-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">{stats?.pendingTransactions || 0}</div>
-            <p className="text-xs text-orange-400 mt-1">Pending transactions</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Transaction Types */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="bg-gray-900 border-gray-800">
-          <CardHeader>
-            <CardTitle className="text-white">Transaction Types</CardTitle>
-            <CardDescription className="text-gray-400">Breakdown of transaction types</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                <span className="text-sm text-gray-300">Inward Transactions</span>
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Card className="shadow-sm border-gray-200 bg-white">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Outward Booking</p>
+                  <p className="text-2xl font-bold text-blue-600 mt-1">{formatCurrency(outwardBooking)}</p>
+                </div>
+                <div className="bg-blue-100 p-3 rounded-lg">
+                  <TrendingUp className="h-6 w-6 text-blue-600" />
+                </div>
               </div>
-              <span className="text-lg font-semibold text-white">{stats?.inwardTransactions || 0}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                <span className="text-sm text-gray-300">Outward Transactions</span>
-              </div>
-              <span className="text-lg font-semibold text-white">{stats?.outwardTransactions || 0}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                <span className="text-sm text-gray-300">Completed Transactions</span>
-              </div>
-              <span className="text-lg font-semibold text-white">{stats?.completedTransactions || 0}</span>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card className="bg-gray-900 border-gray-800">
-          <CardHeader>
-            <CardTitle className="text-white">Quick Actions</CardTitle>
-            <CardDescription className="text-gray-400">Common tasks and shortcuts</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white">
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              New Transaction
-            </Button>
-            <Button variant="outline" className="w-full border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white">
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              View Reports
-            </Button>
-            <Button variant="outline" className="w-full border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white">
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a1 1 0 001 1h4a1 1 0 001-1v-1m-6 0V8a1 1 0 011-1H4a1 1 0 00-1 1v8a1 1 0 001 1h4a1 1 0 001-1v-1z" />
-              </svg>
-              Manage Parties
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Transactions */}
-      <Card className="bg-gray-900 border-gray-800">
-        <CardHeader>
-          <CardTitle className="text-white">Recent Transactions</CardTitle>
-          <CardDescription className="text-gray-400">Latest transactions in your account</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {recentTransactions.length === 0 ? (
-              <div className="text-center py-8">
-                <svg className="w-12 h-12 text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p className="text-gray-400">No transactions yet</p>
-                <p className="text-sm text-gray-500 mt-1">Create your first transaction to get started</p>
+          <Card className="shadow-sm border-gray-200 bg-white">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Inward Booking</p>
+                  <p className="text-2xl font-bold text-indigo-600 mt-1">{formatCurrency(inwardBooking)}</p>
+                </div>
+                <div className="bg-indigo-100 p-3 rounded-lg">
+                  <TrendingDown className="h-6 w-6 text-indigo-600" />
+                </div>
               </div>
-            ) : (
-              recentTransactions.slice(0, 5).map((transaction) => (
-                <div key={transaction.id} className="flex items-center justify-between p-4 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors duration-200">
-                  <div className="flex items-center space-x-4">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      transaction.type === 'INWARD' ? 'bg-blue-500/20 text-blue-400' : 'bg-green-500/20 text-green-400'
-                    }`}>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="font-medium text-white">{transaction.party.name}</p>
-                      <p className="text-sm text-gray-400">{transaction.fromCity.name} → {transaction.toCity.name}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-white">{formatCurrency(transaction.amount)}</p>
-                    <p className="text-xs text-gray-400">{formatDate(transaction.date)}</p>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm border-gray-200 bg-white">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Center Commission</p>
+                  <p className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(centerCommission)}</p>
+                </div>
+                <div className="bg-green-100 p-3 rounded-lg">
+                  <DollarSign className="h-6 w-6 text-green-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm border-gray-200 bg-white">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Users</p>
+                  <p className="text-2xl font-bold text-purple-600 mt-1">{totalUsers}</p>
+                </div>
+                <div className="bg-purple-100 p-3 rounded-lg">
+                  <Users className="h-6 w-6 text-purple-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm border-gray-200 bg-white">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Pending Booking</p>
+                  <p className="text-2xl font-bold text-orange-600 mt-1">{pendingBooking}</p>
+                </div>
+                <div className="bg-orange-100 p-3 rounded-lg">
+                  <Clock className="h-6 w-6 text-orange-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm border-gray-200 bg-white">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Transactions</p>
+                  <p className="text-2xl font-bold text-gray-600 mt-1">{totalTransactionsToday}</p>
+                </div>
+                <div className="bg-gray-100 p-3 rounded-lg">
+                  <Activity className="h-6 w-6 text-gray-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Charts Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card className="shadow-sm border-gray-200 bg-white lg:col-span-1">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold text-gray-900">Transactions Overview</CardTitle>
+              <CardDescription>Hourly transaction amounts</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={hourlyData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="hour" tick={{ fontSize: 12 }} stroke="#666" />
+                  <YAxis tick={{ fontSize: 12 }} stroke="#666" />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="outward" stroke="#3b82f6" strokeWidth={2} name="Outward" />
+                  <Line type="monotone" dataKey="inward" stroke="#6366f1" strokeWidth={2} name="Inward" />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm border-gray-200 bg-white lg:col-span-1">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold text-gray-900">Income vs Expense</CardTitle>
+              <CardDescription>Today's financial overview</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={incomeExpenseData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="#666" />
+                  <YAxis tick={{ fontSize: 12 }} stroke="#666" />
+                  <Tooltip />
+                  {incomeExpenseData.map((entry, index) => (
+                    <Bar key={`bar-${index}`} dataKey="value" fill={entry.color} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm border-gray-200 bg-white lg:col-span-1">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold text-gray-900">Category Distribution</CardTitle>
+              <CardDescription>Spending by category</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {categoryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Recent Transactions and Quick Actions */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card className="shadow-sm border-gray-200 bg-white lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold text-gray-900">Recent Transactions</CardTitle>
+              <CardDescription>Last 10 transactions</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-2 px-2 text-sm font-medium text-gray-700">ID</th>
+                      <th className="text-left py-2 px-2 text-sm font-medium text-gray-700">Date</th>
+                      <th className="text-left py-2 px-2 text-sm font-medium text-gray-700">Time</th>
+                      <th className="text-left py-2 px-2 text-sm font-medium text-gray-700">Type</th>
+                      <th className="text-right py-2 px-2 text-sm font-medium text-gray-700">Amount</th>
+                      <th className="text-left py-2 px-2 text-sm font-medium text-gray-700">Center</th>
+                      <th className="text-left py-2 px-2 text-sm font-medium text-gray-700">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentTransactions.map((transaction) => (
+                      <tr 
+                        key={transaction.id} 
+                        className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => navigateToPage('transactions')}
+                      >
+                        <td className="py-2 px-2 text-sm text-gray-900">{transaction.id}</td>
+                        <td className="py-2 px-2 text-sm text-gray-900">{formatDate(transaction.date)}</td>
+                        <td className="py-2 px-2 text-sm text-gray-900">{transaction.time}</td>
+                        <td className="py-2 px-2 text-sm">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            transaction.type === 'INWARD' 
+                              ? 'bg-blue-100 text-blue-800' 
+                              : 'bg-green-100 text-green-800'
+                          }`}>
+                            {transaction.type}
+                          </span>
+                        </td>
+                        <td className="py-2 px-2 text-sm text-right font-medium text-gray-900">
+                          {formatCurrency(transaction.amount)}
+                        </td>
+                        <td className="py-2 px-2 text-sm text-gray-900">{transaction.center}</td>
+                        <td className="py-2 px-2 text-sm">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            transaction.status === 'completed' 
+                              ? 'bg-green-100 text-green-800'
+                              : transaction.status === 'pending'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {transaction.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="space-y-6">
+            {/* Quick Action Form */}
+            <Card className="shadow-sm border-gray-200 bg-white">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold text-gray-900">Quick Transaction</CardTitle>
+                <CardDescription>Add transaction instantly</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="quickAmount" className="text-sm font-medium text-gray-700">Amount</Label>
+                  <Input
+                    id="quickAmount"
+                    type="number"
+                    value={quickForm.amount}
+                    onChange={(e) => setQuickForm(prev => ({ ...prev, amount: e.target.value }))}
+                    className="mt-1 bg-white border-gray-300 text-black font-bold text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder:text-gray-600"
+                    placeholder="Enter amount"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="quickType" className="text-sm font-medium text-gray-700">Type</Label>
+                  <select
+                    id="quickType"
+                    value={quickForm.type}
+                    onChange={(e) => setQuickForm(prev => ({ ...prev, type: e.target.value as 'INWARD' | 'OUTWARD' }))}
+                    className="w-full mt-1 px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="INWARD">Inward</option>
+                    <option value="OUTWARD">Outward</option>
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="quickCenter" className="text-sm font-medium text-gray-700">Center</Label>
+                  <Input
+                    id="quickCenter"
+                    value={quickForm.center}
+                    onChange={(e) => setQuickForm(prev => ({ ...prev, center: e.target.value }))}
+                    className="mt-1 bg-white border-gray-300 text-black focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder:text-gray-600"
+                    placeholder="Enter center"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Accounting Snapshot */}
+            <Card className="shadow-sm border-gray-200 bg-white">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold text-gray-900">Accounting Snapshot</CardTitle>
+                <CardDescription>Today's financial summary</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Today Income</span>
+                  <span className="text-sm font-semibold text-green-600">{formatCurrency(todayIncome)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Today Expense</span>
+                  <span className="text-sm font-semibold text-red-600">{formatCurrency(todayExpense)}</span>
+                </div>
+                <div className="border-t pt-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-900">Net Balance</span>
+                    <span className={`text-sm font-bold ${netBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrency(netBalance)}
+                    </span>
                   </div>
                 </div>
-              ))
-            )}
+              </CardContent>
+            </Card>
+
+            {/* Quick Navigation */}
+            <Card className="shadow-sm border-gray-200 bg-white">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold text-gray-900">Quick Navigation</CardTitle>
+                <CardDescription>Jump to any module</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Button 
+                  variant="outline" 
+                  className="w-full border-gray-300 text-gray-50 hover:bg-gray-100 hover:text-gray-900 hover:border-gray-400"
+                  onClick={() => navigateToPage('transactions')}
+                >
+                  Go to Transactions
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full border-gray-300 text-gray-50 hover:bg-gray-100 hover:text-gray-900 hover:border-gray-400"
+                  onClick={() => navigateToPage('accounting')}
+                >
+                  Go to Accounting
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full border-gray-300 text-gray-50 hover:bg-gray-100 hover:text-gray-900 hover:border-gray-400"
+                  onClick={() => navigateToPage('reports')}
+                >
+                  Go to Reports
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full border-gray-300 text-gray-50 hover:bg-gray-100 hover:text-gray-900 hover:border-gray-400"
+                  onClick={() => navigateToPage('balance-sheet')}
+                >
+                  Go to Balance Sheet
+                </Button>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

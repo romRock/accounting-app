@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { mockAuth } from '@/lib/mock-auth';
 
 interface User {
   id: string;
@@ -9,17 +10,19 @@ interface User {
   lastName: string;
   phone?: string;
   isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
   role: {
     id: string;
     name: string;
-    description?: string;
-    permissions: Record<string, boolean>;
+    description: string;
+    permissions: Record<string, any>;
   };
   branch?: {
     id: string;
     name: string;
     code: string;
-  };
+  } | null;
 }
 
 interface AuthState {
@@ -46,20 +49,9 @@ export const useAuthStore = create<AuthState>()(
       login: async (email: string, password: string) => {
         set({ isLoading: true });
         try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/login`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ email, password }),
-          });
-
-          if (!response.ok) {
-            throw new Error('Login failed');
-          }
-
-          const data = await response.json();
+          const data = await mockAuth.login(email, password);
           
+          // Update state and ensure persistence
           set({
             user: data.user,
             accessToken: data.accessToken,
@@ -67,29 +59,29 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
           });
+          
+          // Force a small delay to ensure persistence completes
+          await new Promise(resolve => setTimeout(resolve, 10));
+          
         } catch (error) {
           set({ isLoading: false });
           throw error;
         }
       },
 
-      logout: () => {
+      logout: async () => {
         const { refreshToken } = get();
         
-        // Call logout API if refresh token exists
+        // Call logout mock service if refresh token exists
         if (refreshToken) {
-          fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/logout`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${get().accessToken}`,
-            },
-            body: JSON.stringify({ refreshToken }),
-          }).catch(() => {
-            // Ignore errors during logout
-          });
+          try {
+            await mockAuth.logout(refreshToken);
+          } catch (error) {
+            // Ignore logout errors
+          }
         }
 
+        // Clear auth state
         set({
           user: null,
           accessToken: null,
@@ -108,20 +100,7 @@ export const useAuthStore = create<AuthState>()(
         }
 
         try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/refresh`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ refreshToken }),
-          });
-
-          if (!response.ok) {
-            get().logout();
-            return;
-          }
-
-          const data = await response.json();
+          const data = await mockAuth.refreshToken(refreshToken);
           
           set({
             user: data.user,

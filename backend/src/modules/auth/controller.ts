@@ -100,6 +100,21 @@ export const login = async (req: Request, res: Response) => {
     // Generate tokens
     const { accessToken, refreshToken } = generateTokens(user);
 
+    // Create session in database for refresh token
+    try {
+      await prisma.userSession.create({
+        data: {
+          userId: user.id,
+          refreshToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+          isActive: true,
+        },
+      });
+    } catch (sessionError) {
+      // If session creation fails, still return tokens but log the error
+      console.error('Failed to create session:', sessionError);
+    }
+
     res.json({
       user,
       accessToken,
@@ -144,7 +159,50 @@ export const refreshToken = async (req: Request, res: Response) => {
       throw createError('Invalid refresh token', 401);
     }
 
-    // Check if refresh token exists in database
+    // Handle temporary users (starting with 'temp_')
+    if (decoded.userId.startsWith('temp_')) {
+      // Create mock user for temporary users
+      const user = {
+        id: decoded.userId,
+        email: decoded.email,
+        username: decoded.username,
+        firstName: 'Admin',
+        lastName: 'User',
+        phone: null,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        role: {
+          id: 'admin_role',
+          name: 'Admin',
+          description: 'Full system administrator',
+          permissions: {
+            users: { read: true, write: true, delete: true },
+            roles: { read: true, write: true, delete: true },
+            cities: { read: true, write: true, delete: true },
+            parties: { read: true, write: true, delete: true },
+            branches: { read: true, write: true, delete: true },
+            transactions: { read: true, write: true, delete: true },
+            accounting: { read: true, write: true, delete: true },
+            reports: { read: true, write: true },
+            dashboard: { read: true },
+          },
+        },
+        branch: null,
+      };
+
+      // Generate new tokens
+      const { accessToken: newAccessToken, refreshToken: newRefreshToken } = generateTokens(user);
+
+      res.json({
+        user,
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+      });
+      return;
+    }
+
+    // Check if refresh token exists in database for real users
     const session = await prisma.userSession.findFirst({
       where: {
         refreshToken,

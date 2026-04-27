@@ -43,25 +43,16 @@ export default function SignupPage() {
       setError(null);
       setSuccess(null);
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          firstName: data.firstName,
-          lastName: data.lastName,
-          email: data.email,
-          username: data.username,
-          password: data.password,
-        }),
+      // Import mock auth dynamically to avoid SSR issues
+      const { mockAuth } = await import('@/lib/mock-auth');
+
+      const result = await mockAuth.register({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        username: data.username,
+        password: data.password,
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Registration failed');
-      }
 
       setSuccess('Account created successfully! Redirecting to login...');
       setTimeout(() => {

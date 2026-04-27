@@ -35,8 +35,28 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginForm) => {
     try {
       setError(null);
-      await login(data.email, data.password);
-      router.push('/dashboard');
+      
+      // Perform login with a callback to handle successful authentication
+      await new Promise<void>(async (resolve, reject) => {
+        try {
+          await login(data.email, data.password);
+          
+          // Wait a moment for state to be persisted
+          setTimeout(() => {
+            const { isAuthenticated } = useAuthStore.getState();
+            if (isAuthenticated) {
+              router.push('/dashboard');
+              resolve();
+            } else {
+              setError('Login failed - please try again');
+              reject(new Error('Authentication failed'));
+            }
+          }, 100);
+        } catch (error) {
+          reject(error);
+        }
+      });
+      
     } catch (err) {
       setError('Invalid email or password');
     }

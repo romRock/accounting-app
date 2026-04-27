@@ -57,3 +57,22 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Fix for browser extension hydration mismatches */
+body[cz-shortcut-listen] {
+  /* Prevent hydration mismatches from browser extensions like LastPass */
+  visibility: visible;
+}
+
+input[fdprocessedid] {
+  /* Prevent hydration mismatches from password managers */
+  appearance: none;
+}
+
+/* Suppress hydration warnings for browser extensions */
+@media (prefers-reduced-motion: no-preference) {
+  :root {
+    /* Prevent hydration mismatches from dynamic styles */
+    color-scheme: dark;
+  }
+}

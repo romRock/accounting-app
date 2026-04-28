@@ -29,6 +29,7 @@ export default function LayoutWrapper({
     { key: 'd', action: () => router.push('/'), description: 'Navigate to Dashboard' },
     { key: 't', action: () => router.push('/transactions'), description: 'Navigate to Transactions' },
     { key: 'a', action: () => router.push('/accounting'), description: 'Navigate to Accounting' },
+    { key: 'w', action: () => router.push('/hawala'), description: 'Navigate to Hawala' },
     { key: 's', action: () => router.push('/spl'), description: 'Navigate to Special Entry' },
     { key: 'b', action: () => router.push('/balance-sheet'), description: 'Navigate to Balance Sheet' },
     { key: 'r', action: () => router.push('/reports'), description: 'Navigate to Reports' },
@@ -153,6 +154,15 @@ export default function LayoutWrapper({
       )
     },
     { 
+      name: 'Hawala', 
+      href: '/hawala', 
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
+    },
+    { 
       name: 'Special Entry', 
       href: '/spl', 
       icon: (
@@ -240,6 +250,9 @@ export default function LayoutWrapper({
                 )}
                 {item.name === 'Accounting' && (
                   <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ A ]</span>
+                )}
+                {item.name === 'Hawala' && (
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ W ]</span>
                 )}
                 {item.name === 'Special Entry' && (
                   <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ S ]</span>
@@ -642,6 +655,9 @@ export default function LayoutWrapper({
                 )}
                 {item.name === 'Accounting' && (
                   <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ A ]</span>
+                )}
+                {item.name === 'Hawala' && (
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ W ]</span>
                 )}
                 {item.name === 'Balance Sheet' && (
                   <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ B ]</span>

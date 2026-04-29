@@ -16,7 +16,7 @@ import { errorHandler } from './middlewares/errorHandler';
 import { requestLogger } from './middlewares/requestLogger';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
 const prisma = new PrismaClient();
 
 // Enhanced database connection and admin seeding

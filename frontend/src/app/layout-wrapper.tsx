@@ -83,7 +83,7 @@ export default function LayoutWrapper({
     const checkAuth = () => {
       const { isAuthenticated: currentAuthState } = useAuthStore.getState();
       
-      if (!currentAuthState && pathname !== '/login' && pathname !== '/signup') {
+      if (!currentAuthState && pathname !== '/login') {
         router.push('/login');
       }
       
@@ -96,8 +96,8 @@ export default function LayoutWrapper({
     const timer2 = setTimeout(checkAuth, 300);
     
     // Also check on route changes
-    if (!isAuthenticated && pathname !== '/login' && pathname !== '/signup') {
-      checkAuth();
+    if (!isAuthenticated && pathname !== '/login') {
+      router.push('/login');
     }
 
     return () => {
@@ -107,7 +107,7 @@ export default function LayoutWrapper({
   }, [isAuthenticated, pathname, router]);
 
   // Show loading state while checking auth
-  if (isCheckingAuth && pathname !== '/login' && pathname !== '/signup') {
+  if (isCheckingAuth && pathname !== '/login') {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -115,7 +115,7 @@ export default function LayoutWrapper({
     );
   }
 
-  if (pathname === '/login' || pathname === '/signup') {
+  if (pathname === '/login') {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="max-w-md w-full space-y-8 p-8">

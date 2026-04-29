@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { mockAuth } from '@/lib/mock-auth';
+import { authApi } from '@/lib/auth';
 
 interface User {
   id: string;
@@ -49,7 +49,7 @@ export const useAuthStore = create<AuthState>()(
       login: async (email: string, password: string) => {
         set({ isLoading: true });
         try {
-          const data = await mockAuth.login(email, password);
+          const data = await authApi.login(email, password);
           
           // Update state and ensure persistence
           set({
@@ -72,16 +72,16 @@ export const useAuthStore = create<AuthState>()(
       logout: async () => {
         const { refreshToken } = get();
         
-        // Call logout mock service if refresh token exists
+        // Call logout API if refresh token exists
         if (refreshToken) {
           try {
-            await mockAuth.logout(refreshToken);
+            await authApi.logout(refreshToken);
           } catch (error) {
-            // Ignore logout errors
+            console.error('Logout error:', error);
           }
         }
-
-        // Clear auth state
+        
+        // Clear state
         set({
           user: null,
           accessToken: null,
@@ -100,7 +100,7 @@ export const useAuthStore = create<AuthState>()(
         }
 
         try {
-          const data = await mockAuth.refreshToken(refreshToken);
+          const data = await authApi.refreshToken(refreshToken);
           
           set({
             user: data.user,
@@ -109,7 +109,9 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
           });
         } catch (error) {
+          // If refresh fails, logout user
           get().logout();
+          throw error;
         }
       },
 

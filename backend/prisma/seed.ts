@@ -13,7 +13,7 @@ async function main() {
     create: {
       name: 'Admin',
       description: 'Full system administrator',
-      permissions: {
+      permissions: JSON.stringify({
         users: { read: true, write: true, delete: true },
         roles: { read: true, write: true, delete: true },
         cities: { read: true, write: true, delete: true },
@@ -23,7 +23,7 @@ async function main() {
         accounting: { read: true, write: true, delete: true },
         reports: { read: true, write: true },
         dashboard: { read: true },
-      },
+      }),
       isActive: true,
     },
   });
@@ -35,7 +35,7 @@ async function main() {
     create: {
       name: 'Operator',
       description: 'Day-to-day operations user',
-      permissions: {
+      permissions: JSON.stringify({
         users: { read: true },
         roles: { read: true },
         cities: { read: true },
@@ -45,7 +45,7 @@ async function main() {
         accounting: { read: true, write: true },
         reports: { read: true },
         dashboard: { read: true },
-      },
+      }),
       isActive: true,
     },
   });
@@ -57,7 +57,7 @@ async function main() {
     create: {
       name: 'Viewer',
       description: 'Read-only access',
-      permissions: {
+      permissions: JSON.stringify({
         users: { read: true },
         roles: { read: true },
         cities: { read: true },
@@ -67,7 +67,7 @@ async function main() {
         accounting: { read: true },
         reports: { read: true },
         dashboard: { read: true },
-      },
+      }),
       isActive: true,
     },
   });
@@ -143,12 +143,12 @@ async function main() {
   });
 
   // Create default admin user
-  const hashedPassword = await bcrypt.hash('admin123', 12);
+  const hashedPassword = await bcrypt.hash('admin@1234', 10);
   const adminUser = await prisma.user.upsert({
-    where: { email: 'admin@accounting.com' },
+    where: { email: 'admin@mail.com' },
     update: {},
     create: {
-      email: 'admin@accounting.com',
+      email: 'admin@mail.com',
       username: 'admin',
       password: hashedPassword,
       firstName: 'System',
@@ -221,7 +221,7 @@ async function main() {
 
   console.log('✅ Database seeding completed successfully!');
   console.log('\n📋 Default Login Credentials:');
-  console.log('🔑 Admin: admin@accounting.com / admin123');
+  console.log('🔑 Admin: admin@mail.com / admin@1234');
   console.log('🔑 Operator: operator@accounting.com / operator123');
 }
 

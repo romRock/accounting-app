@@ -1,166 +1,143 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id          String   @id @default(cuid())
-  email       String   @unique
-  username    String   @unique
-  password    String
-  firstName   String
-  lastName    String
-  phone       String?
-  isActive    Boolean  @default(true)
-  isDeleted   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  roleId      String
-  role        Role     @relation(fields: [roleId], references: [id])
-  branchId    String?
-  branch      Branch?  @relation(fields: [branchId], references: [id])
-
-  // Created by relationships
-  createdTransactions Transaction[] @relation("TransactionCreator")
+  id                   String        @id @default(cuid())
+  email                String        @unique
+  username             String        @unique
+  password             String
+  firstName            String
+  lastName             String
+  phone                String?
+  isActive             Boolean       @default(true)
+  isDeleted            Boolean       @default(false)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  roleId               String
+  branchId             String?
+  createdAuditLogs     AuditLog[]
   createdLedgerEntries LedgerEntry[] @relation("LedgerCreator")
-  createdAuditLogs    AuditLog[]
+  createdTransactions  Transaction[] @relation("TransactionCreator")
+  userSessions         UserSession[]
+  branch               Branch?       @relation(fields: [branchId], references: [id])
+  role                 Role          @relation(fields: [roleId], references: [id])
 
-  // User-specific data
-  userSessions UserSession[]
-
-  @@map("users")
   @@index([email])
   @@index([username])
   @@index([roleId])
   @@index([branchId])
   @@index([createdAt])
+  @@map("users")
 }
 
 model Role {
   id          String   @id @default(cuid())
   name        String   @unique
   description String?
-  permissions String     // Store permissions as JSON string
+  permissions String
   isActive    Boolean  @default(true)
   isDeleted   Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  // Relations
-  users User[]
+  users       User[]
 
   @@map("roles")
 }
 
 model Branch {
-  id          String   @id @default(cuid())
-  name        String
-  code        String   @unique
-  address     String?
-  phone       String?
-  email       String?
-  isActive    Boolean  @default(true)
-  isDeleted   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  users         User[]
-  transactions  Transaction[]
-  ledgerEntries LedgerEntry[]
+  id            String         @id @default(cuid())
+  name          String
+  code          String         @unique
+  address       String?
+  phone         String?
+  email         String?
+  isActive      Boolean        @default(true)
+  isDeleted     Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   balanceSheets BalanceSheet[]
+  ledgerEntries LedgerEntry[]
+  transactions  Transaction[]
+  users         User[]
 
-  @@map("branches")
   @@index([code])
   @@index([createdAt])
+  @@map("branches")
 }
 
 model City {
-  id          String   @id @default(cuid())
-  name        String
-  code        String   @unique
-  state       String?
-  isActive    Boolean  @default(true)
-  isDeleted   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
+  id               String        @id @default(cuid())
+  name             String
+  code             String        @unique
+  state            String?
+  isActive         Boolean       @default(true)
+  isDeleted        Boolean       @default(false)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  parties          Party[]
   fromTransactions Transaction[] @relation("FromCity")
   toTransactions   Transaction[] @relation("ToCity")
-  parties          Party[]
 
-  @@map("cities")
   @@index([code])
   @@index([name])
+  @@map("cities")
 }
 
 model Party {
-  id          String   @id @default(cuid())
-  name        String
-  phone       String?
-  email       String?
-  address     String?
-  panNumber   String?
-  gstNumber   String?
-  isActive    Boolean  @default(true)
-  isDeleted   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  cityId String
-  city   City   @relation(fields: [cityId], references: [id])
-
+  id           String        @id @default(cuid())
+  name         String
+  phone        String?
+  email        String?
+  address      String?
+  panNumber    String?
+  gstNumber    String?
+  isActive     Boolean       @default(true)
+  isDeleted    Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  cityId       String
+  city         City          @relation(fields: [cityId], references: [id])
   transactions Transaction[]
 
-  @@map("parties")
   @@index([name])
   @@index([cityId])
   @@index([createdAt])
+  @@map("parties")
 }
 
 model Transaction {
-  id              String    @id @default(cuid())
-  transactionId   String    @unique // Auto-generated unique transaction ID
-  date            DateTime
-  type            String
-  fromCityId      String
-  toCityId        String
-  partyId         String
-  amount          Float   // High precision for financial data
-  commission      Float
-  paymentType     String
-  referenceId     String?
-  notes           String?
-  status          String @default("PENDING")
-  isActive        Boolean   @default(true)
-  isDeleted       Boolean   @default(false)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  // Relations
-  fromCity City        @relation("FromCity", fields: [fromCityId], references: [id])
-  toCity   City        @relation("ToCity", fields: [toCityId], references: [id])
-  party    Party       @relation(fields: [partyId], references: [id])
-  branchId String?
-  branch   Branch?     @relation(fields: [branchId], references: [id])
-  createdBy String
-  creator  User        @relation("TransactionCreator", fields: [createdBy], references: [id])
-
-  // Accounting entries
+  id            String        @id @default(cuid())
+  transactionId String        @unique
+  date          DateTime
+  type          String
+  fromCityId    String
+  toCityId      String
+  partyId       String
+  amount        Float
+  commission    Float
+  paymentType   String
+  referenceId   String?
+  notes         String?
+  status        String        @default("PENDING")
+  isActive      Boolean       @default(true)
+  isDeleted     Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  branchId      String?
+  createdBy     String
   ledgerEntries LedgerEntry[]
+  branch        Branch?       @relation(fields: [branchId], references: [id])
+  creator       User          @relation("TransactionCreator", fields: [createdBy], references: [id])
+  fromCity      City          @relation("FromCity", fields: [fromCityId], references: [id])
+  party         Party         @relation(fields: [partyId], references: [id])
+  toCity        City          @relation("ToCity", fields: [toCityId], references: [id])
 
-  @@map("transactions")
   @@index([transactionId])
   @@index([date])
   @@index([type])
@@ -171,31 +148,29 @@ model Transaction {
   @@index([branchId])
   @@index([createdBy])
   @@index([createdAt])
+  @@map("transactions")
 }
 
 model LedgerEntry {
-  id          String    @id @default(cuid())
-  date        DateTime
-  accountId   String    // Account identifier (could be party, branch, etc.)
-  accountType String    // Type of account (party, branch, cash, etc.)
-  description String
-  debitAmount Float?
-  creditAmount Float?
-  balance     Float   // Running balance
-  isActive    Boolean   @default(true)
-  isDeleted   Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  // Relations
+  id            String       @id @default(cuid())
+  date          DateTime
+  accountId     String
+  accountType   String
+  description   String
+  debitAmount   Float?
+  creditAmount  Float?
+  balance       Float
+  isActive      Boolean      @default(true)
+  isDeleted     Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
   transactionId String?
-  transaction   Transaction? @relation(fields: [transactionId], references: [id])
   branchId      String?
-  branch        Branch?      @relation(fields: [branchId], references: [id])
   createdBy     String
+  branch        Branch?      @relation(fields: [branchId], references: [id])
   creator       User         @relation("LedgerCreator", fields: [createdBy], references: [id])
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
 
-  @@map("ledger_entries")
   @@index([date])
   @@index([accountId])
   @@index([accountType])
@@ -203,54 +178,51 @@ model LedgerEntry {
   @@index([branchId])
   @@index([createdBy])
   @@index([createdAt])
+  @@map("ledger_entries")
 }
 
 model BalanceSheet {
-  id              String    @id @default(cuid())
-  date            DateTime
-  openingBalance  Float
-  closingBalance  Float
-  totalAssets     Float
+  id               String   @id @default(cuid())
+  date             DateTime
+  openingBalance   Float
+  closingBalance   Float
+  totalAssets      Float
   totalLiabilities Float
-  totalEquity     Float
-  branchId        String?
-  isActive        Boolean   @default(true)
-  isDeleted       Boolean   @default(false)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  totalEquity      Float
+  branchId         String?
+  isActive         Boolean  @default(true)
+  isDeleted        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  branch           Branch?  @relation(fields: [branchId], references: [id])
 
-  // Relations
-  branch Branch? @relation(fields: [branchId], references: [id])
-
-  @@map("balance_sheets")
   @@index([date])
   @@index([branchId])
   @@index([createdAt])
+  @@map("balance_sheets")
 }
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  entity      String   // Table name
-  entityId    String   // ID of the record
-  action      String   // CREATE, UPDATE, DELETE
-  oldValues   String?    // Previous values as JSON string
-  newValues   String?    // New values as JSON string
-  ipAddress   String?
-  userAgent   String?
-  isActive    Boolean  @default(true)
-  isDeleted   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-
-  // Relations
+  id        String   @id @default(cuid())
+  entity    String
+  entityId  String
+  action    String
+  oldValues String?
+  newValues String?
+  ipAddress String?
+  userAgent String?
+  isActive  Boolean  @default(true)
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
   createdBy String
-  creator   User @relation(fields: [createdBy], references: [id])
+  creator   User     @relation(fields: [createdBy], references: [id])
 
-  @@map("audit_logs")
   @@index([entity])
   @@index([entityId])
   @@index([action])
   @@index([createdBy])
   @@index([createdAt])
+  @@map("audit_logs")
 }
 
 model UserSession {
@@ -264,34 +236,31 @@ model UserSession {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   expiresAt    DateTime
+  user         User     @relation(fields: [userId], references: [id])
 
-  // Relations
-  user User @relation(fields: [userId], references: [id])
-
-  @@map("user_sessions")
   @@index([userId])
   @@index([refreshToken])
   @@index([expiresAt])
   @@index([createdAt])
+  @@map("user_sessions")
 }
 
 model CommissionRate {
-  id            String   @id @default(cuid())
-  fromCityId    String
-  toCityId      String
-  rateType      String   // PERCENTAGE or FIXED
-  rate          Float
-  minAmount     Float?
-  maxAmount     Float?
-  isActive      Boolean  @default(true)
-  isDeleted     Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id         String   @id @default(cuid())
+  fromCityId String
+  toCityId   String
+  rateType   String
+  rate       Float
+  minAmount  Float?
+  maxAmount  Float?
+  isActive   Boolean  @default(true)
+  isDeleted  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  @@map("commission_rates")
   @@index([fromCityId])
   @@index([toCityId])
   @@index([rateType])
   @@index([createdAt])
+  @@map("commission_rates")
 }
-

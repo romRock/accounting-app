@@ -4,7 +4,7 @@
   "description": "Accounting App Backend API",
   "main": "dist/index.js",
   "scripts": {
-    "build": "prisma generate && tsc",
+    "build": "prisma generate && prisma db push && tsc",
     "prestart": "npm run build",
     "start": "node dist/index.js",
     "dev": "nodemon src/index-simple.ts",
@@ -13,7 +13,8 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "postinstall": "prisma generate"
   },
   "keywords": [
     "accounting",

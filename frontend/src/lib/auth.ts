@@ -43,7 +43,8 @@ interface AuthResponse {
 
 export const authApi = {
   async login(email: string, password: string): Promise<AuthResponse> {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/login`, {
+    console.log("API URL:", process.env.NEXT_PUBLIC_API_URL);
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -96,7 +97,7 @@ export const authApi = {
   },
 
   async logout(refreshToken: string): Promise<void> {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/logout`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/logout`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -111,7 +112,7 @@ export const authApi = {
   },
 
   async refreshToken(refreshToken: string): Promise<AuthResponse> {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/refresh`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -149,7 +150,7 @@ export const authApi = {
   },
 
   async getProfile(accessToken: string): Promise<User> {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/profile`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/profile`, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
       },

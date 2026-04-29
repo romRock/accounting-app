@@ -5,7 +5,6 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "prisma generate && prisma db push && tsc",
-    "prestart": "npm run build",
     "start": "node dist/index.js",
     "dev": "nodemon src/index-simple.ts",
     "dev:prisma": "nodemon src/index.ts",

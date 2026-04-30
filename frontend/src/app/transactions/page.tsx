@@ -10,9 +10,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { CityTypeahead } from '@/components/ui/typeahead';
 import { useAuthStore } from '@/store';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { mockApi } from '@/lib/mock-api';
+import { transactionApi } from '@/lib/transactions';
 
 // Modern transaction schema
 const transactionSchema = z.object({
@@ -69,6 +70,7 @@ export default function TransactionsPage() {
   const { user, isAuthenticated } = useAuthStore();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [centers, setCenters] = useState<Center[]>([]);
+  const [selectedCity, setSelectedCity] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -145,7 +147,7 @@ export default function TransactionsPage() {
   const fetchTransactions = async () => {
     try {
       setLoading(true);
-      const data = await mockApi.getTransactions({
+      const data = await transactionApi.getTransactions({
         page: currentPage,
         limit: 20,
         type: activeTab.toUpperCase(),
@@ -160,7 +162,7 @@ export default function TransactionsPage() {
 
   const fetchCenters = async () => {
     try {
-      const data = await mockApi.getBranches();
+      const data = await transactionApi.getBranches();
       setCenters(data);
     } catch (error) {
       console.error('Failed to fetch centers:', error);
@@ -180,14 +182,14 @@ export default function TransactionsPage() {
 
       if (editingTransaction) {
         // Update existing transaction
-        const updatedTransaction = await mockApi.updateTransaction(editingTransaction.id, transactionData);
+        const updatedTransaction = await transactionApi.updateTransaction(editingTransaction.id, transactionData);
         setTransactions(transactions.map(t => 
           t.id === editingTransaction.id ? updatedTransaction : t
         ));
         setEditingTransaction(null);
       } else {
         // Create new transaction
-        const newTransaction = await mockApi.createTransaction(transactionData);
+        const newTransaction = await transactionApi.createTransaction(transactionData);
         setTransactions([newTransaction, ...transactions]);
       }
 
@@ -222,7 +224,7 @@ export default function TransactionsPage() {
   const handleDelete = async () => {
     if (editingTransaction) {
       try {
-        await mockApi.deleteTransaction(editingTransaction.id);
+        await transactionApi.deleteTransaction(editingTransaction.id);
         setTransactions(transactions.filter(t => t.id !== editingTransaction.id));
         handleClear();
       } catch (err: any) {
@@ -378,21 +380,16 @@ export default function TransactionsPage() {
                     />
                   </div>
                   
-                  <div>
-                    <Label htmlFor="center" className="text-sm font-medium text-gray-700">Center</Label>
-                    <select
-                      id="center"
-                      {...register('center')}
-                      className="w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-sm"
-                    >
-                      <option value="">Select Center</option>
-                      {centers.map((center) => (
-                        <option key={center.id} value={center.name}>
-                          {center.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <CityTypeahead
+                    id="center"
+                    label="Center"
+                    value={watch('center') || ''}
+                    onChange={(value, city) => {
+                      setValue('center', value);
+                      setSelectedCity(city);
+                    }}
+                    placeholder="Search city..."
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

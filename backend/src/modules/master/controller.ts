@@ -1577,3 +1577,84 @@ export const deleteCommissionRate = async (req: Request, res: Response) => {
     throw error;
   }
 };
+
+// Public Cities Search Endpoint (for typeahead dropdown)
+export const searchCities = async (req: Request, res: Response) => {
+  try {
+    const {
+      search,
+      limit = 20,
+      page = 1
+    } = req.query;
+
+    // Convert and validate parameters
+    const searchValue = getFirstValue(search);
+    const limitNum = Math.min(Math.max(parseInt(getFirstValue(limit) || '20'), 1), 50); // Max 50 results
+    const pageNum = Math.max(parseInt(getFirstValue(page) || '1'), 1);
+    const offset = (pageNum - 1) * limitNum;
+
+    const where: any = {
+      isActive: true,
+      isDeleted: false,
+    };
+
+    // Build search conditions
+    if (searchValue && searchValue.trim()) {
+      const searchTerm = searchValue.trim();
+      where.OR = [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        { code: { contains: searchTerm, mode: 'insensitive' } },
+        { state: { contains: searchTerm, mode: 'insensitive' } },
+      ];
+    }
+
+    // Get total count for pagination
+    const total = await prisma.city.count({ where });
+
+    // Build orderBy conditions for better search results
+    let orderBy: any = { name: 'asc' };
+    
+    if (searchValue && searchValue.trim()) {
+      const searchTerm = searchValue.trim();
+      // For better search results, we'll prioritize in the query logic
+      // Keep simple ordering for now to avoid Prisma complex orderBy issues
+      orderBy = { name: 'asc' };
+    }
+
+    // Fetch cities with pagination
+    const cities = await prisma.city.findMany({
+      where,
+      orderBy,
+      take: limitNum,
+      skip: offset,
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        state: true,
+      },
+    });
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(total / limitNum);
+
+    res.json({
+      success: true,
+      data: cities,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+        hasNext: pageNum < totalPages,
+        hasPrev: pageNum > 1,
+      },
+    });
+  } catch (error) {
+    console.error('Error in searchCities:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching cities',
+    });
+  }
+};

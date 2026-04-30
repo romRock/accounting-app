@@ -7,6 +7,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ================== AUTH ==================
+
 model User {
   id                   String        @id @default(cuid())
   email                String        @unique
@@ -50,26 +52,27 @@ model Role {
   @@map("roles")
 }
 
-model Branch {
-  id            String         @id @default(cuid())
-  name          String
-  code          String         @unique
-  address       String?
-  phone         String?
-  email         String?
-  isActive      Boolean        @default(true)
-  isDeleted     Boolean        @default(false)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  balanceSheets BalanceSheet[]
-  ledgerEntries LedgerEntry[]
-  transactions  Transaction[]
-  users         User[]
+model UserSession {
+  id           String   @id @default(cuid())
+  userId       String
+  refreshToken String   @unique
+  ipAddress    String?
+  userAgent    String?
+  isActive     Boolean  @default(true)
+  isDeleted    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  expiresAt    DateTime
+  user         User     @relation(fields: [userId], references: [id])
 
-  @@index([code])
+  @@index([userId])
+  @@index([refreshToken])
+  @@index([expiresAt])
   @@index([createdAt])
-  @@map("branches")
+  @@map("user_sessions")
 }
+
+// ================== MASTER ==================
 
 model City {
   id               String        @id @default(cuid())
@@ -110,6 +113,29 @@ model Party {
   @@index([createdAt])
   @@map("parties")
 }
+
+model Branch {
+  id            String         @id @default(cuid())
+  name          String
+  code          String         @unique
+  address       String?
+  phone         String?
+  email         String?
+  isActive      Boolean        @default(true)
+  isDeleted     Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  balanceSheets BalanceSheet[]
+  ledgerEntries LedgerEntry[]
+  transactions  Transaction[]
+  users         User[]
+
+  @@index([code])
+  @@index([createdAt])
+  @@map("branches")
+}
+
+// ================== TRANSACTIONS ==================
 
 model Transaction {
   id            String        @id @default(cuid())
@@ -181,6 +207,28 @@ model LedgerEntry {
   @@map("ledger_entries")
 }
 
+model CommissionRate {
+  id         String   @id @default(cuid())
+  fromCityId String
+  toCityId   String
+  rateType   String
+  rate       Float
+  minAmount  Float?
+  maxAmount  Float?
+  isActive   Boolean  @default(true)
+  isDeleted  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([fromCityId])
+  @@index([toCityId])
+  @@index([rateType])
+  @@index([createdAt])
+  @@map("commission_rates")
+}
+
+// ================== REPORTING ==================
+
 model BalanceSheet {
   id               String   @id @default(cuid())
   date             DateTime
@@ -223,44 +271,4 @@ model AuditLog {
   @@index([createdBy])
   @@index([createdAt])
   @@map("audit_logs")
-}
-
-model UserSession {
-  id           String   @id @default(cuid())
-  userId       String
-  refreshToken String   @unique
-  ipAddress    String?
-  userAgent    String?
-  isActive     Boolean  @default(true)
-  isDeleted    Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  expiresAt    DateTime
-  user         User     @relation(fields: [userId], references: [id])
-
-  @@index([userId])
-  @@index([refreshToken])
-  @@index([expiresAt])
-  @@index([createdAt])
-  @@map("user_sessions")
-}
-
-model CommissionRate {
-  id         String   @id @default(cuid())
-  fromCityId String
-  toCityId   String
-  rateType   String
-  rate       Float
-  minAmount  Float?
-  maxAmount  Float?
-  isActive   Boolean  @default(true)
-  isDeleted  Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([fromCityId])
-  @@index([toCityId])
-  @@index([rateType])
-  @@index([createdAt])
-  @@map("commission_rates")
 }

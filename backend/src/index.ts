@@ -154,6 +154,20 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+// Public cities search endpoint (for typeahead dropdown)
+app.get('/api/cities', async (req, res) => {
+  try {
+    const { searchCities } = await import('./modules/master/controller');
+    return searchCities(req, res);
+  } catch (error) {
+    console.error('Error loading cities controller:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching cities',
+    });
+  }
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/transactions', authenticateToken, transactionRoutes);

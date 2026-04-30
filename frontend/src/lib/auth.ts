@@ -1,4 +1,5 @@
 // Real authentication service for backend API
+import API_BASE_URL, { LIVE_API_URL } from './api';
 
 interface LoginResponse {
   success: boolean;
@@ -43,8 +44,10 @@ interface AuthResponse {
 
 export const authApi = {
   async login(email: string, password: string): Promise<AuthResponse> {
-    console.log("API URL:", process.env.NEXT_PUBLIC_API_URL);
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
+    console.log("API BASE URL:", API_BASE_URL);
+    
+    // Try local API first
+    let response = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -52,9 +55,23 @@ export const authApi = {
       body: JSON.stringify({ email, password }),
     });
 
+    // If local API fails (401, 500, network errors), fallback to live API
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Login failed');
+      console.log("Local API failed, trying live API...");
+      console.log("LIVE API URL:", LIVE_API_URL);
+      
+      response = await fetch(`${LIVE_API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Login failed');
+      }
     }
 
     const data: LoginResponse = await response.json();
@@ -97,7 +114,7 @@ export const authApi = {
   },
 
   async logout(refreshToken: string): Promise<void> {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/logout`, {
+    const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -112,7 +129,7 @@ export const authApi = {
   },
 
   async refreshToken(refreshToken: string): Promise<AuthResponse> {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/refresh`, {
+    const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -150,7 +167,7 @@ export const authApi = {
   },
 
   async getProfile(accessToken: string): Promise<User> {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/profile`, {
+    const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
       },

@@ -36,14 +36,10 @@ export function CityTypeahead({
 
   // Fetch cities with debounce
   const fetchCities = useCallback(async (query: string) => {
-    if (!query.trim()) {
-      setResults([]);
-      return;
-    }
-
     setLoading(true);
     try {
       const { transactionApi } = await import('@/lib/transactions');
+      // If query is empty, fetch first 20 cities, otherwise search
       const cities = await transactionApi.searchCities(query, 20);
       setResults(cities);
     } catch (error) {
@@ -78,11 +74,8 @@ export function CityTypeahead({
     onChange(newValue);
     setSelectedIndex(-1);
     
-    if (newValue.trim()) {
-      setIsOpen(true);
-    } else {
-      setIsOpen(false);
-    }
+    // Always show dropdown when typing, even if empty
+    setIsOpen(true);
   };
 
   // Handle city selection
@@ -138,8 +131,11 @@ export function CityTypeahead({
 
   // Handle input focus
   const handleFocus = () => {
-    if (searchTerm.trim()) {
-      setIsOpen(true);
+    // Always show dropdown on focus, even if empty
+    setIsOpen(true);
+    // Fetch all cities if search term is empty
+    if (!searchTerm.trim()) {
+      fetchCities('');
     }
   };
 
@@ -162,7 +158,7 @@ export function CityTypeahead({
   };
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative" ref={dropdownRef} style={{ zIndex: 50 }}>
       <Label htmlFor={id} className="text-sm font-medium text-gray-700">
         {label}
       </Label>
@@ -190,7 +186,7 @@ export function CityTypeahead({
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto" style={{ zIndex: 9999 }}>
           {loading ? (
             <div className="px-3 py-2 text-sm text-gray-500 text-center">
               Searching...

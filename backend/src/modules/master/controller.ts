@@ -1581,6 +1581,18 @@ export const deleteCommissionRate = async (req: Request, res: Response) => {
 // Public Cities Search Endpoint (for typeahead dropdown)
 export const searchCities = async (req: Request, res: Response) => {
   try {
+    console.log("=== CITIES API DEBUG ===");
+    console.log("Cities API HIT");
+    console.log("Environment:", process.env.NODE_ENV);
+    console.log("Query params:", req.query);
+    
+    // Log DB connection (masked)
+    const dbUrl = process.env.DATABASE_URL || '';
+    const maskedUrl = dbUrl.includes('@') 
+      ? dbUrl.substring(0, dbUrl.indexOf('@') + 1) + '***'
+      : '***';
+    console.log("DB URL (masked):", maskedUrl);
+    
     const {
       search,
       limit = 20,
@@ -1592,6 +1604,10 @@ export const searchCities = async (req: Request, res: Response) => {
     const limitNum = Math.min(Math.max(parseInt(getFirstValue(limit) || '20'), 1), 50); // Max 50 results
     const pageNum = Math.max(parseInt(getFirstValue(page) || '1'), 1);
     const offset = (pageNum - 1) * limitNum;
+    
+    console.log("Search:", searchValue);
+    console.log("Limit:", limitNum);
+    console.log("Page:", pageNum);
 
     const where: any = {
       isActive: true,
@@ -1608,25 +1624,52 @@ export const searchCities = async (req: Request, res: Response) => {
       ];
     }
 
-    // Get total count for pagination
-    const total = await prisma.city.count({ where });
+    // DEBUG: Check total cities in database first
+    const totalCitiesInDb = await prisma.city.count({
+      where: { isActive: true, isDeleted: false }
+    });
+    console.log("Total cities in DB:", totalCitiesInDb);
 
-    // Build orderBy conditions for better search results
-    let orderBy: any = { name: 'asc' };
-    
-    if (searchValue && searchValue.trim()) {
-      const searchTerm = searchValue.trim();
-      // For better search results, we'll prioritize in the query logic
-      // Keep simple ordering for now to avoid Prisma complex orderBy issues
-      orderBy = { name: 'asc' };
+    // SAFE AUTO-SEEDING: Only if DB is completely empty
+    if (totalCitiesInDb === 0 && process.env.NODE_ENV === 'production') {
+      console.log("Database is empty in production - triggering auto-seed...");
+      try {
+        const { seedCities } = await import('../../seedCities');
+        await seedCities();
+        console.log("Auto-seeding completed successfully");
+        
+        // Re-check count after seeding
+        const newCount = await prisma.city.count({
+          where: { isActive: true, isDeleted: false }
+        });
+        console.log("Cities count after auto-seeding:", newCount);
+      } catch (seedError) {
+        console.error("Auto-seeding failed:", seedError);
+        // Continue with empty response rather than failing the API
+      }
     }
 
-    // Fetch cities with pagination
+    // Get total count for pagination
+    const total = await prisma.city.count({ where });
+    console.log("Cities matching query:", total);
+
+    // Build orderBy conditions - always sort A-Z
+    let orderBy: any = { name: 'asc' };
+
+    // FIX: Don't apply limit unless explicitly provided
+    const shouldApplyLimit = req.query.limit !== undefined;
+    const finalLimit = shouldApplyLimit ? limitNum : undefined;
+    const finalOffset = shouldApplyLimit ? offset : undefined;
+    
+    console.log("Should apply limit:", shouldApplyLimit);
+    console.log("Final limit:", finalLimit);
+
+    // Fetch cities with optional pagination
     const cities = await prisma.city.findMany({
       where,
       orderBy,
-      take: limitNum,
-      skip: offset,
+      take: finalLimit,
+      skip: finalOffset,
       select: {
         id: true,
         name: true,
@@ -1635,20 +1678,27 @@ export const searchCities = async (req: Request, res: Response) => {
       },
     });
 
-    // Calculate pagination info
-    const totalPages = Math.ceil(total / limitNum);
+    console.log("Cities fetched count:", cities.length);
+    console.log("=== END CITIES API DEBUG ===");
 
-    res.json({
-      success: true,
-      data: cities,
-      pagination: {
+    // Calculate pagination info only if limit is applied
+    let pagination = null;
+    if (shouldApplyLimit) {
+      const totalPages = Math.ceil(total / limitNum);
+      pagination = {
         page: pageNum,
         limit: limitNum,
         total,
         totalPages,
         hasNext: pageNum < totalPages,
         hasPrev: pageNum > 1,
-      },
+      };
+    }
+
+    res.json({
+      success: true,
+      data: cities,
+      pagination,
     });
   } catch (error) {
     console.error('Error in searchCities:', error);

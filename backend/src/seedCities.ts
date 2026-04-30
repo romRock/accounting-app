@@ -544,16 +544,21 @@ async function seedCities() {
   }
 }
 
-// Run the seeding function
-seedCities()
-  .then(() => {
-    console.log('\nCities seeding completed successfully.');
-    process.exit(0);
-  })
-  .catch((error) => {
-    console.error('\nCities seeding failed:', error);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+// Export the seeding function for use in other modules
+export { seedCities };
+
+// Run the seeding function only when this file is executed directly
+if (require.main === module) {
+  seedCities()
+    .then(() => {
+      console.log('\nCities seeding completed successfully.');
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error('\nCities seeding failed:', error);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

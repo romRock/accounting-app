@@ -168,6 +168,54 @@ app.get('/api/cities', async (req, res) => {
   }
 });
 
+// Manual seed endpoint for production
+app.post('/api/seed/cities', async (req, res) => {
+  try {
+    const { seedCities } = await import('./seedCities');
+    const prisma = new PrismaClient();
+    
+    console.log("=== MANUAL PRODUCTION SEEDING TRIGGERED ===");
+    
+    // Check current count
+    const currentCount = await prisma.city.count({
+      where: { isActive: true, isDeleted: false }
+    });
+    
+    console.log("Current cities count:", currentCount);
+    
+    if (currentCount > 0) {
+      return res.json({
+        success: true,
+        message: `Database already has ${currentCount} cities`,
+        count: currentCount
+      });
+    }
+    
+    // Run seed function
+    await seedCities();
+    
+    // Check new count
+    const newCount = await prisma.city.count({
+      where: { isActive: true, isDeleted: false }
+    });
+    
+    console.log("Cities count after seeding:", newCount);
+    
+    res.json({
+      success: true,
+      message: `Successfully seeded ${newCount} cities`,
+      count: newCount
+    });
+    
+  } catch (error) {
+    console.error("Manual seeding failed:", error);
+    res.status(500).json({
+      success: false,
+      message: "Seeding failed"
+    });
+  }
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/transactions', authenticateToken, transactionRoutes);

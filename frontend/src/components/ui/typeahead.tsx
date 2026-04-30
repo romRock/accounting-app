@@ -36,11 +36,14 @@ export function CityTypeahead({
 
   // Fetch cities with debounce
   const fetchCities = useCallback(async (query: string) => {
+    console.log("fetchCities called with query:", query);
     setLoading(true);
     try {
       const { transactionApi } = await import('@/lib/transactions');
-      // If query is empty, fetch first 20 cities, otherwise search
-      const cities = await transactionApi.searchCities(query, 20);
+      console.log("Calling transactionApi.searchCities");
+      // If query is empty, fetch all cities (no limit), otherwise search with limit
+      const cities = await transactionApi.searchCities(query, query.trim() ? 20 : undefined);
+      console.log("API returned cities:", cities.length);
       setResults(cities);
     } catch (error) {
       console.error('Error fetching cities:', error);
@@ -58,7 +61,7 @@ export function CityTypeahead({
 
     searchTimeoutRef.current = setTimeout(() => {
       fetchCities(searchTerm);
-    }, 300);
+    }, 150); // Reduced from 300ms to 150ms for faster response
 
     return () => {
       if (searchTimeoutRef.current) {
@@ -131,13 +134,32 @@ export function CityTypeahead({
 
   // Handle input focus
   const handleFocus = () => {
+    console.log("=== TYPEAHEAD DEBUG ===");
+    console.log("Input focused");
+    console.log("Current search term:", searchTerm);
+    console.log("Setting isOpen to true");
+    
     // Always show dropdown on focus, even if empty
     setIsOpen(true);
+    
     // Fetch all cities if search term is empty
     if (!searchTerm.trim()) {
+      console.log("Fetching all cities (empty search)");
       fetchCities('');
+    } else {
+      console.log("Fetching cities with term:", searchTerm);
+      fetchCities(searchTerm);
     }
   };
+
+  // Debug dropdown state changes
+  useEffect(() => {
+    console.log("=== DROPDOWN STATE DEBUG ===");
+    console.log("isOpen:", isOpen);
+    console.log("loading:", loading);
+    console.log("results.length:", results.length);
+    console.log("searchTerm:", searchTerm);
+  }, [isOpen, loading, results.length, searchTerm]);
 
   // Highlight matching text
   const highlightMatch = (text: string, query: string) => {
@@ -173,7 +195,7 @@ export function CityTypeahead({
           onFocus={handleFocus}
           placeholder={placeholder}
           disabled={disabled}
-          className={`w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-sm ${className}`}
+          className={`w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500 text-sm ${className}`}
         />
         
         {/* Loading indicator */}
@@ -208,11 +230,11 @@ export function CityTypeahead({
                   onClick={() => handleCitySelect(city)}
                 >
                   <div className="flex flex-col">
-                    <div className="font-medium">
+                    <div className="font-medium text-gray-900">
                       {highlightMatch(city.name, searchTerm)}
                     </div>
-                    <div className="text-xs text-gray-500">
-                      {city.code} - {city.state}
+                    <div className="text-xs text-gray-600">
+                      {city.state}
                     </div>
                   </div>
                 </li>

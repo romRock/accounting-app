@@ -135,12 +135,15 @@ export const transactionApi = {
     return await response.json();
   },
 
-  async searchCities(search?: string, limit: number = 20): Promise<City[]> {
+  async searchCities(search?: string, limit?: number): Promise<City[]> {
     const params = new URLSearchParams();
     if (search && search.trim()) {
       params.append('search', search.trim());
     }
-    params.append('limit', limit.toString());
+    // Only add limit if explicitly provided
+    if (limit !== undefined) {
+      params.append('limit', limit.toString());
+    }
 
     const response = await fetch(`${API_BASE_URL}/api/cities?${params}`, {
       method: 'GET',

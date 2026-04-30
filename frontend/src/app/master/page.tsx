@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/store';
 import { formatDate } from '@/lib/utils';
+import { transactionApi } from '@/lib/transactions';
 
 // Data Interfaces
 interface User {
@@ -96,8 +97,47 @@ export default function MasterPage() {
   
   // UI states
   const [loading, setLoading] = useState(false);
+  const [centersLoading, setCentersLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Check if user is admin
+  const isAdmin = (user && user.role.name === 'Super Admin') || (user && user.username === 'admin');
+
+  // Load real centers data
+  const loadCenters = async () => {
+    try {
+      console.log("=== MASTER PAGE: Loading centers ===");
+      setCentersLoading(true);
+      
+      // Test API call with debugging
+      console.log("Calling transactionApi.searchCities...");
+      const cities = await transactionApi.searchCities(''); // Get all cities without limit
+      console.log("API returned cities:", cities.length, cities);
+      
+      const centersData: Center[] = cities.map((city, index) => ({
+        id: city.id,
+        name: city.name,
+        code: city.code,
+        city: city.state,
+        address: `${city.name}, ${city.state}`,
+        contactNumber: 'N/A',
+        status: 'Active' as const,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }));
+      
+      console.log("Processed centers data:", centersData.length);
+      setCenters(centersData);
+    } catch (error) {
+      console.error('Error loading centers:', error);
+      console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
+      // Fallback to empty array
+      setCenters([]);
+    } finally {
+      setCentersLoading(false);
+    }
+  };
 
   // Generate mock data
   const generateMockData = () => {
@@ -139,32 +179,6 @@ export default function MasterPage() {
           balanceSheet: { view: false, export: false },
           master: { fullAccess: false }
         },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-    ];
-
-    // Mock centers
-    const mockCenters: Center[] = [
-      {
-        id: '1',
-        name: 'Main Branch',
-        code: 'BR001',
-        city: 'Mumbai',
-        address: '123, Main Street, Mumbai - 400001',
-        contactNumber: '+91-22-12345678',
-        status: 'Active',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: '2',
-        name: 'Branch Office',
-        code: 'BR002',
-        city: 'Delhi',
-        address: '456, Park Avenue, Delhi - 110001',
-        contactNumber: '+91-11-87654321',
-        status: 'Active',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }
@@ -226,7 +240,6 @@ export default function MasterPage() {
     ];
 
     setRoles(mockRoles);
-    setCenters(mockCenters);
     setUsers(mockUsers);
     setClients(mockClients);
   };
@@ -237,6 +250,7 @@ export default function MasterPage() {
       return;
     }
     generateMockData();
+    loadCenters(); // Load real centers data
   }, [isAuthenticated, router]);
 
   // Listen for tab changes from header
@@ -947,7 +961,7 @@ export default function MasterPage() {
                         id="centerName"
                         value={centerForm.name || ''}
                         onChange={(e) => setCenterForm({ ...centerForm, name: e.target.value })}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
+                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 placeholder-gray-500"
                         placeholder="Enter center name"
                       />
                     </div>
@@ -957,17 +971,17 @@ export default function MasterPage() {
                         id="centerCode"
                         value={centerForm.code || ''}
                         onChange={(e) => setCenterForm({ ...centerForm, code: e.target.value })}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
+                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 placeholder-gray-500"
                         placeholder="Enter center code"
                       />
                     </div>
                     <div>
-                      <Label htmlFor="centerCity" className="text-sm font-medium text-gray-700">City</Label>
+                      <Label htmlFor="centerCity" className="text-sm font-medium text-gray-700">State</Label>
                       <Input
                         id="centerCity"
                         value={centerForm.city || ''}
                         onChange={(e) => setCenterForm({ ...centerForm, city: e.target.value })}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
+                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 placeholder-gray-500"
                         placeholder="Enter city"
                       />
                     </div>
@@ -977,7 +991,7 @@ export default function MasterPage() {
                         id="centerAddress"
                         value={centerForm.address || ''}
                         onChange={(e) => setCenterForm({ ...centerForm, address: e.target.value })}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
+                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 placeholder-gray-500"
                         placeholder="Enter address"
                       />
                     </div>
@@ -987,7 +1001,7 @@ export default function MasterPage() {
                         id="centerContact"
                         value={centerForm.contactNumber || ''}
                         onChange={(e) => setCenterForm({ ...centerForm, contactNumber: e.target.value })}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
+                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 placeholder-gray-500"
                         placeholder="Enter contact number"
                       />
                     </div>
@@ -1028,11 +1042,16 @@ export default function MasterPage() {
                       placeholder="Search centers..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="bg-white w-48 lg:w-64 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      className="bg-white w-48 lg:w-64 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900 placeholder-gray-500"
                     />
                   </div>
                   
-                  {filteredCenters().length === 0 ? (
+                  {centersLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      <span className="ml-2 text-gray-600">Loading centers...</span>
+                    </div>
+                  ) : filteredCenters().length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       No centers found
                     </div>
@@ -1050,28 +1069,30 @@ export default function MasterPage() {
                           </div>
                           <div className="space-y-1 text-sm text-gray-600">
                             <div><span className="font-medium">Code:</span> {center.code}</div>
-                            <div><span className="font-medium">City:</span> {center.city}</div>
+                            <div><span className="font-medium">State:</span> {center.city}</div>
                             <div><span className="font-medium">Address:</span> {center.address}</div>
                             <div><span className="font-medium">Contact:</span> {center.contactNumber}</div>
                           </div>
-                          <div className="flex space-x-2 mt-3">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleEdit(center)}
-                              className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400"
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => handleDelete(center.id)}
-                              className="bg-red-600 hover:bg-red-700 text-white"
-                            >
-                              Delete
-                            </Button>
-                          </div>
+                          {isAdmin && (
+                            <div className="flex space-x-2 mt-3">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEdit(center)}
+                                className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400"
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleDelete(center.id)}
+                                className="bg-red-600 hover:bg-red-700 text-white"
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

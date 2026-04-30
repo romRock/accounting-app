@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/store';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { CityTypeahead } from '@/components/ui/typeahead';
 
 // Report Types
 type ReportType = 'outward' | 'inward' | 'combo' | 'outward-centerwise' | 'inward-centerwise' | 'amount-type' | 'customer';
@@ -69,18 +70,11 @@ export default function ReportsPage() {
     status: '',
   });
 
-  // Mock centers data
-  const centers = [
-    { id: '1', name: 'Mumbai' },
-    { id: '2', name: 'Delhi' },
-    { id: '3', name: 'Bangalore' },
-    { id: '4', name: 'Chennai' },
-    { id: '5', name: 'Kolkata' },
-  ];
-
+  
   // Mock data generator
   const generateMockData = (type: ReportType): ReportData[] => {
     const mockData: ReportData[] = [];
+    const mockCities = ['Mumbai', 'Delhi', 'Bangalore', 'Chennai', 'Kolkata', 'Hyderabad', 'Pune', 'Ahmedabad'];
     
     switch (type) {
       case 'outward':
@@ -90,7 +84,7 @@ export default function ReportsPage() {
             id: `TXN${String(i).padStart(6, '0')}`,
             date: `2024-01-${String(i % 28 + 1).padStart(2, '0')}`,
             time: `${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}`,
-            center: centers[Math.floor(Math.random() * centers.length)].name,
+            center: mockCities[Math.floor(Math.random() * mockCities.length)],
             amount: Math.floor(Math.random() * 50000) + 1000,
             amountType: Math.random() > 0.5 ? 'CASH' : 'ACCOUNT / CREDIT',
             commission: Math.floor(Math.random() * 500) + 50,
@@ -113,9 +107,9 @@ export default function ReportsPage() {
         
       case 'outward-centerwise':
       case 'inward-centerwise':
-        centers.forEach(center => {
+        mockCities.forEach((city: string) => {
           mockData.push({
-            center: center.name,
+            center: city,
             transactionCount: Math.floor(Math.random() * 100) + 10,
             totalAmount: Math.floor(Math.random() * 500000) + 50000,
             totalCommission: Math.floor(Math.random() * 10000) + 1000,
@@ -512,20 +506,15 @@ export default function ReportsPage() {
               {(activeReport === 'outward' || activeReport === 'inward' || 
                 activeReport === 'outward-centerwise' || activeReport === 'inward-centerwise') && (
                 <div>
-                  <Label htmlFor="center" className="text-sm font-medium text-gray-700">Center</Label>
-                  <select
+                  {/* <Label htmlFor="center" className="text-sm font-medium text-gray-700">Center</Label> */}
+                  <CityTypeahead
                     id="center"
+                    label="Center"
                     value={filters.center}
-                    onChange={(e) => setFilters({ ...filters, center: e.target.value })}
-                    className="w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-sm mt-1"
-                  >
-                    <option value="">All Centers</option>
-                    {centers.map((center) => (
-                      <option key={center.id} value={center.name}>
-                        {center.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setFilters({ ...filters, center: value })}
+                    placeholder="Select center or search city..."
+                    className="mt-1"
+                  />
                 </div>
               )}
 

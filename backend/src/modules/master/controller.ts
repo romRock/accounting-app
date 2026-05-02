@@ -897,13 +897,10 @@ export const getParties = async (req: Request, res: Response) => {
       ];
     }
 
-    if (cityId) where.cityId = cityId as string;
+    // City filtering removed - client city is separate from cities table
 
     const parties = await prisma.party.findMany({
       where,
-      include: {
-        city: true,
-      },
       orderBy: { name: 'asc' },
     });
 
@@ -928,9 +925,6 @@ export const getPartyById = async (req: Request, res: Response) => {
         isActive: true,
         isDeleted: false,
       },
-      include: {
-        city: true,
-      },
     });
 
     if (!party) {
@@ -952,7 +946,7 @@ export const createParty = async (req: Request, res: Response) => {
       address,
       panNumber,
       gstNumber,
-      cityId,
+      city,
     } = req.body;
 
     const party = await prisma.party.create({
@@ -963,10 +957,7 @@ export const createParty = async (req: Request, res: Response) => {
         address,
         panNumber,
         gstNumber,
-        cityId,
-      },
-      include: {
-        city: true,
+        city,
       },
     });
 
@@ -990,7 +981,7 @@ export const updateParty = async (req: Request, res: Response) => {
       address,
       panNumber,
       gstNumber,
-      cityId,
+      city,
     } = req.body;
 
     const userId = req.user?.id;
@@ -1021,10 +1012,7 @@ export const updateParty = async (req: Request, res: Response) => {
         address,
         panNumber,
         gstNumber,
-        cityId,
-      },
-      include: {
-        city: true,
+        city,
       },
     });
 

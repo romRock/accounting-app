@@ -1028,13 +1028,6 @@ app.get('/api/clients', async (req, res) => {
         isActive: true,
         isDeleted: false
       },
-      include: {
-        city: {
-          select: {
-            name: true
-          }
-        }
-      },
       orderBy: {
         createdAt: 'desc'
       }
@@ -1045,7 +1038,7 @@ app.get('/api/clients', async (req, res) => {
       id: client.id,
       name: client.name,
       mobileNumber: client.phone,
-      city: client.city.name,
+      city: client.city || '',
       notes: client.address,
       createdAt: client.createdAt.toISOString(),
       updatedAt: client.updatedAt.toISOString()
@@ -1103,13 +1096,13 @@ app.post('/api/seed/clients', async (req, res) => {
     
     const prisma = new PrismaClient();
     
-    // Real clients data from local database
+    // Real clients data from local database - client city is separate from cities
     const clients = [
-      { name: 'PM 3 YARD', phone: '9099916309', cityCode: 'JND95V', address: 'YARD ' },
-      { name: 'PM 4 ZANZARDA', phone: '9099967152', cityCode: 'JND95V', address: 'JND' },
-      { name: 'MADHURAM', phone: '9099912345', cityCode: 'JND95V', address: 'JND' },
-      { name: 'NAYAN BHAI', phone: '8787874040', cityCode: 'RAJDXL', address: '' },
-      { name: 'BHEDA BHAI', phone: '9090901212', cityCode: 'JND95V', address: '' }
+      { name: 'PM 3 YARD', phone: '9099916309', city: 'JND95V', address: 'YARD ' },
+      { name: 'PM 4 ZANZARDA', phone: '9099967152', city: 'JND95V', address: 'JND' },
+      { name: 'MADHURAM', phone: '9099912345', city: 'JND95V', address: 'JND' },
+      { name: 'NAYAN BHAI', phone: '8787874040', city: 'RAJDXL', address: '' },
+      { name: 'BHEDA BHAI', phone: '9090901212', city: 'JND95V', address: '' }
     ];
     
     // Check current count
@@ -1127,26 +1120,11 @@ app.post('/api/seed/clients', async (req, res) => {
       });
     }
     
-    // Get cities for mapping
-    const cities = await prisma.city.findMany({
-      where: { isActive: true, isDeleted: false },
-      select: { code: true, id: true }
-    });
-    
-    const cityMap = new Map(cities.map(city => [city.code, city.id]));
-    
-    // Process clients
+    // Process clients - city is now a text field, separate from cities table
     let inserted = 0;
     let updated = 0;
     
     for (const client of clients) {
-      const cityId = cityMap.get(client.cityCode);
-      
-      if (!cityId) {
-        console.error(`City code '${client.cityCode}' not found for client '${client.name}'`);
-        continue;
-      }
-
       // Check if client already exists
       const existingClient = await prisma.party.findFirst({
         where: { 
@@ -1164,7 +1142,7 @@ app.post('/api/seed/clients', async (req, res) => {
             name: client.name,
             phone: client.phone,
             address: client.address,
-            cityId: cityId,
+            city: client.city,
             updatedAt: new Date(),
           }
         });
@@ -1176,7 +1154,7 @@ app.post('/api/seed/clients', async (req, res) => {
             name: client.name,
             phone: client.phone,
             address: client.address,
-            cityId: cityId,
+            city: client.city,
             isActive: true,
             isDeleted: false,
           }

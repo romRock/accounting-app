@@ -85,7 +85,6 @@ model City {
   isDeleted        Boolean       @default(false)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
-  parties          Party[]
   fromTransactions Transaction[] @relation("FromCity")
   toTransactions   Transaction[] @relation("ToCity")
 
@@ -100,18 +99,17 @@ model Party {
   phone        String?
   email        String?
   address      String?
+  city         String?       // Client city - separate from cities table
   panNumber    String?
   gstNumber    String?
   isActive     Boolean       @default(true)
   isDeleted    Boolean       @default(false)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
-  cityId       String
-  city         City          @relation(fields: [cityId], references: [id])
   transactions Transaction[]
 
   @@index([name])
-  @@index([cityId])
+  @@index([city])
   @@index([createdAt])
   @@map("parties")
 }

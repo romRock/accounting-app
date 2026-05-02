@@ -13,23 +13,13 @@
 
 import { PrismaClient } from '@prisma/client';
 
-// Sample clients data - same as local mock data
+// Real clients data from local database
 const clients = [
-  { name: 'Rajesh Kumar', phone: '9876543210', cityCode: 'CGR', address: 'Shop No. 15, C.G. Road' },
-  { name: 'Amit Patel', phone: '9876543211', cityCode: 'RAT', address: 'Gala No. 8, Ratanpole Market' },
-  { name: 'Vijay Shah', phone: '9876543212', cityCode: 'BAP', address: 'Unit 102, Bapunagar Complex' },
-  { name: 'Sanjay Mehta', phone: '9876543213', cityCode: 'BOP', address: 'Shop 45, Bopal Plaza' },
-  { name: 'Nitin Joshi', phone: '9876543214', cityCode: 'GOT', address: 'Office 12, Gota Commercial' },
-  { name: 'Manoj Singh', phone: '9876543215', cityCode: 'GUR', address: 'Shop 3, Gurukul Center' },
-  { name: 'Rakesh Gupta', phone: '9876543216', cityCode: 'KAL', address: 'Unit 7, Kalupur Market' },
-  { name: 'Anil Sharma', phone: '9876543217', cityCode: 'MAD', address: 'Shop 22, Madhupura Bazaar' },
-  { name: 'Deepak Verma', phone: '9876543218', cityCode: 'NAR', address: 'Gala 15, Naroda Industrial' },
-  { name: 'Pankaj Agarwal', phone: '9876543219', cityCode: 'NA1', address: 'Shop 8, Narol Highway' },
-  { name: 'Suresh Chauhan', phone: '9876543220', cityCode: 'ODH', address: 'Unit 5, Odhav Complex' },
-  { name: 'Mahesh Kumar', phone: '9876543221', cityCode: 'ASH', address: 'Shop 18, Ashram Road' },
-  { name: 'Rohit Patel', phone: '9876543222', cityCode: 'RAK', address: 'Office 9, Rakhiyal Plaza' },
-  { name: 'Karan Shah', phone: '9876543223', cityCode: 'CHA', address: 'Shop 11, Changodar Market' },
-  { name: 'Ajay Kumar', phone: '9876543224', cityCode: 'SAT', address: 'Unit 6, Satellite Center' }
+  { name: 'PM 3 YARD', phone: '9099916309', cityCode: 'JND95V', address: 'YARD ' },
+  { name: 'PM 4 ZANZARDA', phone: '9099967152', cityCode: 'JND95V', address: 'JND' },
+  { name: 'MADHURAM', phone: '9099912345', cityCode: 'JND95V', address: 'JND' },
+  { name: 'NAYAN BHAI', phone: '8787874040', cityCode: 'RAJDXL', address: '' },
+  { name: 'BHEDA BHAI', phone: '9090901212', cityCode: 'JND95V', address: '' }
 ];
 
 const BATCH_SIZE = 10;

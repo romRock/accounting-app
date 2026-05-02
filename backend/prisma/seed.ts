@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { seedRoles, seedUsers, seedCities, seedBranches } from './seeds';
+import { seedRBACRoles } from './seeds/rbac-roles.seed';
 
 const prisma = new PrismaClient();
 
@@ -9,6 +10,7 @@ async function main() {
   try {
     // Execute in correct order to respect dependencies
     await seedRoles(prisma);
+    await seedRBACRoles(prisma); // Seed RBAC roles
     await seedCities(prisma);
     await seedBranches(prisma);
     await seedUsers(prisma);

@@ -13,6 +13,71 @@ const getFirstValue = (value: any): string | undefined => {
   return value;
 };
 
+// RBAC Permissions validation function
+function validateRBACPermissions(permissions: any) {
+  const errors: string[] = [];
+  
+  // Check required modules
+  const requiredModules = ['dashboard', 'transactions', 'accounting', 'hawala', 'specialEntry', 'reports', 'balanceSheet', 'masterData'];
+  
+  for (const module of requiredModules) {
+    if (!permissions[module]) {
+      errors.push(`${module} is required`);
+      continue;
+    }
+    
+    // Validate specific module structures
+    switch (module) {
+      case 'dashboard':
+        if (typeof permissions[module] !== 'object' || typeof permissions[module].view !== 'boolean') {
+          errors.push(`${module} must have a view boolean property`);
+        }
+        break;
+        
+      case 'transactions':
+        if (typeof permissions[module] !== 'object' || 
+            typeof permissions[module].outward !== 'boolean' || 
+            typeof permissions[module].inward !== 'boolean') {
+          errors.push(`${module} must have outward and inward boolean properties`);
+        }
+        break;
+        
+      case 'reports':
+        if (typeof permissions[module] !== 'object') {
+          errors.push(`${module} must be an object`);
+        } else {
+          for (let i = 1; i <= 7; i++) {
+            const reportKey = `report_${i}`;
+            if (typeof permissions[module][reportKey] !== 'boolean') {
+              errors.push(`${module}.${reportKey} must be boolean`);
+            }
+          }
+        }
+        break;
+        
+      case 'accounting':
+      case 'hawala':
+      case 'specialEntry':
+      case 'balanceSheet':
+        if (permissions[module] !== 'all' && permissions[module] !== 'none') {
+          errors.push(`${module} must be 'all' or 'none'`);
+        }
+        break;
+        
+      case 'masterData':
+        if (permissions[module] !== 'full_access' && permissions[module] !== 'role_based_access') {
+          errors.push(`${module} must be 'full_access' or 'role_based_access'`);
+        }
+        break;
+    }
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+}
+
 // User Management
 export const getUsers = async (req: Request, res: Response) => {
   try {
@@ -423,10 +488,37 @@ export const getRoles = async (req: Request, res: Response) => {
         isActive: true,
         isDeleted: false,
       },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        permissions: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: {
+          select: {
+            users: {
+              where: {
+                isActive: true,
+                isDeleted: false,
+              },
+            },
+          },
+        },
+      },
       orderBy: { name: 'asc' },
     });
 
-    res.json({ roles });
+    // Parse permissions JSON for each role
+    const rolesWithParsedPermissions = roles.map(role => ({
+      ...role,
+      permissions: typeof role.permissions === 'string' 
+        ? JSON.parse(role.permissions) 
+        : role.permissions,
+      userCount: role._count.users,
+    }));
+
+    res.json({ roles: rolesWithParsedPermissions });
   } catch (error) {
     throw error;
   }
@@ -464,6 +556,17 @@ export const createRole = async (req: Request, res: Response) => {
     const { name, description, permissions } = req.body;
     const userId = req.user?.id;
 
+    // Validate required fields
+    if (!name || !permissions) {
+      throw createError('Role name and permissions are required', 400);
+    }
+
+    // Validate RBAC permissions structure
+    const validPermissions = validateRBACPermissions(permissions);
+    if (!validPermissions.isValid) {
+      throw createError(`Invalid permissions: ${validPermissions.errors.join(', ')}`, 400);
+    }
+
     // Check if role already exists
     const existingRole = await prisma.role.findFirst({
       where: {
@@ -481,7 +584,20 @@ export const createRole = async (req: Request, res: Response) => {
       data: {
         name,
         description,
-        permissions,
+        permissions: permissions, // Store as JSON object, not string
+      },
+    });
+
+    // Create audit log
+    await prisma.auditLog.create({
+      data: {
+        entity: 'Role',
+        entityId: role.id,
+        action: 'CREATE',
+        newValues: JSON.stringify(role),
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+        createdBy: userId!,
       },
     });
 
@@ -518,6 +634,19 @@ export const updateRole = async (req: Request, res: Response) => {
       throw createError('Role not found', 404);
     }
 
+    // Prevent modification of Super Admin role
+    if (existingRole.name === 'Super Admin') {
+      throw createError('Cannot modify Super Admin role', 403);
+    }
+
+    // Validate RBAC permissions if provided
+    if (permissions) {
+      const validPermissions = validateRBACPermissions(permissions);
+      if (!validPermissions.isValid) {
+        throw createError(`Invalid permissions: ${validPermissions.errors.join(', ')}`, 400);
+      }
+    }
+
     // Check if name is already taken by another role
     if (name && name !== existingRole.name) {
       const duplicateRole = await prisma.role.findFirst({
@@ -536,13 +665,18 @@ export const updateRole = async (req: Request, res: Response) => {
       }
     }
 
+    const updateData: any = {
+      name,
+      description,
+    };
+
+    if (permissions) {
+      updateData.permissions = permissions; // Store as JSON object, not string
+    }
+
     const role = await prisma.role.update({
       where: { id: roleId },
-      data: {
-        name,
-        description,
-        permissions,
-      },
+      data: updateData,
     });
 
     // Create audit log
@@ -561,7 +695,10 @@ export const updateRole = async (req: Request, res: Response) => {
 
     res.json({
       message: 'Role updated successfully',
-      role,
+      role: {
+        ...role,
+        permissions: JSON.parse(role.permissions as string),
+      },
     });
   } catch (error) {
     throw error;
@@ -589,6 +726,11 @@ export const deleteRole = async (req: Request, res: Response) => {
 
     if (!existingRole) {
       throw createError('Role not found', 404);
+    }
+
+    // Prevent deletion of Super Admin role
+    if (existingRole.name === 'Super Admin') {
+      throw createError('Cannot delete Super Admin role', 403);
     }
 
     // Check if role is being used by any users

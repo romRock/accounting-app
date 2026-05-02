@@ -15,7 +15,7 @@ interface User {
     id: string;
     name: string;
     description: string;
-    permissions: Record<string, any>;
+    permissions: string; // JSON string to match backend
   };
   branch?: {
     id: string;
@@ -66,7 +66,7 @@ const createAdminRole = () => ({
   id: 'admin_role',
   name: 'Admin',
   description: 'Full system administrator',
-  permissions: {
+  permissions: JSON.stringify({
     users: { read: true, write: true, delete: true },
     roles: { read: true, write: true, delete: true },
     cities: { read: true, write: true, delete: true },
@@ -76,7 +76,7 @@ const createAdminRole = () => ({
     accounting: { read: true, write: true, delete: true },
     reports: { read: true, write: true },
     dashboard: { read: true },
-  },
+  }),
 });
 
 // Mock API functions

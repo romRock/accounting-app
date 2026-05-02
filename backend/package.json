@@ -13,8 +13,11 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:cities": "tsx src/seedCities.ts",
+    "db:seed:roles": "tsx prisma/seeds/rbac-roles.seed.ts",
     "db:seed:cities:production": "tsx scripts/seed-cities-production.ts",
     "db:seed:clients:production": "tsx scripts/seed-clients-production.ts",
+    "db:seed:roles:production": "tsx scripts/seed-roles-production.ts",
+    "db:seed:users:production": "tsx scripts/seed-users-production.ts",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate"
   },

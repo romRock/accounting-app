@@ -51,13 +51,7 @@ export const login = async (req: Request, res: Response) => {
     const { password: _, ...userWithoutPassword } = user;
 
     res.json({
-      success: true,
-      token: accessToken,
-      user: {
-        id: userWithoutPassword.id,
-        email: userWithoutPassword.email,
-        role: userWithoutPassword.role.name,
-      },
+      user: userWithoutPassword,
       accessToken,
       refreshToken,
     });

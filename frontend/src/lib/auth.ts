@@ -2,12 +2,41 @@
 import API_BASE_URL, { LIVE_API_URL } from './api';
 
 interface LoginResponse {
-  success: boolean;
-  token: string;
   user: {
     id: string;
     email: string;
-    role: string;
+    username: string;
+    firstName: string;
+    lastName: string;
+    phone?: string;
+    isActive: boolean;
+    isDeleted: boolean;
+    createdAt: string;
+    updatedAt: string;
+    roleId: string;
+    branchId?: string;
+    role: {
+      id: string;
+      name: string;
+      description: string;
+      permissions: string; // JSON string
+      isActive: boolean;
+      isDeleted: boolean;
+      createdAt: string;
+      updatedAt: string;
+    };
+    branch?: {
+      id: string;
+      name: string;
+      code: string;
+      address?: string;
+      phone?: string;
+      email?: string;
+      isActive: boolean;
+      isDeleted: boolean;
+      createdAt: string;
+      updatedAt: string;
+    };
   };
   accessToken: string;
   refreshToken: string;
@@ -27,7 +56,7 @@ interface User {
     id: string;
     name: string;
     description: string;
-    permissions: Record<string, any>;
+    permissions: string; // JSON string from backend
   };
   branch?: {
     id: string;
@@ -76,38 +105,8 @@ export const authApi = {
 
     const data: LoginResponse = await response.json();
     
-    // Transform the response to match the expected User interface
-    const user: User = {
-      id: data.user.id,
-      email: data.user.email,
-      username: data.user.email.split('@')[0], // Generate username from email
-      firstName: 'Admin',
-      lastName: 'User',
-      phone: undefined,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      role: {
-        id: 'admin_role',
-        name: data.user.role,
-        description: 'System administrator',
-        permissions: {
-          users: { read: true, write: true, delete: true },
-          roles: { read: true, write: true, delete: true },
-          cities: { read: true, write: true, delete: true },
-          parties: { read: true, write: true, delete: true },
-          branches: { read: true, write: true, delete: true },
-          transactions: { read: true, write: true, delete: true },
-          accounting: { read: true, write: true, delete: true },
-          reports: { read: true, write: true },
-          dashboard: { read: true },
-        },
-      },
-      branch: null,
-    };
-
     return {
-      user,
+      user: data.user,
       accessToken: data.accessToken,
       refreshToken: data.refreshToken,
     };

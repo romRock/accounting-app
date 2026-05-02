@@ -42,7 +42,7 @@ model Role {
   id          String   @id @default(cuid())
   name        String   @unique
   description String?
-  permissions String
+  permissions Json     // Store RBAC permissions as JSON
   isActive    Boolean  @default(true)
   isDeleted   Boolean  @default(false)
   createdAt   DateTime @default(now())

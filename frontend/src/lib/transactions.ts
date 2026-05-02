@@ -387,6 +387,207 @@ export const transactionApi = {
     return result.data;
   },
 
+  // Roles API functions
+  async getRoles(): Promise<any[]> {
+    console.log('=== GET ROLES API DEBUG ===');
+    
+    const response = await fetch(`${API_BASE_URL}/api/roles`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to fetch roles');
+    }
+
+    const result = await response.json();
+    return result.data;
+  },
+
+  async addRole(name: string, permissions: any): Promise<any> {
+    const { accessToken } = useAuthStore.getState();
+    console.log('=== ADD ROLE API DEBUG ===');
+    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/api/roles/add`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ name, permissions }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to add role');
+    }
+
+    return await response.json();
+  },
+
+  async updateRole(id: string, name: string, permissions: any): Promise<any> {
+    const { accessToken } = useAuthStore.getState();
+    console.log('=== UPDATE ROLE API DEBUG ===');
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/api/roles/update`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ id, name, permissions }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to update role');
+    }
+
+    return await response.json();
+  },
+
+  async deleteRole(id: string): Promise<void> {
+    const { accessToken } = useAuthStore.getState();
+    console.log('=== DELETE ROLE API DEBUG ===');
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/api/roles/delete`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ id }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to delete role');
+    }
+  },
+
+  async getUsers(): Promise<any[]> {
+    const { accessToken } = useAuthStore.getState();
+    console.log('=== GET USERS API DEBUG ===');
+    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/api/users`, {
+      method: 'GET',
+      headers: headers,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to fetch users');
+    }
+
+    const result = await response.json();
+    return result.data;
+  },
+
+  async addUser(fullName: string, mobileNumber: string, email: string, password: string, roleId: string): Promise<any> {
+    const { accessToken } = useAuthStore.getState();
+    console.log('=== ADD USER API DEBUG ===');
+    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/api/users/add`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ fullName, mobileNumber, email, password, roleId }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to add user');
+    }
+
+    return await response.json();
+  },
+
+  async updateUser(id: string, fullName: string, mobileNumber: string, email: string, password: string, roleId: string): Promise<any> {
+    const { accessToken } = useAuthStore.getState();
+    console.log('=== UPDATE USER API DEBUG ===');
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/api/users/update`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ id, fullName, mobileNumber, email, password, roleId }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to update user');
+    }
+
+    return await response.json();
+  },
+
+  async deleteUser(id: string): Promise<void> {
+    const { accessToken } = useAuthStore.getState();
+    console.log('=== DELETE USER API DEBUG ===');
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/api/users/delete`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ id }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to delete user');
+    }
+  },
+
   // Test function for debugging (no authentication required)
   async testCityAdd(name: string, code: string, state: string, number?: string): Promise<any> {
     const response = await fetch(`${API_BASE_URL}/api/cities/test`, {

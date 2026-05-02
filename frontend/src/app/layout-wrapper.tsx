@@ -16,6 +16,12 @@ export default function LayoutWrapper({
   const pathname = usePathname();
   const { user, isAuthenticated, logout } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Wait for Zustand hydration to complete
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
   const [activeTransactionTab, setActiveTransactionTab] = useState<'outward' | 'inward'>('outward');
   const [activeReport, setActiveReport] = useState<'outward' | 'inward' | 'combo' | 'outward-centerwise' | 'inward-centerwise' | 'amount-type' | 'customer'>('outward');
   const [activeMasterTab, setActiveMasterTab] = useState<'users' | 'roles' | 'centers' | 'clients'>('users');
@@ -78,8 +84,63 @@ export default function LayoutWrapper({
     };
   }, []);
 
+  // Check if user has permission for a specific module
+  const hasPermission = (module: string, action?: string) => {
+    if (!user?.role?.permissions) return false;
+    
+    // Parse permissions from JSON string if needed
+    let permissions;
+    try {
+      permissions = typeof user.role.permissions === 'string' 
+        ? JSON.parse(user.role.permissions) 
+        : user.role.permissions;
+    } catch (error) {
+      console.error('Error parsing permissions:', error);
+      return false;
+    }
+    
+    switch (module) {
+      case 'dashboard':
+        return permissions.dashboard?.view || false;
+      case 'transactions':
+        return action === 'outward' 
+          ? permissions.transactions?.outward || false
+          : action === 'inward'
+          ? permissions.transactions?.inward || false
+          : (permissions.transactions?.outward || permissions.transactions?.inward || false);
+      case 'accounting':
+        return permissions.accounting === 'all';
+      case 'hawala':
+        return permissions.hawala === 'all';
+      case 'specialEntry':
+        return permissions.specialEntry === 'all';
+      case 'reports':
+        return permissions.accounting === 'all' || Object.values(permissions.reports || {}).some(Boolean);
+      case 'balanceSheet':
+        return permissions.balanceSheet === 'all';
+      case 'master':
+        return permissions.masterData === 'full_access' || permissions.masterData === 'role_based_access';
+      default:
+        return true; // Help page is always accessible
+    }
+  };
+
+  // Get required permissions for a route
+  const getRoutePermissions = (path: string) => {
+    if (path.startsWith('/dashboard')) return { module: 'dashboard', action: 'view' };
+    if (path.startsWith('/transactions')) return { module: 'transactions' };
+    if (path.startsWith('/accounting')) return { module: 'accounting' };
+    if (path.startsWith('/hawala')) return { module: 'hawala' };
+    if (path.startsWith('/spl')) return { module: 'specialEntry' };
+    if (path.startsWith('/reports')) return { module: 'reports' };
+    if (path.startsWith('/balance-sheet')) return { module: 'balanceSheet' };
+    if (path.startsWith('/master')) return { module: 'master' };
+    // Help page doesn't require permissions
+    return null;
+  };
+
   useEffect(() => {
-    // Check authentication state with delays to allow for rehydration
+    // Only run auth checks after component has mounted to avoid hydration issues
     const checkAuth = () => {
       const { isAuthenticated: currentAuthState } = useAuthStore.getState();
       
@@ -87,24 +148,35 @@ export default function LayoutWrapper({
         router.push('/login');
       }
       
+      // Check route permissions if authenticated
+      if (currentAuthState && pathname !== '/login') {
+        const routePermissions = getRoutePermissions(pathname);
+        if (routePermissions && !hasPermission(routePermissions.module, routePermissions.action)) {
+          // Redirect to dashboard if no access
+          router.push('/dashboard');
+        }
+      }
+      
       // Stop checking auth after initial check
       setIsCheckingAuth(false);
     };
 
-    // Multiple checks to ensure auth state is properly loaded
-    const timer1 = setTimeout(checkAuth, 100);
-    const timer2 = setTimeout(checkAuth, 300);
+    // Delay auth checks to avoid hydration mismatch
+    const timer = setTimeout(checkAuth, 500);
     
-    // Also check on route changes
-    if (!isAuthenticated && pathname !== '/login') {
-      router.push('/login');
-    }
-
     return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
+      clearTimeout(timer);
     };
   }, [isAuthenticated, pathname, router]);
+
+  // Show loading state while checking auth or hydrating - prevent any rendering until hydrated
+  if (!isHydrated) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   // Show loading state while checking auth
   if (isCheckingAuth && pathname !== '/login') {
@@ -125,10 +197,11 @@ export default function LayoutWrapper({
     );
   }
 
-  const navigation = [
+  const allNavigation = [
     { 
       name: 'Dashboard', 
       href: '/dashboard', 
+      permission: { module: 'dashboard', action: 'view' },
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -138,6 +211,7 @@ export default function LayoutWrapper({
     { 
       name: 'Transactions', 
       href: '/transactions', 
+      permission: { module: 'transactions' },
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -147,6 +221,7 @@ export default function LayoutWrapper({
     { 
       name: 'Accounting', 
       href: '/accounting', 
+      permission: { module: 'accounting' },
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -156,6 +231,7 @@ export default function LayoutWrapper({
     { 
       name: 'Hawala', 
       href: '/hawala', 
+      permission: { module: 'hawala' },
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -165,6 +241,7 @@ export default function LayoutWrapper({
     { 
       name: 'Special Entry', 
       href: '/spl', 
+      permission: { module: 'specialEntry' },
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
@@ -174,6 +251,7 @@ export default function LayoutWrapper({
     { 
       name: 'Reports', 
       href: '/reports', 
+      permission: { module: 'reports' },
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -183,6 +261,7 @@ export default function LayoutWrapper({
     { 
       name: 'Balance Sheet', 
       href: '/balance-sheet', 
+      permission: { module: 'balanceSheet' },
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -193,6 +272,7 @@ export default function LayoutWrapper({
     { 
       name: 'Master Data', 
       href: '/master', 
+      permission: { module: 'master' },
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -203,6 +283,7 @@ export default function LayoutWrapper({
     { 
       name: 'Help', 
       href: '/help', 
+      permission: null, // Always accessible
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -210,6 +291,34 @@ export default function LayoutWrapper({
       )
     },
   ];
+
+  // Filter navigation based on user permissions - with extra safety checks
+  const navigation = allNavigation.filter(item => {
+    if (!item.permission) {
+      return true; // Always show items without permission requirements
+    }
+    
+    // Multiple safety checks to prevent React errors
+    if (!user) {
+      return false;
+    }
+    
+    if (!user.role) {
+      return false;
+    }
+    
+    if (!user.role.permissions) {
+      return false;
+    }
+    
+    try {
+      const hasAccess = hasPermission(item.permission.module, item.permission.action);
+      return hasAccess;
+    } catch (error) {
+      console.error('Error checking permissions for navigation:', error);
+      return false; // Hide item on error
+    }
+  });
 
   return (
     <div className="min-h-screen bg-white flex">
@@ -287,7 +396,22 @@ export default function LayoutWrapper({
                 {user?.email}
               </div>
               <div className="text-xs text-blue-600 font-medium">
-                {user?.role?.name}
+                {(() => {
+                  try {
+                    const roleName = user?.role?.name;
+                    if (typeof roleName === 'string') {
+                      return roleName;
+                    }
+                    if (typeof roleName === 'object' && roleName !== null) {
+                      console.warn('Role name is an object, converting to string');
+                      return String(roleName);
+                    }
+                    return 'No Role';
+                  } catch (error) {
+                    console.error('Error rendering role name:', error);
+                    return 'No Role';
+                  }
+                })()}
               </div>
             </div>
           </div>
@@ -388,7 +512,7 @@ export default function LayoutWrapper({
                         : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                     }`}
                   >
-                    Roles & Permissions
+                    Roles
                   </button>
                   <button
                     onClick={() => {
@@ -687,7 +811,22 @@ export default function LayoutWrapper({
                     {user?.email}
                   </div>
                   <div className="text-xs text-blue-400 font-medium">
-                    {user?.role?.name}
+                    {(() => {
+                      try {
+                        const roleName = user?.role?.name;
+                        if (typeof roleName === 'string') {
+                          return roleName;
+                        }
+                        if (typeof roleName === 'object' && roleName !== null) {
+                          console.warn('Mobile: Role name is an object, converting to string');
+                          return String(roleName);
+                        }
+                        return 'No Role';
+                      } catch (error) {
+                        console.error('Mobile: Error rendering role name:', error);
+                        return 'No Role';
+                      }
+                    })()}
                   </div>
                 </div>
               </div>

@@ -29,28 +29,27 @@ interface User {
 interface Role {
   id: string;
   name: string;
-  description: string;
   permissions: {
-    transactions: {
-      view: boolean;
-      add: boolean;
-      edit: boolean;
-      delete: boolean;
-    };
+    dashboard: { view: boolean };
+    transactions: { outward: boolean; inward: boolean };
+    accounting: 'all' | 'none';
+    hawala: 'all' | 'none';
+    specialEntry: 'all' | 'none';
     reports: {
-      view: boolean;
-      export: boolean;
+      report_1: boolean;
+      report_2: boolean;
+      report_3: boolean;
+      report_4: boolean;
+      report_5: boolean;
+      report_6: boolean;
+      report_7: boolean;
     };
-    balanceSheet: {
-      view: boolean;
-      export: boolean;
-    };
-    master: {
-      fullAccess: boolean;
-    };
+    balanceSheet: 'all' | 'none';
+    masterData: 'full_access' | 'role_based_access';
   };
   createdAt: string;
   updatedAt: string;
+  userCount?: number;
 }
 
 interface Center {
@@ -82,7 +81,26 @@ export default function MasterPage() {
   
   // Form states
   const [userForm, setUserForm] = useState<Partial<User>>({});
-  const [roleForm, setRoleForm] = useState<Partial<Role>>({});
+  const [roleForm, setRoleForm] = useState<Partial<Role>>({
+    permissions: {
+      dashboard: { view: false },
+      transactions: { outward: false, inward: false },
+      accounting: 'none',
+      hawala: 'none',
+      specialEntry: 'none',
+      reports: {
+        report_1: false,
+        report_2: false,
+        report_3: false,
+        report_4: false,
+        report_5: false,
+        report_6: false,
+        report_7: false
+      },
+      balanceSheet: 'none',
+      masterData: 'role_based_access'
+    }
+  });
   const [centerForm, setCenterForm] = useState<Partial<Center>>({});
   const [clientForm, setClientForm] = useState<Partial<Client>>({});
   
@@ -149,6 +167,36 @@ export default function MasterPage() {
     }
   };
 
+  // Load real roles data
+  const loadRoles = async () => {
+    try {
+      console.log("=== MASTER PAGE: Loading roles ===");
+      
+      const rolesData = await transactionApi.getRoles();
+      console.log("API returned roles:", rolesData.length, rolesData);
+      
+      setRoles(rolesData);
+    } catch (error) {
+      console.error("Error loading roles:", error);
+      setRoles([]); // Set empty array on error
+    }
+  };
+
+  // Load real users data
+  const loadUsers = async () => {
+    try {
+      console.log("=== MASTER PAGE: Loading users ===");
+      
+      const usersData = await transactionApi.getUsers();
+      console.log("API returned users:", usersData.length, usersData);
+      
+      setUsers(usersData);
+    } catch (error) {
+      console.error("Error loading users:", error);
+      setUsers([]); // Set empty array on error
+    }
+  };
+
   // Generate mock data
   const generateMockData = () => {
     // Mock roles
@@ -156,41 +204,102 @@ export default function MasterPage() {
       {
         id: '1',
         name: 'Super Admin',
-        description: 'Full system access',
         permissions: {
-          transactions: { view: true, add: true, edit: true, delete: true },
-          reports: { view: true, export: true },
-          balanceSheet: { view: true, export: true },
-          master: { fullAccess: true }
+          dashboard: { view: true },
+          transactions: { outward: true, inward: true },
+          accounting: 'all',
+          hawala: 'all',
+          specialEntry: 'all',
+          reports: {
+            report_1: true,
+            report_2: true,
+            report_3: true,
+            report_4: true,
+            report_5: true,
+            report_6: true,
+            report_7: true
+          },
+          balanceSheet: 'all',
+          masterData: 'full_access'
         },
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        userCount: 0
       },
       {
         id: '2',
-        name: 'Manager',
-        description: 'Branch manager access',
+        name: 'Admin',
         permissions: {
-          transactions: { view: true, add: true, edit: true, delete: false },
-          reports: { view: true, export: true },
-          balanceSheet: { view: true, export: false },
-          master: { fullAccess: false }
+          dashboard: { view: true },
+          transactions: { outward: true, inward: true },
+          accounting: 'all',
+          hawala: 'all',
+          specialEntry: 'all',
+          reports: {
+            report_1: true,
+            report_2: true,
+            report_3: true,
+            report_4: true,
+            report_5: true,
+            report_6: false,
+            report_7: false
+          },
+          balanceSheet: 'all',
+          masterData: 'role_based_access'
         },
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        userCount: 0
       },
       {
         id: '3',
         name: 'Operator',
-        description: 'Basic operator access',
         permissions: {
-          transactions: { view: true, add: true, edit: false, delete: false },
-          reports: { view: true, export: false },
-          balanceSheet: { view: false, export: false },
-          master: { fullAccess: false }
+          dashboard: { view: true },
+          transactions: { outward: false, inward: true },
+          accounting: 'none',
+          hawala: 'none',
+          specialEntry: 'none',
+          reports: {
+            report_1: false,
+            report_2: true,
+            report_3: false,
+            report_4: false,
+            report_5: false,
+            report_6: false,
+            report_7: false
+          },
+          balanceSheet: 'none',
+          masterData: 'role_based_access'
         },
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        userCount: 0
+      },
+      {
+        id: '4',
+        name: 'Viewer',
+        permissions: {
+          dashboard: { view: true },
+          transactions: { outward: false, inward: false },
+          accounting: 'none',
+          hawala: 'none',
+          specialEntry: 'none',
+          reports: {
+            report_1: false,
+            report_2: false,
+            report_3: false,
+            report_4: false,
+            report_5: false,
+            report_6: false,
+            report_7: false
+          },
+          balanceSheet: 'none',
+          masterData: 'role_based_access'
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        userCount: 0
       }
     ];
 
@@ -237,12 +346,24 @@ export default function MasterPage() {
     generateMockData();
     loadCenters(); // Load real centers data
     loadClients(); // Load real clients data
+    loadRoles(); // Load real roles data
+    loadUsers(); // Load real users data
   }, [isAuthenticated, router]);
 
   // Listen for tab changes from header
   useEffect(() => {
     const handleTabChange = (e: CustomEvent) => {
-      setActiveTab(e.detail);
+      const newTab = e.detail;
+      setActiveTab(newTab);
+      
+      // Load data when switching to specific tabs
+      if (newTab === 'roles') {
+        loadRoles();
+      } else if (newTab === 'centers') {
+        loadCenters();
+      } else if (newTab === 'clients') {
+        loadClients();
+      }
     };
 
     window.addEventListener('setMasterTab', handleTabChange as EventListener);
@@ -253,35 +374,85 @@ export default function MasterPage() {
   const handleAdd = () => {
     switch (activeTab) {
       case 'users':
-        if (userForm.fullName && userForm.username && userForm.mobileNumber && userForm.roleId && userForm.centerId) {
-          const newUser: User = {
-            ...userForm as User,
-            id: Date.now().toString(),
-            status: 'Active',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          };
-          setUsers([...users, newUser]);
-          setUserForm({});
+        if (userForm.fullName && userForm.mobileNumber && userForm.password && userForm.roleId) {
+          // Make API call to add user
+          transactionApi.addUser(
+            userForm.fullName,
+            userForm.mobileNumber,
+            userForm.email || '',
+            userForm.password,
+            userForm.roleId
+          )
+          .then((response) => {
+            if (response.success) {
+              // Reload users list
+              loadUsers();
+              setUserForm({});
+              alert('User added successfully');
+            } else {
+              alert('Failed to add user: ' + response.message);
+            }
+          })
+          .catch((error) => {
+            console.error('Error adding user:', error);
+            alert('Failed to add user: ' + error.message);
+          });
         }
         break;
       case 'roles':
-        if (roleForm.name && roleForm.description) {
-          const newRole: Role = {
-            id: Date.now().toString(),
-            name: roleForm.name,
-            description: roleForm.description,
-            permissions: roleForm.permissions || {
-              transactions: { view: false, add: false, edit: false, delete: false },
-              reports: { view: false, export: false },
-              balanceSheet: { view: false, export: false },
-              master: { fullAccess: false }
-            },
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+        if (roleForm.name) {
+          // Only admins can add roles
+          if (!isAdmin) {
+            alert('Only administrators can add new roles');
+            return;
+          }
+
+          const addNewRole = async () => {
+            try {
+              setLoading(true);
+              const newRole = await transactionApi.addRole(
+                roleForm.name!,
+                roleForm.permissions || {
+                  dashboard: { view: false },
+                  transactions: { outward: false, inward: false },
+                  accounting: "none" as const,
+                  hawala: "none" as const,
+                  specialEntry: "none" as const,
+                  reports: { 
+                    report_1: false, 
+                    report_2: false, 
+                    report_3: false, 
+                    report_4: false, 
+                    report_5: false, 
+                    report_6: false, 
+                    report_7: false 
+                  },
+                  balanceSheet: "none" as const,
+                  masterData: "role_based_access" as const
+                }
+              );
+
+              // Convert to Role format and add to local state
+              const roleData: Role = {
+                id: newRole.id,
+                name: newRole.name,
+                permissions: newRole.permissions,
+                createdAt: newRole.createdAt,
+                updatedAt: newRole.updatedAt
+              };
+
+              setRoles([...roles, roleData]);
+              setRoleForm({});
+              alert('Role added successfully!');
+            } catch (error) {
+              console.error('Error adding role:', error);
+              alert(error instanceof Error ? error.message : 'Failed to add role');
+            } finally {
+              setLoading(false);
+            }
           };
-          setRoles([...roles, newRole]);
-          setRoleForm({});
+
+          addNewRole();
         }
         break;
       case 'centers':
@@ -382,7 +553,12 @@ export default function MasterPage() {
         setUserForm(item);
         break;
       case 'roles':
-        setRoleForm(item);
+        setRoleForm({
+          ...item,
+          permissions: typeof item.permissions === 'string' 
+            ? JSON.parse(item.permissions) 
+            : item.permissions
+        });
         break;
       case 'centers':
         setCenterForm(item);
@@ -397,10 +573,40 @@ export default function MasterPage() {
     if (confirm('Are you sure you want to delete this item?')) {
       switch (activeTab) {
         case 'users':
-          setUsers(users.filter(u => u.id !== id));
+          // Make API call to delete user
+          transactionApi.deleteUser(id)
+          .then(() => {
+            // Reload users list
+            loadUsers();
+            alert('User deleted successfully');
+          })
+          .catch((error) => {
+            console.error('Error deleting user:', error);
+            alert('Failed to delete user: ' + error.message);
+          });
           break;
         case 'roles':
-          setRoles(roles.filter(r => r.id !== id));
+          // Only admins can delete roles
+          if (!isAdmin) {
+            alert('Only administrators can delete roles');
+            return;
+          }
+
+          const deleteRole = async () => {
+            try {
+              setLoading(true);
+              await transactionApi.deleteRole(id);
+              setRoles(roles.filter(r => r.id !== id));
+              alert('Role deleted successfully!');
+            } catch (error) {
+              console.error('Error deleting role:', error);
+              alert(error instanceof Error ? error.message : 'Failed to delete role');
+            } finally {
+              setLoading(false);
+            }
+          };
+
+          deleteRole();
           break;
         case 'centers':
           // Only admins can delete cities
@@ -457,10 +663,69 @@ export default function MasterPage() {
     
     switch (activeTab) {
       case 'users':
-        setUsers(users.map(u => u.id === editingId ? { ...userForm as User, id: editingId } : u));
+        // Make API call to update user
+        transactionApi.updateUser(
+          editingId!,
+          userForm.fullName!,
+          userForm.mobileNumber!,
+          userForm.email || '',
+          userForm.password || '',
+          userForm.roleId!
+        )
+        .then((response) => {
+          if (response.success) {
+            // Reload users list
+            loadUsers();
+            setUserForm({});
+            setEditingId(null);
+            alert('User updated successfully');
+          } else {
+            alert('Failed to update user: ' + response.message);
+          }
+        })
+        .catch((error) => {
+          console.error('Error updating user:', error);
+          alert('Failed to update user: ' + error.message);
+        });
         break;
       case 'roles':
-        setRoles(roles.map(r => r.id === editingId ? { ...roleForm as Role, id: editingId } : r));
+        // Only admins can update roles
+        if (!isAdmin) {
+          alert('Only administrators can update roles');
+          return;
+        }
+
+        const updateRole = async () => {
+          try {
+            setLoading(true);
+            const updatedRole = await transactionApi.updateRole(
+              editingId!,
+              roleForm.name!,
+              roleForm.permissions!
+            );
+
+            // Convert to Role format and update local state
+            const roleData: Role = {
+              id: updatedRole.id,
+              name: updatedRole.name,
+              permissions: updatedRole.permissions,
+              createdAt: updatedRole.createdAt,
+              updatedAt: updatedRole.updatedAt
+            };
+
+            setRoles(roles.map(r => r.id === editingId ? roleData : r));
+            setRoleForm({});
+            setEditingId(null);
+            alert('Role updated successfully!');
+          } catch (error) {
+            console.error('Error updating role:', error);
+            alert(error instanceof Error ? error.message : 'Failed to update role');
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        updateRole();
         break;
       case 'centers':
         // Only admins can update cities
@@ -557,7 +822,26 @@ export default function MasterPage() {
   const handleClear = () => {
     setEditingId(null);
     setUserForm({});
-    setRoleForm({});
+    setRoleForm({
+      permissions: {
+        dashboard: { view: false },
+        transactions: { outward: false, inward: false },
+        accounting: 'none',
+        hawala: 'none',
+        specialEntry: 'none',
+        reports: {
+          report_1: false,
+          report_2: false,
+          report_3: false,
+          report_4: false,
+          report_5: false,
+          report_6: false,
+          report_7: false
+        },
+        balanceSheet: 'none',
+        masterData: 'role_based_access'
+      }
+    });
     setCenterForm({});
     setClientForm({});
   };
@@ -570,8 +854,7 @@ export default function MasterPage() {
   );
 
   const filteredRoles = () => roles.filter(r => 
-    r.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.description.toLowerCase().includes(searchTerm.toLowerCase())
+    r.name && r.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const filteredCenters = () => centers.filter(c => 
@@ -619,27 +902,17 @@ export default function MasterPage() {
                         id="fullName"
                         value={userForm.fullName || ''}
                         onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
+                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 placeholder-gray-500"
                         placeholder="Enter full name"
                       />
                     </div>
-                    <div>
-                      <Label htmlFor="username" className="text-sm font-medium text-gray-700">Username</Label>
-                      <Input
-                        id="username"
-                        value={userForm.username || ''}
-                        onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
-                        placeholder="Enter username"
-                      />
-                    </div>
-                    <div>
+                                        <div>
                       <Label htmlFor="mobileNumber" className="text-sm font-medium text-gray-700">Mobile Number</Label>
                       <Input
                         id="mobileNumber"
                         value={userForm.mobileNumber || ''}
                         onChange={(e) => setUserForm({ ...userForm, mobileNumber: e.target.value })}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
+                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 placeholder-gray-500"
                         placeholder="Enter mobile number"
                       />
                     </div>
@@ -649,7 +922,7 @@ export default function MasterPage() {
                         id="email"
                         value={userForm.email || ''}
                         onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
+                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 placeholder-gray-500"
                         placeholder="Enter email address"
                       />
                     </div>
@@ -660,28 +933,17 @@ export default function MasterPage() {
                         type="password"
                         value={userForm.password || ''}
                         onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
+                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 placeholder-gray-500"
                         placeholder="Enter password"
                       />
                     </div>
-                    <div>
-                      <Label htmlFor="confirmPassword" className="text-sm font-medium text-gray-700">Confirm Password</Label>
-                      <Input
-                        id="confirmPassword"
-                        type="password"
-                        value={userForm.confirmPassword || ''}
-                        onChange={(e) => setUserForm({ ...userForm, confirmPassword: e.target.value })}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
-                        placeholder="Confirm password"
-                      />
-                    </div>
-                    <div>
+                                        <div>
                       <Label htmlFor="roleId" className="text-sm font-medium text-gray-700">Role</Label>
                       <select
                         id="roleId"
                         value={userForm.roleId || ''}
                         onChange={(e) => setUserForm({ ...userForm, roleId: e.target.value })}
-                        className="w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-sm mt-1"
+                        className="w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-sm mt-1 text-gray-900"
                       >
                         <option value="">Select Role</option>
                         {roles.map((role) => (
@@ -691,23 +953,7 @@ export default function MasterPage() {
                         ))}
                       </select>
                     </div>
-                    <div>
-                      <Label htmlFor="centerId" className="text-sm font-medium text-gray-700">Center</Label>
-                      <select
-                        id="centerId"
-                        value={userForm.centerId || ''}
-                        onChange={(e) => setUserForm({ ...userForm, centerId: e.target.value })}
-                        className="w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-sm mt-1"
-                      >
-                        <option value="">Select Center</option>
-                        {centers.map((center) => (
-                          <option key={center.id} value={center.id}>
-                            {center.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+                                      </div>
                   
                   {/* Action Buttons */}
                   <div className="flex items-center space-x-3 mt-6">
@@ -744,7 +990,7 @@ export default function MasterPage() {
                       placeholder="Search users..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="bg-white w-48 lg:w-64 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      className="bg-white w-48 lg:w-64 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900 placeholder-gray-500"
                     />
                   </div>
                   
@@ -758,29 +1004,19 @@ export default function MasterPage() {
                         <thead className="bg-gray-50">
                           <tr>
                             <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                            <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
                             <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mobile</th>
+                            <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                             <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                            <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Center</th>
-                            <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                             <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {filteredUsers().map((user: User) => (
+                          {filteredUsers().map((user: any) => (
                             <tr key={user.id} className="hover:bg-gray-50">
-                              <td className="border border-gray-200 px-4 py-3 text-sm">{user.fullName}</td>
-                              <td className="border border-gray-200 px-4 py-3 text-sm">{user.username}</td>
-                              <td className="border border-gray-200 px-4 py-3 text-sm">{user.mobileNumber}</td>
-                              <td className="border border-gray-200 px-4 py-3 text-sm">{roles.find(r => r.id === user.roleId)?.name || ''}</td>
-                              <td className="border border-gray-200 px-4 py-3 text-sm">{centers.find(c => c.id === user.centerId)?.name || ''}</td>
-                              <td className="border border-gray-200 px-4 py-3 text-sm">
-                                <span className={`px-2 py-1 text-xs rounded-full ${
-                                  user.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                }`}>
-                                  {user.status}
-                                </span>
-                              </td>
+                              <td className="border border-gray-200 px-4 py-3 text-sm text-gray-900">{user.fullName}</td>
+                              <td className="border border-gray-200 px-4 py-3 text-sm text-gray-900">{user.mobileNumber}</td>
+                              <td className="border border-gray-200 px-4 py-3 text-sm text-gray-900">{user.email || ''}</td>
+                              <td className="border border-gray-200 px-4 py-3 text-sm text-gray-900">{roles.find(r => r.id === user.roleId)?.name || ''}</td>
                               <td className="border border-gray-200 px-4 py-3 text-sm">
                                 <div className="flex space-x-2">
                                   <Button
@@ -826,211 +1062,410 @@ export default function MasterPage() {
                         id="roleName"
                         value={roleForm.name || ''}
                         onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
+                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 placeholder-gray-500"
                         placeholder="Enter role name"
                       />
                     </div>
                     <div>
-                      <Label htmlFor="roleDescription" className="text-sm font-medium text-gray-700">Description</Label>
-                      <Input
-                        id="roleDescription"
-                        value={roleForm.description || ''}
-                        onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
-                        placeholder="Enter role description"
-                      />
+                      {/* Description field removed as requested */}
                     </div>
                   </div>
 
-                  {/* Permissions Matrix */}
+                  {/* RBAC Permissions Matrix */}
                   <div className="space-y-4">
-                    <h4 className="text-md font-semibold text-gray-900 mb-3">Permissions</h4>
+                    <h4 className="text-md font-semibold text-gray-900 mb-3">RBAC Permissions</h4>
                     
+                    {/* Dashboard Module */}
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <h5 className="font-medium text-gray-900 mb-3">Dashboard</h5>
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={roleForm.permissions?.dashboard?.view || false}
+                          onChange={(e) => setRoleForm({
+                            ...roleForm,
+                            permissions: {
+                              ...roleForm.permissions!,
+                              dashboard: {
+                                view: e.target.checked
+                              }
+                            }
+                          })}
+                          className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+                        />
+                        <span className="text-sm text-gray-900">View Dashboard</span>
+                      </label>
+                    </div>
+
                     {/* Transactions Module */}
                     <div className="border border-gray-200 rounded-lg p-4">
-                      <h5 className="font-medium text-gray-800 mb-3">Transactions</h5>
-                      <div className="grid grid-cols-4 gap-4">
+                      <h5 className="font-medium text-gray-900 mb-3">Transactions</h5>
+                      <div className="grid grid-cols-2 gap-4">
                         <label className="flex items-center space-x-2">
                           <input
                             type="checkbox"
-                            checked={roleForm.permissions?.transactions?.view || false}
+                            checked={roleForm.permissions?.transactions?.outward || false}
                             onChange={(e) => setRoleForm({
                               ...roleForm,
                               permissions: {
                                 ...roleForm.permissions!,
                                 transactions: {
                                   ...roleForm.permissions?.transactions!,
-                                  view: e.target.checked
+                                  outward: e.target.checked
                                 }
                               }
                             })}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
                           />
-                          <span className="text-sm">View</span>
+                          <span className="text-sm text-gray-900">Outward</span>
                         </label>
                         <label className="flex items-center space-x-2">
                           <input
                             type="checkbox"
-                            checked={roleForm.permissions?.transactions?.add || false}
+                            checked={roleForm.permissions?.transactions?.inward || false}
                             onChange={(e) => setRoleForm({
                               ...roleForm,
                               permissions: {
                                 ...roleForm.permissions!,
                                 transactions: {
                                   ...roleForm.permissions?.transactions!,
-                                  add: e.target.checked
+                                  inward: e.target.checked
                                 }
                               }
                             })}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
                           />
-                          <span className="text-sm">Add</span>
+                          <span className="text-sm text-gray-900">Inward</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Accounting Module */}
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <h5 className="font-medium text-gray-900 mb-3">Accounting</h5>
+                      <div className="flex space-x-4">
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            name="accounting"
+                            checked={roleForm.permissions?.accounting === 'all'}
+                            onChange={() => setRoleForm({
+                              ...roleForm,
+                              permissions: {
+                                ...roleForm.permissions!,
+                                accounting: 'all'
+                              }
+                            })}
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+                          />
+                          <span className="text-sm text-gray-900">All Access</span>
                         </label>
                         <label className="flex items-center space-x-2">
                           <input
-                            type="checkbox"
-                            checked={roleForm.permissions?.transactions?.edit || false}
-                            onChange={(e) => setRoleForm({
+                            type="radio"
+                            name="accounting"
+                            checked={roleForm.permissions?.accounting === 'none'}
+                            onChange={() => setRoleForm({
                               ...roleForm,
                               permissions: {
                                 ...roleForm.permissions!,
-                                transactions: {
-                                  ...roleForm.permissions?.transactions!,
-                                  edit: e.target.checked
-                                }
+                                accounting: 'none'
                               }
                             })}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
                           />
-                          <span className="text-sm">Edit</span>
+                          <span className="text-sm text-gray-900">No Access</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Hawala Module */}
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <h5 className="font-medium text-gray-900 mb-3">Hawala</h5>
+                      <div className="flex space-x-4">
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            name="hawala"
+                            checked={roleForm.permissions?.hawala === 'all'}
+                            onChange={() => setRoleForm({
+                              ...roleForm,
+                              permissions: {
+                                ...roleForm.permissions!,
+                                hawala: 'all'
+                              }
+                            })}
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+                          />
+                          <span className="text-sm text-gray-900">All Access</span>
                         </label>
                         <label className="flex items-center space-x-2">
                           <input
-                            type="checkbox"
-                            checked={roleForm.permissions?.transactions?.delete || false}
-                            onChange={(e) => setRoleForm({
+                            type="radio"
+                            name="hawala"
+                            checked={roleForm.permissions?.hawala === 'none'}
+                            onChange={() => setRoleForm({
                               ...roleForm,
                               permissions: {
                                 ...roleForm.permissions!,
-                                transactions: {
-                                  ...roleForm.permissions?.transactions!,
-                                  delete: e.target.checked
-                                }
+                                hawala: 'none'
                               }
                             })}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
                           />
-                          <span className="text-sm">Delete</span>
+                          <span className="text-sm text-gray-900">No Access</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Special Entry Module */}
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <h5 className="font-medium text-gray-900 mb-3">Special Entry</h5>
+                      <div className="flex space-x-4">
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            name="specialEntry"
+                            checked={roleForm.permissions?.specialEntry === 'all'}
+                            onChange={() => setRoleForm({
+                              ...roleForm,
+                              permissions: {
+                                ...roleForm.permissions!,
+                                specialEntry: 'all'
+                              }
+                            })}
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+                          />
+                          <span className="text-sm text-gray-900">All Access</span>
+                        </label>
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            name="specialEntry"
+                            checked={roleForm.permissions?.specialEntry === 'none'}
+                            onChange={() => setRoleForm({
+                              ...roleForm,
+                              permissions: {
+                                ...roleForm.permissions!,
+                                specialEntry: 'none'
+                              }
+                            })}
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+                          />
+                          <span className="text-sm text-gray-900">No Access</span>
                         </label>
                       </div>
                     </div>
 
                     {/* Reports Module */}
                     <div className="border border-gray-200 rounded-lg p-4">
-                      <h5 className="font-medium text-gray-800 mb-3">Reports</h5>
+                      <h5 className="font-medium text-gray-900 mb-3">Reports</h5>
                       <div className="grid grid-cols-2 gap-4">
                         <label className="flex items-center space-x-2">
                           <input
                             type="checkbox"
-                            checked={roleForm.permissions?.reports?.view || false}
+                            checked={roleForm.permissions?.reports?.report_1 || false}
                             onChange={(e) => setRoleForm({
                               ...roleForm,
                               permissions: {
                                 ...roleForm.permissions!,
                                 reports: {
                                   ...roleForm.permissions?.reports!,
-                                  view: e.target.checked
+                                  report_1: e.target.checked
                                 }
                               }
                             })}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
                           />
-                          <span className="text-sm">View</span>
+                          <span className="text-sm text-gray-900">Outward Report</span>
                         </label>
                         <label className="flex items-center space-x-2">
                           <input
                             type="checkbox"
-                            checked={roleForm.permissions?.reports?.export || false}
+                            checked={roleForm.permissions?.reports?.report_2 || false}
                             onChange={(e) => setRoleForm({
                               ...roleForm,
                               permissions: {
                                 ...roleForm.permissions!,
                                 reports: {
                                   ...roleForm.permissions?.reports!,
-                                  export: e.target.checked
+                                  report_2: e.target.checked
                                 }
                               }
                             })}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
                           />
-                          <span className="text-sm">Export</span>
+                          <span className="text-sm text-gray-900">Inward Report</span>
+                        </label>
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={roleForm.permissions?.reports?.report_3 || false}
+                            onChange={(e) => setRoleForm({
+                              ...roleForm,
+                              permissions: {
+                                ...roleForm.permissions!,
+                                reports: {
+                                  ...roleForm.permissions?.reports!,
+                                  report_3: e.target.checked
+                                }
+                              }
+                            })}
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+                          />
+                          <span className="text-sm text-gray-900">Combo Report</span>
+                        </label>
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={roleForm.permissions?.reports?.report_4 || false}
+                            onChange={(e) => setRoleForm({
+                              ...roleForm,
+                              permissions: {
+                                ...roleForm.permissions!,
+                                reports: {
+                                  ...roleForm.permissions?.reports!,
+                                  report_4: e.target.checked
+                                }
+                              }
+                            })}
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+                          />
+                          <span className="text-sm text-gray-900">Outward Centerwise Report</span>
+                        </label>
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={roleForm.permissions?.reports?.report_5 || false}
+                            onChange={(e) => setRoleForm({
+                              ...roleForm,
+                              permissions: {
+                                ...roleForm.permissions!,
+                                reports: {
+                                  ...roleForm.permissions?.reports!,
+                                  report_5: e.target.checked
+                                }
+                              }
+                            })}
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+                          />
+                          <span className="text-sm text-gray-900">Inward Centerwise Report</span>
+                        </label>
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={roleForm.permissions?.reports?.report_6 || false}
+                            onChange={(e) => setRoleForm({
+                              ...roleForm,
+                              permissions: {
+                                ...roleForm.permissions!,
+                                reports: {
+                                  ...roleForm.permissions?.reports!,
+                                  report_6: e.target.checked
+                                }
+                              }
+                            })}
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+                          />
+                          <span className="text-sm text-gray-900">Amount Type Report</span>
+                        </label>
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={roleForm.permissions?.reports?.report_7 || false}
+                            onChange={(e) => setRoleForm({
+                              ...roleForm,
+                              permissions: {
+                                ...roleForm.permissions!,
+                                reports: {
+                                  ...roleForm.permissions?.reports!,
+                                  report_7: e.target.checked
+                                }
+                              }
+                            })}
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+                          />
+                          <span className="text-sm text-gray-900">Customer Transaction Report</span>
                         </label>
                       </div>
                     </div>
 
                     {/* Balance Sheet Module */}
                     <div className="border border-gray-200 rounded-lg p-4">
-                      <h5 className="font-medium text-gray-800 mb-3">Balance Sheet</h5>
-                      <div className="grid grid-cols-2 gap-4">
+                      <h5 className="font-medium text-gray-900 mb-3">Balance Sheet</h5>
+                      <div className="flex space-x-4">
                         <label className="flex items-center space-x-2">
                           <input
-                            type="checkbox"
-                            checked={roleForm.permissions?.balanceSheet?.view || false}
-                            onChange={(e) => setRoleForm({
+                            type="radio"
+                            name="balanceSheet"
+                            checked={roleForm.permissions?.balanceSheet === 'all'}
+                            onChange={() => setRoleForm({
                               ...roleForm,
                               permissions: {
                                 ...roleForm.permissions!,
-                                balanceSheet: {
-                                  ...roleForm.permissions?.balanceSheet!,
-                                  view: e.target.checked
-                                }
+                                balanceSheet: 'all'
                               }
                             })}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
                           />
-                          <span className="text-sm">View</span>
+                          <span className="text-sm text-gray-900">All Access</span>
                         </label>
                         <label className="flex items-center space-x-2">
                           <input
-                            type="checkbox"
-                            checked={roleForm.permissions?.balanceSheet?.export || false}
-                            onChange={(e) => setRoleForm({
+                            type="radio"
+                            name="balanceSheet"
+                            checked={roleForm.permissions?.balanceSheet === 'none'}
+                            onChange={() => setRoleForm({
                               ...roleForm,
                               permissions: {
                                 ...roleForm.permissions!,
-                                balanceSheet: {
-                                  ...roleForm.permissions?.balanceSheet!,
-                                  export: e.target.checked
-                                }
+                                balanceSheet: 'none'
                               }
                             })}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
                           />
-                          <span className="text-sm">Export</span>
+                          <span className="text-sm text-gray-900">No Access</span>
                         </label>
                       </div>
                     </div>
 
-                    {/* Master Module */}
+                    {/* Master Data Module */}
                     <div className="border border-gray-200 rounded-lg p-4">
-                      <h5 className="font-medium text-gray-800 mb-3">Master</h5>
-                      <label className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          checked={roleForm.permissions?.master?.fullAccess || false}
-                          onChange={(e) => setRoleForm({
-                            ...roleForm,
-                            permissions: {
-                              ...roleForm.permissions!,
-                              master: {
-                                fullAccess: e.target.checked
+                      <h5 className="font-medium text-gray-900 mb-3">Master Data</h5>
+                      <div className="flex space-x-4">
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            name="masterData"
+                            checked={roleForm.permissions?.masterData === 'full_access'}
+                            onChange={() => setRoleForm({
+                              ...roleForm,
+                              permissions: {
+                                ...roleForm.permissions!,
+                                masterData: 'full_access'
                               }
-                            }
-                          })}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm font-medium">Full Access</span>
-                      </label>
+                            })}
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+                          />
+                          <span className="text-sm text-gray-900">All Access</span>
+                        </label>
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            name="masterData"
+                            checked={roleForm.permissions?.masterData === 'role_based_access'}
+                            onChange={() => setRoleForm({
+                              ...roleForm,
+                              permissions: {
+                                ...roleForm.permissions!,
+                                masterData: 'role_based_access'
+                              }
+                            })}
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+                          />
+                          <span className="text-sm text-gray-900">No Access</span>
+                        </label>
+                      </div>
                     </div>
                   </div>
 
@@ -1063,49 +1498,57 @@ export default function MasterPage() {
 
                 {/* Roles Table */}
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Roles List</h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Roles List</h3>
+                    <Input
+                      placeholder="Search roles..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="bg-white w-48 lg:w-64 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    />
+                  </div>
                   
                   {filteredRoles().length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       No roles found
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {filteredRoles().map((role: Role) => (
-                        <div key={role.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md">
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-medium text-gray-900">{role.name}</h4>
-                            <div className="flex space-x-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleEdit(role)}
-                                className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400"
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => handleDelete(role.id)}
-                                className="bg-red-600 hover:bg-red-700 text-white"
-                              >
-                                Delete
-                              </Button>
-                            </div>
-                          </div>
-                          <p className="text-sm text-gray-600 mb-3">{role.description}</p>
-                          <div className="text-xs text-gray-500">
-                            <div className="font-medium mb-1">Permissions:</div>
-                            <div className="space-y-1">
-                              <div>• Transactions: {Object.values(role.permissions.transactions).filter(Boolean).length}/4</div>
-                              <div>• Reports: {Object.values(role.permissions.reports).filter(Boolean).length}/2</div>
-                              <div>• Balance Sheet: {Object.values(role.permissions.balanceSheet).filter(Boolean).length}/2</div>
-                              <div>• Master: {role.permissions.master.fullAccess ? 'Full Access' : 'Limited'}</div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                    <div className="overflow-x-auto">
+                      <table className="w-full border border-gray-200 rounded-lg">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">Role Name</th>
+                            <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredRoles().map((role: Role) => (
+                            <tr key={role.id} className="hover:bg-gray-50">
+                              <td className="border border-gray-200 px-4 py-3 text-sm text-gray-900">{role.name}</td>
+                              <td className="border border-gray-200 px-4 py-3 text-sm">
+                                <div className="flex space-x-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleEdit(role)}
+                                    className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400"
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => handleDelete(role.id)}
+                                    className="bg-red-600 hover:bg-red-700 text-white"
+                                  >
+                                    Delete
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>

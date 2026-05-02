@@ -12,6 +12,7 @@ import accountingRoutes from './modules/accounting/routes';
 import reportsRoutes from './modules/reports/routes';
 import masterRoutes from './modules/master/routes';
 import { authenticateToken, requireRole } from './modules/auth/middleware';
+import { requireAdmin } from './middlewares/rbac';
 import { errorHandler } from './middlewares/errorHandler';
 import { requestLogger } from './middlewares/requestLogger';
 
@@ -951,6 +952,591 @@ app.post('/api/clients/delete', authenticateToken, requireRole(['Admin', 'Super 
     res.status(500).json({
       success: false,
       message: 'Failed to delete client',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Get all roles (no authentication - same as cities and clients)
+app.get('/api/roles', async (req, res) => {
+  try {
+    console.log('=== GET ROLES API CALLED ===');
+    
+    const prisma = new PrismaClient();
+    
+    // Get all roles from database
+    const roles = await prisma.role.findMany({
+      where: { isActive: true, isDeleted: false },
+      select: {
+        id: true,
+        name: true,
+        permissions: true,
+        createdAt: true,
+        updatedAt: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    console.log('Roles found:', roles.length);
+    
+    res.json({
+      success: true,
+      data: roles
+    });
+    
+  } catch (error) {
+    console.error('Error fetching roles:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching roles',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Add new role (Admin only)
+app.post('/api/roles/add', authenticateToken, requireRole(['Admin', 'Super Admin']), async (req, res) => {
+  try {
+    console.log('=== ADD ROLE API CALLED ===');
+    console.log('Request body:', req.body);
+    console.log('User from token:', req.user?.email, 'Role:', req.user?.role?.name);
+    
+    const { name, permissions } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Role name is required'
+      });
+    }
+    
+    if (!permissions) {
+      return res.status(400).json({
+        success: false,
+        message: 'Permissions are required'
+      });
+    }
+    
+    const prisma = new PrismaClient();
+    
+    // Check if role already exists
+    const existingRole = await prisma.role.findFirst({
+      where: {
+        name: name,
+        isActive: true,
+        isDeleted: false
+      }
+    });
+    
+    if (existingRole) {
+      return res.status(400).json({
+        success: false,
+        message: 'Role with this name already exists'
+      });
+    }
+    
+    // Create new role
+    const newRole = await prisma.role.create({
+      data: {
+        name: name,
+        permissions: JSON.stringify(permissions),
+        isActive: true,
+        isDeleted: false
+      }
+    });
+    
+    console.log('Role created successfully:', newRole.id);
+    
+    res.json({
+      success: true,
+      message: 'Role created successfully',
+      data: {
+        ...newRole,
+        permissions: JSON.parse(newRole.permissions as string)
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error adding role:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to add role',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Update role (Admin only)
+app.post('/api/roles/update', authenticateToken, requireRole(['Admin', 'Super Admin']), async (req, res) => {
+  try {
+    console.log('=== UPDATE ROLE API CALLED ===');
+    console.log('Request body:', req.body);
+    console.log('User from token:', req.user?.email, 'Role:', req.user?.role?.name);
+    
+    const { id, name, permissions } = req.body;
+    
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Role ID is required'
+      });
+    }
+    
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Role name is required'
+      });
+    }
+    
+    if (!permissions) {
+      return res.status(400).json({
+        success: false,
+        message: 'Permissions are required'
+      });
+    }
+    
+    const prisma = new PrismaClient();
+    
+    // Check if role exists
+    const existingRole = await prisma.role.findFirst({
+      where: {
+        id: id,
+        isActive: true,
+        isDeleted: false
+      }
+    });
+    
+    if (!existingRole) {
+      return res.status(404).json({
+        success: false,
+        message: 'Role not found'
+      });
+    }
+    
+    // Check if another role with same name exists
+    const duplicateRole = await prisma.role.findFirst({
+      where: {
+        name: name,
+        id: { not: id },
+        isActive: true,
+        isDeleted: false
+      }
+    });
+    
+    if (duplicateRole) {
+      return res.status(400).json({
+        success: false,
+        message: 'Role with this name already exists'
+      });
+    }
+    
+    // Update role
+    const updatedRole = await prisma.role.update({
+      where: { id: id },
+      data: {
+        name: name,
+        permissions: JSON.stringify(permissions)
+      }
+    });
+    
+    console.log('Role updated successfully:', updatedRole.id);
+    
+    res.json({
+      success: true,
+      message: 'Role updated successfully',
+      data: {
+        ...updatedRole,
+        permissions: JSON.parse(updatedRole.permissions as string)
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error updating role:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update role',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Delete role (Admin only - soft delete)
+app.post('/api/roles/delete', authenticateToken, requireRole(['Admin', 'Super Admin']), async (req, res) => {
+  try {
+    console.log('=== DELETE ROLE API CALLED ===');
+    console.log('Request body:', req.body);
+    console.log('User from token:', req.user?.email, 'Role:', req.user?.role?.name);
+    
+    const { id } = req.body;
+    
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Role ID is required'
+      });
+    }
+    
+    const prisma = new PrismaClient();
+    
+    // Check if role exists
+    const existingRole = await prisma.role.findFirst({
+      where: {
+        id: id,
+        isActive: true,
+        isDeleted: false
+      }
+    });
+    
+    if (!existingRole) {
+      return res.status(404).json({
+        success: false,
+        message: 'Role not found'
+      });
+    }
+    
+    // Check if role is being used by any users
+    const usersWithRole = await prisma.user.count({
+      where: {
+        roleId: id,
+        isActive: true,
+        isDeleted: false
+      }
+    });
+    
+    if (usersWithRole > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete role that is assigned to users'
+      });
+    }
+    
+    // Soft delete role
+    await prisma.role.update({
+      where: { id: id },
+      data: {
+        isDeleted: true,
+        isActive: false
+      }
+    });
+    
+    console.log('Role deleted successfully:', id);
+    
+    res.json({
+      success: true,
+      message: 'Role deleted successfully'
+    });
+    
+  } catch (error) {
+    console.error('Error deleting role:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete role',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Get all users (no authentication - same as cities, clients, roles)
+app.get('/api/users', async (req, res) => {
+  try {
+    console.log('=== GET USERS API CALLED ===');
+    
+    const users = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        isDeleted: false
+      },
+      include: {
+        role: {
+          select: {
+            name: true,
+            permissions: true
+          }
+        },
+        branch: {
+          select: {
+            name: true,
+            code: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    console.log('Users found:', users.length);
+
+    res.json({
+      success: true,
+      data: users.map(user => ({
+        id: user.id,
+        fullName: user.firstName + ' ' + user.lastName,
+        username: user.username,
+        mobileNumber: user.phone,
+        email: user.email,
+        roleId: user.roleId,
+        status: user.isActive ? 'Active' : 'Inactive',
+        role: user.role?.name || '',
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      }))
+    });
+
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching users',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Add new user (Admin only)
+app.post('/api/users/add', authenticateToken, requireRole(['Admin', 'Super Admin']), async (req, res) => {
+  try {
+    console.log('=== ADD USER API CALLED ===');
+    console.log('Request body:', req.body);
+    console.log('User from token:', req.user?.email, 'Role:', req.user?.role?.name);
+    
+    const { fullName, mobileNumber, email, password, roleId } = req.body;
+    
+    if (!fullName || !mobileNumber || !password || !roleId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Full name, mobile number, password, and role are required'
+      });
+    }
+    
+    // Check if user with same mobile number already exists
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        phone: mobileNumber,
+        isActive: true,
+        isDeleted: false
+      }
+    });
+    
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'User with this mobile number already exists'
+      });
+    }
+    
+    // Parse full name to first and last name
+    const nameParts = fullName.trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    
+    // Hash password
+    const bcrypt = require('bcryptjs');
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Create new user
+    const newUser = await prisma.user.create({
+      data: {
+        username: mobileNumber, // Use mobile as username for simplicity
+        firstName: firstName,
+        lastName: lastName,
+        phone: mobileNumber,
+        email: email || null,
+        password: hashedPassword,
+        role: {
+          connect: {
+            id: roleId
+          }
+        },
+        isActive: true,
+        isDeleted: false
+      }
+    });
+    
+    console.log('User created successfully:', newUser.id);
+    
+    res.json({
+      success: true,
+      message: 'User created successfully',
+      data: {
+        id: newUser.id,
+        fullName: firstName + ' ' + lastName,
+        mobileNumber: mobileNumber,
+        email: email || '',
+        roleId: roleId,
+        status: 'Active',
+        createdAt: newUser.createdAt,
+        updatedAt: newUser.updatedAt
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error adding user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to add user',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Update user (Admin only)
+app.post('/api/users/update', authenticateToken, requireRole(['Admin', 'Super Admin']), async (req, res) => {
+  try {
+    console.log('=== UPDATE USER API CALLED ===');
+    console.log('Request body:', req.body);
+    console.log('User from token:', req.user?.email, 'Role:', req.user?.role?.name);
+    
+    const { id, fullName, mobileNumber, email, password, roleId } = req.body;
+    
+    if (!id || !fullName || !mobileNumber || !roleId) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID, full name, mobile number, and role are required'
+      });
+    }
+    
+    // Check if user exists
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        id: id,
+        isActive: true,
+        isDeleted: false
+      }
+    });
+    
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+    
+    // Check if another user has same mobile number
+    const duplicateUser = await prisma.user.findFirst({
+      where: {
+        phone: mobileNumber,
+        id: { not: id },
+        isActive: true,
+        isDeleted: false
+      }
+    });
+    
+    if (duplicateUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'Another user with this mobile number already exists'
+      });
+    }
+    
+    // Parse full name to first and last name
+    const nameParts = fullName.trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    
+    // Prepare update data
+    const updateData: any = {
+      firstName: firstName,
+      lastName: lastName,
+      phone: mobileNumber,
+      email: email || null,
+      roleId: roleId
+    };
+    
+    // Update password only if provided
+    if (password && password.trim() !== '') {
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = await bcrypt.hash(password, 10);
+      updateData.password = hashedPassword;
+    }
+    
+    // Update user
+    const updatedUser = await prisma.user.update({
+      where: { id: id },
+      data: updateData
+    });
+    
+    console.log('User updated successfully:', updatedUser.id);
+    
+    res.json({
+      success: true,
+      message: 'User updated successfully',
+      data: {
+        id: updatedUser.id,
+        fullName: firstName + ' ' + lastName,
+        mobileNumber: mobileNumber,
+        email: email || '',
+        roleId: roleId,
+        status: 'Active',
+        createdAt: updatedUser.createdAt,
+        updatedAt: updatedUser.updatedAt
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update user',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Delete user (Admin only - soft delete)
+app.post('/api/users/delete', authenticateToken, requireRole(['Admin', 'Super Admin']), async (req, res) => {
+  try {
+    console.log('=== DELETE USER API CALLED ===');
+    console.log('Request body:', req.body);
+    console.log('User from token:', req.user?.email, 'Role:', req.user?.role?.name);
+    
+    const { id } = req.body;
+    
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+    
+    // Check if user exists
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        id: id,
+        isActive: true,
+        isDeleted: false
+      }
+    });
+    
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+    
+    // Soft delete user (set isActive to false and isDeleted to true)
+    const deletedUser = await prisma.user.update({
+      where: { id: id },
+      data: {
+        isActive: false,
+        isDeleted: true
+      }
+    });
+    
+    console.log('User deleted successfully:', deletedUser.id);
+    
+    res.json({
+      success: true,
+      message: 'User deleted successfully'
+    });
+    
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete user',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }

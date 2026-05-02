@@ -145,16 +145,34 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
 
 export const requireRole = (roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
+    console.log('=== REQUIRE ROLE DEBUG ===');
+    console.log('Required roles:', roles);
+    console.log('req.user exists:', !!req.user);
+    
     if (!req.user) {
+      console.log('ERROR: No user found in request');
       return next(createError('Authentication required', 401));
     }
 
+    console.log('req.user.role exists:', !!req.user?.role);
+    console.log('req.user.role:', req.user?.role);
+
+    if (!req.user.role || !req.user.role.name) {
+      console.log('ERROR: No role found for user or role name is missing');
+      return next(createError('User role not found', 403));
+    }
+
     const userRole = req.user.role.name;
+    console.log('User role:', userRole);
     
     if (!roles.includes(userRole)) {
+      console.log('ERROR: User role not in allowed roles');
+      console.log('Allowed roles:', roles);
+      console.log('User role:', userRole);
       return next(createError('Insufficient permissions', 403));
     }
 
+    console.log('Role check passed');
     next();
   };
 };

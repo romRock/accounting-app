@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticateToken, requirePermission } from '../auth/middleware';
+import { requireAdmin, checkPermission } from '../../middlewares/rbac';
 import {
   // Users
   getUsers,
@@ -57,12 +58,12 @@ router.post('/users', requirePermission('users.create'), validateCreateUser, cre
 router.put('/users/:id', requirePermission('users.update'), validateUpdateUser, updateUser);
 router.delete('/users/:id', requirePermission('users.delete'), deleteUser);
 
-// Role management
-router.get('/roles', requirePermission('roles.read'), getRoles);
-router.get('/roles/:id', requirePermission('roles.read'), getRoleById);
-router.post('/roles', requirePermission('roles.create'), validateCreateRole, createRole);
-router.put('/roles/:id', requirePermission('roles.update'), validateUpdateRole, updateRole);
-router.delete('/roles/:id', requirePermission('roles.delete'), deleteRole);
+// Role management - Only admin/super admin can manage roles
+router.get('/roles', requireAdmin, getRoles);
+router.get('/roles/:id', requireAdmin, getRoleById);
+router.post('/roles', requireAdmin, validateCreateRole, createRole);
+router.put('/roles/:id', requireAdmin, validateUpdateRole, updateRole);
+router.delete('/roles/:id', requireAdmin, deleteRole);
 
 // City management
 router.get('/cities', requirePermission('cities.read'), getCities);

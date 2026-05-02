@@ -369,25 +369,13 @@ export const transactionApi = {
   },
 
   async getClients(): Promise<Client[]> {
-    const { accessToken } = useAuthStore.getState();
     console.log('=== GET CLIENTS API DEBUG ===');
-    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
-    console.log('Token length:', accessToken?.length || 0);
-    
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
-    
-    if (accessToken) {
-      headers['Authorization'] = `Bearer ${accessToken}`;
-      console.log('Authorization header set');
-    } else {
-      console.log('WARNING: No token found in auth store, proceeding without Authorization header');
-    }
     
     const response = await fetch(`${API_BASE_URL}/api/clients`, {
       method: 'GET',
-      headers: headers,
+      headers: {
+        'Content-Type': 'application/json',
+      },
     });
 
     if (!response.ok) {

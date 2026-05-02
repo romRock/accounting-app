@@ -1018,11 +1018,10 @@ app.post('/api/clients/delete', authenticateToken, requireRole(['Admin', 'Super 
   }
 });
 
-// Get all clients (with authentication)
-app.get('/api/clients', authenticateToken, async (req, res) => {
+// Get all clients (no authentication - same as cities)
+app.get('/api/clients', async (req, res) => {
   try {
     console.log('=== GET CLIENTS API CALLED ===');
-    console.log('User:', req.user);
 
     const clients = await prisma.party.findMany({
       where: {

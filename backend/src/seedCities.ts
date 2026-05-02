@@ -480,17 +480,22 @@ async function seedCities() {
 
       for (const city of batch) {
         try {
+          const cityAddress = city.state ? `${city.name}, ${city.state}` : city.name;
           const result = await prisma.city.upsert({
             where: { code: city.code },
             update: {
               name: city.name,
               state: city.state,
+              address: cityAddress,
+              number: null, // Keep null for all existing cities
               updatedAt: new Date(),
             },
             create: {
               name: city.name,
               code: city.code,
               state: city.state,
+              address: cityAddress,
+              number: null, // Keep null for all existing cities
               isActive: true,
             },
           });

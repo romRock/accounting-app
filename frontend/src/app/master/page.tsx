@@ -69,10 +69,7 @@ interface Client {
   id: string;
   name: string;
   mobileNumber: string;
-  alternateNumber?: string;
-  address: string;
   city: string;
-  type: 'Sender' | 'Receiver' | 'Both';
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -120,22 +117,35 @@ export default function MasterPage() {
         name: city.name,
         code: city.code,
         city: city.state,
-        address: `${city.name}, ${city.state}`,
-        contactNumber: 'N/A',
+        address: city.address || `${city.name}, ${city.state}`,
+        contactNumber: city.number || 'N/A',
         status: 'Active' as const,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }));
       
-      console.log("Processed centers data:", centersData.length);
+      console.log("Transformed centers data:", centersData);
       setCenters(centersData);
     } catch (error) {
-      console.error('Error loading centers:', error);
-      console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
-      // Fallback to empty array
-      setCenters([]);
+      console.error("Error loading centers:", error);
+      setCenters([]); // Set empty array on error
     } finally {
       setCentersLoading(false);
+    }
+  };
+
+  // Load real clients data
+  const loadClients = async () => {
+    try {
+      console.log("=== MASTER PAGE: Loading clients ===");
+      
+      const clientsData = await transactionApi.getClients();
+      console.log("API returned clients:", clientsData.length, clientsData);
+      
+      setClients(clientsData);
+    } catch (error) {
+      console.error("Error loading clients:", error);
+      setClients([]); // Set empty array on error
     }
   };
 
@@ -212,36 +222,11 @@ export default function MasterPage() {
       }
     ];
 
-    // Mock clients
-    const mockClients: Client[] = [
-      {
-        id: '1',
-        name: 'ABC Corporation',
-        mobileNumber: '+91-9876543212',
-        alternateNumber: '+91-9876543213',
-        address: '789, Business Park, Bangalore',
-        city: 'Bangalore',
-        type: 'Both',
-        notes: 'Regular corporate client',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: '2',
-        name: 'XYZ Traders',
-        mobileNumber: '+91-9876543214',
-        address: '321, Market Area, Chennai',
-        city: 'Chennai',
-        type: 'Sender',
-        notes: 'Individual trader',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-    ];
+    // Mock clients removed - will use database data
 
     setRoles(mockRoles);
     setUsers(mockUsers);
-    setClients(mockClients);
+    setClients([]);
   };
 
   useEffect(() => {
@@ -251,6 +236,7 @@ export default function MasterPage() {
     }
     generateMockData();
     loadCenters(); // Load real centers data
+    loadClients(); // Load real clients data
   }, [isAuthenticated, router]);
 
   // Listen for tab changes from header
@@ -299,29 +285,91 @@ export default function MasterPage() {
         }
         break;
       case 'centers':
-        if (centerForm.name && centerForm.code && centerForm.city && centerForm.contactNumber) {
-          const newCenter: Center = {
-            ...centerForm as Center,
-            id: Date.now().toString(),
-            status: 'Active',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+        if (centerForm.name && centerForm.code && centerForm.city) {
+          // Only admins can add cities
+          if (!isAdmin) {
+            alert('Only administrators can add new cities');
+            return;
+          }
+
+          const addNewCity = async () => {
+            try {
+              setLoading(true);
+              const newCity = await transactionApi.addCity(
+                centerForm.name!,
+                centerForm.code!,
+                centerForm.city!,
+                centerForm.contactNumber || undefined
+              );
+
+              // Convert to Center format and add to local state
+              const newCenter: Center = {
+                id: newCity.id,
+                name: newCity.name,
+                code: newCity.code,
+                city: newCity.state,
+                address: newCity.address || `${newCity.name}, ${newCity.state}`,
+                contactNumber: newCity.number || 'N/A',
+                status: 'Active',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              };
+
+              setCenters([...centers, newCenter]);
+              setCenterForm({});
+              alert('City added successfully!');
+            } catch (error) {
+              console.error('Error adding city:', error);
+              alert(error instanceof Error ? error.message : 'Failed to add city');
+            } finally {
+              setLoading(false);
+            }
           };
-          setCenters([...centers, newCenter]);
-          setCenterForm({});
+
+          addNewCity();
         }
         break;
       case 'clients':
-        if (clientForm.name && clientForm.mobileNumber && clientForm.address && clientForm.city) {
-          const newClient: Client = {
-            ...clientForm as Client,
-            id: Date.now().toString(),
-            type: clientForm.type || 'Both',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+        if (clientForm.name && clientForm.mobileNumber && clientForm.city) {
+          // Only admins can add clients
+          if (!isAdmin) {
+            alert('Only administrators can add new clients');
+            return;
+          }
+
+          const addNewClient = async () => {
+            try {
+              setLoading(true);
+              const newClient = await transactionApi.addClient(
+                clientForm.name!,
+                clientForm.mobileNumber!,
+                clientForm.city!,
+                clientForm.notes
+              );
+
+              // Convert to Client format and add to local state
+              const clientData: Client = {
+                id: newClient.id,
+                name: newClient.name,
+                mobileNumber: newClient.mobileNumber,
+                city: newClient.city,
+                notes: newClient.notes,
+                createdAt: newClient.createdAt,
+                updatedAt: newClient.updatedAt
+              };
+
+              setClients([...clients, clientData]);
+              setClientForm({});
+              alert('Client added successfully!');
+            } catch (error) {
+              console.error('Error adding client:', error);
+              alert(error instanceof Error ? error.message : 'Failed to add client');
+            } finally {
+              setLoading(false);
+            }
           };
-          setClients([...clients, newClient]);
-          setClientForm({});
+
+          addNewClient();
         }
         break;
     }
@@ -355,10 +403,50 @@ export default function MasterPage() {
           setRoles(roles.filter(r => r.id !== id));
           break;
         case 'centers':
-          setCenters(centers.filter(c => c.id !== id));
+          // Only admins can delete cities
+          if (!isAdmin) {
+            alert('Only administrators can delete cities');
+            return;
+          }
+
+          const deleteCity = async () => {
+            try {
+              setLoading(true);
+              await transactionApi.deleteCity(id);
+              setCenters(centers.filter(c => c.id !== id));
+              alert('City deleted successfully!');
+            } catch (error) {
+              console.error('Error deleting city:', error);
+              alert(error instanceof Error ? error.message : 'Failed to delete city');
+            } finally {
+              setLoading(false);
+            }
+          };
+
+          deleteCity();
           break;
         case 'clients':
-          setClients(clients.filter(c => c.id !== id));
+          // Only admins can delete clients
+          if (!isAdmin) {
+            alert('Only administrators can delete clients');
+            return;
+          }
+
+          const deleteClient = async () => {
+            try {
+              setLoading(true);
+              await transactionApi.deleteClient(id);
+              setClients(clients.filter(c => c.id !== id));
+              alert('Client deleted successfully!');
+            } catch (error) {
+              console.error('Error deleting client:', error);
+              alert(error instanceof Error ? error.message : 'Failed to delete client');
+            } finally {
+              setLoading(false);
+            }
+          };
+
+          deleteClient();
           break;
       }
     }
@@ -375,10 +463,88 @@ export default function MasterPage() {
         setRoles(roles.map(r => r.id === editingId ? { ...roleForm as Role, id: editingId } : r));
         break;
       case 'centers':
-        setCenters(centers.map(c => c.id === editingId ? { ...centerForm as Center, id: editingId } : c));
+        // Only admins can update cities
+        if (!isAdmin) {
+          alert('Only administrators can update cities');
+          return;
+        }
+
+        const updateCity = async () => {
+          try {
+            setLoading(true);
+            const updatedCity = await transactionApi.updateCity(
+              editingId!,
+              centerForm.name!,
+              centerForm.code!,
+              centerForm.city!,
+              centerForm.contactNumber || undefined
+            );
+
+            // Convert to Center format and update local state
+            const updatedCenter: Center = {
+              id: updatedCity.id,
+              name: updatedCity.name,
+              code: updatedCity.code,
+              city: updatedCity.state,
+              address: updatedCity.address || `${updatedCity.name}, ${updatedCity.state}`,
+              contactNumber: updatedCity.number || 'N/A',
+              status: 'Active',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+
+            setCenters(centers.map(c => c.id === editingId ? updatedCenter : c));
+            alert('City updated successfully!');
+          } catch (error) {
+            console.error('Error updating city:', error);
+            alert(error instanceof Error ? error.message : 'Failed to update city');
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        updateCity();
         break;
       case 'clients':
-        setClients(clients.map(c => c.id === editingId ? { ...clientForm as Client, id: editingId } : c));
+        // Only admins can update clients
+        if (!isAdmin) {
+          alert('Only administrators can update clients');
+          return;
+        }
+
+        const updateClient = async () => {
+          try {
+            setLoading(true);
+            const updatedClient = await transactionApi.updateClient(
+              editingId!,
+              clientForm.name!,
+              clientForm.mobileNumber!,
+              clientForm.city!,
+              clientForm.notes
+            );
+
+            // Convert to Client format and update local state
+            const clientData: Client = {
+              id: updatedClient.id,
+              name: updatedClient.name,
+              mobileNumber: updatedClient.mobileNumber,
+              city: updatedClient.city,
+              notes: updatedClient.notes,
+              createdAt: updatedClient.createdAt,
+              updatedAt: updatedClient.updatedAt
+            };
+
+            setClients(clients.map(c => c.id === editingId ? clientData : c));
+            alert('Client updated successfully!');
+          } catch (error) {
+            console.error('Error updating client:', error);
+            alert(error instanceof Error ? error.message : 'Failed to update client');
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        updateClient();
         break;
     }
     setEditingId(null);
@@ -1056,45 +1222,84 @@ export default function MasterPage() {
                       No centers found
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {filteredCenters().map((center: Center) => (
-                        <div key={center.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md">
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-medium text-gray-900">{center.name}</h4>
-                            <span className={`px-2 py-1 text-xs rounded-full ${
-                              center.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                            }`}>
-                              {center.status}
-                            </span>
-                          </div>
-                          <div className="space-y-1 text-sm text-gray-600">
-                            <div><span className="font-medium">Code:</span> {center.code}</div>
-                            <div><span className="font-medium">State:</span> {center.city}</div>
-                            <div><span className="font-medium">Address:</span> {center.address}</div>
-                            <div><span className="font-medium">Contact:</span> {center.contactNumber}</div>
-                          </div>
-                          {isAdmin && (
-                            <div className="flex space-x-2 mt-3">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleEdit(center)}
-                                className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400"
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => handleDelete(center.id)}
-                                className="bg-red-600 hover:bg-red-700 text-white"
-                              >
-                                Delete
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                              Name
+                            </th>
+                            <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                              Code
+                            </th>
+                            <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider hidden sm:table-cell">
+                              City
+                            </th>
+                            <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider hidden lg:table-cell">
+                              Address
+                            </th>
+                            <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider hidden md:table-cell">
+                              Contact
+                            </th>
+                            <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                              Status
+                            </th>
+                            <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-100">
+                          {filteredCenters().map((center: Center) => (
+                            <tr key={center.id} className="hover:bg-blue-50 transition-colors">
+                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {center.name}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600">
+                                {center.code}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600 hidden sm:table-cell">
+                                {center.city}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600 hidden lg:table-cell">
+                                {center.address}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600 hidden md:table-cell">
+                                {center.contactNumber}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap">
+                                <span className={`px-2 py-1 inline-flex text-xs leading-4 font-medium rounded-full ${
+                                  center.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                }`}>
+                                  {center.status}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm">
+                                {isAdmin && (
+                                  <div className="flex space-x-1">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleEdit(center)}
+                                      className="bg-white hover:bg-gray-50 text-gray-700 border-gray-300 hover:border-gray-400 h-7 px-2 text-xs"
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      onClick={() => handleDelete(center.id)}
+                                      className="bg-red-500 hover:bg-red-600 text-white h-7 px-2 text-xs"
+                                    >
+                                      Delete
+                                    </Button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>
@@ -1109,14 +1314,14 @@ export default function MasterPage() {
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     {editingId ? 'Edit Client' : 'Add New Client'}
                   </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="clientName" className="text-sm font-medium text-gray-700">Client Name</Label>
                       <Input
                         id="clientName"
                         value={clientForm.name || ''}
                         onChange={(e) => setClientForm({ ...clientForm, name: e.target.value })}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
+                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900"
                         placeholder="Enter client name"
                       />
                     </div>
@@ -1126,28 +1331,8 @@ export default function MasterPage() {
                         id="clientMobile"
                         value={clientForm.mobileNumber || ''}
                         onChange={(e) => setClientForm({ ...clientForm, mobileNumber: e.target.value })}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
+                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900"
                         placeholder="Enter mobile number"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="clientAlternate" className="text-sm font-medium text-gray-700">Alternate Number (Optional)</Label>
-                      <Input
-                        id="clientAlternate"
-                        value={clientForm.alternateNumber || ''}
-                        onChange={(e) => setClientForm({ ...clientForm, alternateNumber: e.target.value })}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
-                        placeholder="Enter alternate number"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="clientAddress" className="text-sm font-medium text-gray-700">Address</Label>
-                      <Input
-                        id="clientAddress"
-                        value={clientForm.address || ''}
-                        onChange={(e) => setClientForm({ ...clientForm, address: e.target.value })}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
-                        placeholder="Enter address"
                       />
                     </div>
                     <div>
@@ -1156,31 +1341,17 @@ export default function MasterPage() {
                         id="clientCity"
                         value={clientForm.city || ''}
                         onChange={(e) => setClientForm({ ...clientForm, city: e.target.value })}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
+                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900"
                         placeholder="Enter city"
                       />
                     </div>
-                    <div>
-                      <Label htmlFor="clientType" className="text-sm font-medium text-gray-700">Type</Label>
-                      <select
-                        id="clientType"
-                        value={clientForm.type || ''}
-                        onChange={(e) => setClientForm({ ...clientForm, type: e.target.value as any })}
-                        className="w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-sm mt-1"
-                      >
-                        <option value="">Select Type</option>
-                        <option value="Sender">Sender</option>
-                        <option value="Receiver">Receiver</option>
-                        <option value="Both">Both</option>
-                      </select>
-                    </div>
-                    <div className="lg:col-span-3">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="clientNotes" className="text-sm font-medium text-gray-700">Notes (Optional)</Label>
                       <textarea
                         id="clientNotes"
                         value={clientForm.notes || ''}
                         onChange={(e) => setClientForm({ ...clientForm, notes: e.target.value })}
-                        className="w-full bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
+                        className="w-full bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900"
                         rows={3}
                         placeholder="Enter notes"
                       />
@@ -1222,7 +1393,7 @@ export default function MasterPage() {
                       placeholder="Search clients..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="bg-white w-48 lg:w-64 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      className="bg-white w-48 lg:w-64 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900 placeholder-gray-500"
                     />
                   </div>
                   
@@ -1231,50 +1402,68 @@ export default function MasterPage() {
                       No clients found
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {filteredClients().map((client: Client) => (
-                        <div key={client.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md">
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-medium text-gray-900">{client.name}</h4>
-                            <span className={`px-2 py-1 text-xs rounded-full ${
-                              client.type === 'Sender' ? 'bg-blue-100 text-blue-800' :
-                              client.type === 'Receiver' ? 'bg-green-100 text-green-800' :
-                              'bg-purple-100 text-purple-800'
-                            }`}>
-                              {client.type}
-                            </span>
-                          </div>
-                          <div className="space-y-1 text-sm text-gray-600">
-                            <div><span className="font-medium">Mobile:</span> {client.mobileNumber}</div>
-                            {client.alternateNumber && (
-                              <div><span className="font-medium">Alternate:</span> {client.alternateNumber}</div>
-                            )}
-                            <div><span className="font-medium">City:</span> {client.city}</div>
-                            <div><span className="font-medium">Address:</span> {client.address}</div>
-                            {client.notes && (
-                              <div><span className="font-medium">Notes:</span> {client.notes}</div>
-                            )}
-                          </div>
-                          <div className="flex space-x-2 mt-3">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleEdit(client)}
-                              className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400"
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => handleDelete(client.id)}
-                              className="bg-red-600 hover:bg-red-700 text-white"
-                            >
-                              Delete
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                              Name
+                            </th>
+                            <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                              Mobile
+                            </th>
+                            <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider hidden sm:table-cell">
+                              City
+                            </th>
+                            <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider hidden lg:table-cell">
+                              Notes
+                            </th>
+                            <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-100">
+                          {filteredClients().map((client: Client) => (
+                            <tr key={client.id} className="hover:bg-blue-50 transition-colors">
+                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {client.name}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600">
+                                {client.mobileNumber}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600 hidden sm:table-cell">
+                                {client.city}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600 hidden lg:table-cell">
+                                {client.notes || '-'}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm">
+                                {isAdmin && (
+                                  <div className="flex space-x-1">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleEdit(client)}
+                                      className="bg-white hover:bg-gray-50 text-gray-700 border-gray-300 hover:border-gray-400 h-7 px-2 text-xs"
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      onClick={() => handleDelete(client.id)}
+                                      className="bg-red-500 hover:bg-red-600 text-white h-7 px-2 text-xs"
+                                    >
+                                      Delete
+                                    </Button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>

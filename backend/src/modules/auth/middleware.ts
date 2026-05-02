@@ -36,14 +36,29 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     const authHeader = req.headers.authorization;
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
+    console.log('=== AUTH DEBUG ===');
+    console.log('Auth header:', authHeader);
+    console.log('Token extracted:', token ? 'YES' : 'NO');
+    console.log('Token length:', token?.length || 0);
+    console.log('JWT_SECRET exists:', !!process.env.JWT_SECRET);
+    console.log('JWT_SECRET value:', process.env.JWT_SECRET ? 'SET' : 'NOT_SET');
+    console.log('Fallback secret:', 'your-secret-key');
+
     if (!token) {
+      console.log('ERROR: No token provided');
       throw createError('Access token required', 401);
     }
 
     // Verify JWT token
+    console.log('Attempting to verify token...');
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as any;
+    console.log('Token decoded successfully:', decoded);
+    console.log('Token userId:', decoded.userId);
+    console.log('Token email:', decoded.email);
+    console.log('Token username:', decoded.username);
     
     if (!decoded.userId) {
+      console.log('ERROR: Token missing userId');
       throw createError('Invalid token', 401);
     }
 
@@ -107,9 +122,22 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
 
     next();
   } catch (error) {
+    console.log('=== AUTH ERROR DEBUG ===');
+    console.log('Error type:', error instanceof Error ? error.constructor.name : 'Unknown');
+    console.log('Error message:', error instanceof Error ? error.message : 'Unknown error');
+    console.log('Error stack:', error instanceof Error ? error.stack : 'No stack available');
+    
     if (error instanceof jwt.JsonWebTokenError) {
+      console.log('JWT Error - Invalid token');
       next(createError('Invalid token', 401));
+    } else if (error instanceof jwt.TokenExpiredError) {
+      console.log('JWT Error - Token expired');
+      next(createError('Token expired', 401));
+    } else if (error instanceof jwt.NotBeforeError) {
+      console.log('JWT Error - Token not active');
+      next(createError('Token not active', 401));
     } else {
+      console.log('Other authentication error:', error);
       next(error);
     }
   }

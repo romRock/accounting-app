@@ -1675,6 +1675,8 @@ export const searchCities = async (req: Request, res: Response) => {
         name: true,
         code: true,
         state: true,
+        address: true,
+        number: true,
       },
     });
 

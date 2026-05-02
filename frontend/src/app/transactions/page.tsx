@@ -13,7 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CityTypeahead } from '@/components/ui/typeahead';
 import { useAuthStore } from '@/store';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { transactionApi } from '@/lib/transactions';
+import { transactionApi, Transaction } from '@/lib/transactions';
 
 // Modern transaction schema
 const transactionSchema = z.object({
@@ -37,27 +37,6 @@ const transactionSchema = z.object({
 });
 
 type TransactionForm = z.infer<typeof transactionSchema>;
-
-interface Transaction {
-  id: string;
-  token: string;
-  date: string;
-  time: string;
-  center: string;
-  amount: number;
-  type: string;
-  amountType: string;
-  commission: number;
-  bookingCommission: number;
-  centerCommission: number;
-  receiverName: string;
-  receiverNumber: string;
-  senderName: string;
-  senderNumber: string;
-  remark?: string;
-  status: boolean;
-  statusTime: string;
-}
 
 interface Center {
   id: string;
@@ -709,10 +688,10 @@ export default function TransactionsPage() {
                               </span>
                             </td>
                             <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
-                              {formatCurrency(transaction.bookingCommission)}
+                              {formatCurrency(transaction.bookingCommission || 0)}
                             </td>
                             <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
-                              {formatCurrency(transaction.centerCommission)}
+                              {formatCurrency(transaction.centerCommission || 0)}
                             </td>
                             <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
                               {transaction.receiverName}
@@ -807,10 +786,10 @@ export default function TransactionsPage() {
                               </span>
                             </td>
                             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
-                              {formatCurrency(transaction.bookingCommission)}
+                              {formatCurrency(transaction.bookingCommission || 0)}
                             </td>
                             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
-                              {formatCurrency(transaction.centerCommission)}
+                              {formatCurrency(transaction.centerCommission || 0)}
                             </td>
                             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                               {transaction.receiverName}

@@ -1,9 +1,11 @@
 // Real transaction API service for backend
 import API_BASE_URL from './api';
+import { useAuthStore } from '../store/index';
 
-interface Transaction {
+export interface Transaction {
   id: string;
   token: string;
+  tokenNo?: string;
   date: string;
   time: string;
   center: string;
@@ -11,8 +13,9 @@ interface Transaction {
   type: string;
   amountType: string;
   commission: number;
-  bookingCommission: number;
-  centerCommission: number;
+  bookingCommission?: number;
+  centerCommission?: number;
+  autoCommission: boolean;
   receiverName: string;
   receiverNumber: string;
   senderName: string;
@@ -20,6 +23,22 @@ interface Transaction {
   remark?: string;
   status: boolean;
   statusTime: string;
+  fromParty?: string;
+  toParty?: string;
+  description?: string;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface Client {
+  id: string;
+  name: string;
+  mobileNumber: string;
+  city: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface Center {
@@ -33,6 +52,8 @@ export interface City {
   name: string;
   code: string;
   state: string;
+  address?: string;
+  number?: string;
 }
 
 interface TransactionsResponse {
@@ -158,5 +179,242 @@ export const transactionApi = {
 
     const result = await response.json();
     return result.success ? result.data : [];
+  },
+
+  async addCity(name: string, code: string, state: string, number?: string): Promise<City> {
+    const { accessToken } = useAuthStore.getState();
+    console.log('=== ADD CITY API DEBUG ===');
+    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
+    console.log('Token length:', accessToken?.length || 0);
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+      console.log('Authorization header set');
+    } else {
+      console.log('WARNING: No token found in auth store, proceeding without Authorization header');
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/api/cities/add`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ name, code, state, number }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to add city');
+    }
+
+    const result = await response.json();
+    return result.data;
+  },
+
+  async updateCity(id: string, name: string, code: string, state: string, number?: string): Promise<City> {
+    const { accessToken } = useAuthStore.getState();
+    console.log('=== UPDATE CITY API DEBUG ===');
+    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
+    console.log('Token length:', accessToken?.length || 0);
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+      console.log('Authorization header set');
+    } else {
+      console.log('WARNING: No token found in auth store, proceeding without Authorization header');
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/api/cities/update`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ id, name, code, state, number }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to update city');
+    }
+
+    const result = await response.json();
+    return result.data;
+  },
+
+  async deleteCity(id: string): Promise<void> {
+    const { accessToken } = useAuthStore.getState();
+    console.log('=== DELETE CITY API DEBUG ===');
+    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
+    console.log('Token length:', accessToken?.length || 0);
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+      console.log('Authorization header set');
+    } else {
+      console.log('WARNING: No token found in auth store, proceeding without Authorization header');
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/api/cities/delete`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ id }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to delete city');
+    }
+  },
+
+  // Client CRUD operations
+  async addClient(name: string, mobileNumber: string, city: string, notes?: string): Promise<Client> {
+    const { accessToken } = useAuthStore.getState();
+    console.log('=== ADD CLIENT API DEBUG ===');
+    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
+    console.log('Token length:', accessToken?.length || 0);
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+      console.log('Authorization header set');
+    } else {
+      console.log('WARNING: No token found in auth store, proceeding without Authorization header');
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/api/clients/add`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ name, mobileNumber, city, notes }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to add client');
+    }
+
+    const result = await response.json();
+    return result.data;
+  },
+
+  async updateClient(id: string, name: string, mobileNumber: string, city: string, notes?: string): Promise<Client> {
+    const { accessToken } = useAuthStore.getState();
+    console.log('=== UPDATE CLIENT API DEBUG ===');
+    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
+    console.log('Token length:', accessToken?.length || 0);
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+      console.log('Authorization header set');
+    } else {
+      console.log('WARNING: No token found in auth store, proceeding without Authorization header');
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/api/clients/update`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ id, name, mobileNumber, city, notes }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to update client');
+    }
+
+    const result = await response.json();
+    return result.data;
+  },
+
+  async deleteClient(id: string): Promise<void> {
+    const { accessToken } = useAuthStore.getState();
+    console.log('=== DELETE CLIENT API DEBUG ===');
+    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
+    console.log('Token length:', accessToken?.length || 0);
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+      console.log('Authorization header set');
+    } else {
+      console.log('WARNING: No token found in auth store, proceeding without Authorization header');
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/api/clients/delete`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ id }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to delete client');
+    }
+  },
+
+  async getClients(): Promise<Client[]> {
+    const { accessToken } = useAuthStore.getState();
+    console.log('=== GET CLIENTS API DEBUG ===');
+    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
+    console.log('Token length:', accessToken?.length || 0);
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+      console.log('Authorization header set');
+    } else {
+      console.log('WARNING: No token found in auth store, proceeding without Authorization header');
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/api/clients`, {
+      method: 'GET',
+      headers: headers,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to fetch clients');
+    }
+
+    const result = await response.json();
+    return result.data;
+  },
+
+  // Test function for debugging (no authentication required)
+  async testCityAdd(name: string, code: string, state: string, number?: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/api/cities/test`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name, code, state, number }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Test endpoint failed');
+    }
+
+    const result = await response.json();
+    return result;
   },
 };

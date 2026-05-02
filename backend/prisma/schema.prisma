@@ -79,6 +79,8 @@ model City {
   name             String
   code             String        @unique
   state            String?
+  address          String?       // Auto-generated: name + state
+  number           String?       // Contact number or null
   isActive         Boolean       @default(true)
   isDeleted        Boolean       @default(false)
   createdAt        DateTime      @default(now())

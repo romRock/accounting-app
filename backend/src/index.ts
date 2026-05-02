@@ -1096,6 +1096,120 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
+// Manual client seed endpoint for production
+app.post('/api/seed/clients', async (req, res) => {
+  try {
+    console.log("=== MANUAL PRODUCTION CLIENT SEEDING TRIGGERED ===");
+    
+    const prisma = new PrismaClient();
+    
+    // Real clients data from local database
+    const clients = [
+      { name: 'PM 3 YARD', phone: '9099916309', cityCode: 'JND95V', address: 'YARD ' },
+      { name: 'PM 4 ZANZARDA', phone: '9099967152', cityCode: 'JND95V', address: 'JND' },
+      { name: 'MADHURAM', phone: '9099912345', cityCode: 'JND95V', address: 'JND' },
+      { name: 'NAYAN BHAI', phone: '8787874040', cityCode: 'RAJDXL', address: '' },
+      { name: 'BHEDA BHAI', phone: '9090901212', cityCode: 'JND95V', address: '' }
+    ];
+    
+    // Check current count
+    const currentCount = await prisma.party.count({
+      where: { isActive: true, isDeleted: false }
+    });
+    
+    console.log("Current clients count:", currentCount);
+    
+    if (currentCount >= 5) {
+      return res.json({
+        success: true,
+        message: `Database already has ${currentCount} clients`,
+        count: currentCount
+      });
+    }
+    
+    // Get cities for mapping
+    const cities = await prisma.city.findMany({
+      where: { isActive: true, isDeleted: false },
+      select: { code: true, id: true }
+    });
+    
+    const cityMap = new Map(cities.map(city => [city.code, city.id]));
+    
+    // Process clients
+    let inserted = 0;
+    let updated = 0;
+    
+    for (const client of clients) {
+      const cityId = cityMap.get(client.cityCode);
+      
+      if (!cityId) {
+        console.error(`City code '${client.cityCode}' not found for client '${client.name}'`);
+        continue;
+      }
+
+      // Check if client already exists
+      const existingClient = await prisma.party.findFirst({
+        where: { 
+          phone: client.phone,
+          isActive: true,
+          isDeleted: false 
+        }
+      });
+
+      if (existingClient) {
+        // Update existing client
+        await prisma.party.update({
+          where: { id: existingClient.id },
+          data: {
+            name: client.name,
+            phone: client.phone,
+            address: client.address,
+            cityId: cityId,
+            updatedAt: new Date(),
+          }
+        });
+        updated++;
+      } else {
+        // Create new client
+        await prisma.party.create({
+          data: {
+            name: client.name,
+            phone: client.phone,
+            address: client.address,
+            cityId: cityId,
+            isActive: true,
+            isDeleted: false,
+          }
+        });
+        inserted++;
+      }
+    }
+    
+    // Check new count
+    const newCount = await prisma.party.count({
+      where: { isActive: true, isDeleted: false }
+    });
+    
+    console.log("Clients count after seeding:", newCount);
+    
+    res.json({
+      success: true,
+      message: `Successfully seeded ${newCount} clients (${inserted} inserted, ${updated} updated)`,
+      count: newCount,
+      inserted,
+      updated
+    });
+    
+  } catch (error) {
+    console.error("Manual client seeding failed:", error);
+    res.status(500).json({
+      success: false,
+      message: "Client seeding failed",
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Start server with database initialization
 async function startServer() {
   try {

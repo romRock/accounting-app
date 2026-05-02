@@ -772,43 +772,12 @@ app.post('/api/clients/add', authenticateToken, requireRole(['Admin', 'Super Adm
       });
     }
 
-    // Find city or create if not exists
-    let cityRecord = await prisma.city.findFirst({
-      where: {
-        name: city.trim(),
-        isActive: true,
-        isDeleted: false
-      }
-    });
-
-    // If city doesn't exist, create it automatically
-    if (!cityRecord) {
-      console.log('=== CREATING NEW CITY FOR CLIENT ===');
-      console.log('City name:', city.trim());
-      
-      // Generate a unique code for the city
-      const cityCode = city.trim().toUpperCase().replace(/\s+/g, '').substring(0, 3) + Math.random().toString(36).substring(2, 5).toUpperCase();
-      
-      cityRecord = await prisma.city.create({
-        data: {
-          name: city.trim(),
-          code: cityCode,
-          state: 'Unknown', // Default state since it's auto-created
-          address: `${city.trim()}, Unknown`, // Auto-generate address
-          isActive: true,
-          isDeleted: false
-        }
-      });
-      
-      console.log(`=== CITY AUTO-CREATED: ${cityRecord.name} (${cityRecord.code}) ===`);
-    }
-
-    // Create new client
+    // Create new client - city is now separate text field, no city lookup needed
     const newClient = await prisma.party.create({
       data: {
         name: name.trim(),
         phone: mobileNumber.trim(),
-        cityId: cityRecord.id,
+        city: city.trim(), // Use city directly as text field
         address: notes || null,
         isActive: true,
         isDeleted: false
@@ -824,7 +793,7 @@ app.post('/api/clients/add', authenticateToken, requireRole(['Admin', 'Super Adm
         id: newClient.id,
         name: newClient.name,
         mobileNumber: newClient.phone,
-        city: cityRecord.name,
+        city: city, // Use city directly from request
         notes: newClient.address,
         createdAt: newClient.createdAt,
         updatedAt: newClient.updatedAt
@@ -874,37 +843,6 @@ app.post('/api/clients/update', authenticateToken, requireRole(['Admin', 'Super 
       });
     }
 
-    // Find city or create if not exists
-    let cityRecord = await prisma.city.findFirst({
-      where: {
-        name: city.trim(),
-        isActive: true,
-        isDeleted: false
-      }
-    });
-
-    // If city doesn't exist, create it automatically
-    if (!cityRecord) {
-      console.log('=== CREATING NEW CITY FOR CLIENT UPDATE ===');
-      console.log('City name:', city.trim());
-      
-      // Generate a unique code for the city
-      const cityCode = city.trim().toUpperCase().replace(/\s+/g, '').substring(0, 3) + Math.random().toString(36).substring(2, 5).toUpperCase();
-      
-      cityRecord = await prisma.city.create({
-        data: {
-          name: city.trim(),
-          code: cityCode,
-          state: 'Unknown', // Default state since it's auto-created
-          address: `${city.trim()}, Unknown`, // Auto-generate address
-          isActive: true,
-          isDeleted: false
-        }
-      });
-      
-      console.log(`=== CITY AUTO-CREATED FOR UPDATE: ${cityRecord.name} (${cityRecord.code}) ===`);
-    }
-
     // Check if another client has the same mobile number
     const duplicateClient = await prisma.party.findFirst({
       where: {
@@ -922,13 +860,13 @@ app.post('/api/clients/update', authenticateToken, requireRole(['Admin', 'Super 
       });
     }
 
-    // Update client
+    // Update client - city is now separate text field, no city lookup needed
     const updatedClient = await prisma.party.update({
       where: { id: id },
       data: {
         name: name.trim(),
         phone: mobileNumber.trim(),
-        cityId: cityRecord.id,
+        city: city.trim(), // Use city directly as text field
         address: notes || null,
         updatedAt: new Date()
       }
@@ -943,7 +881,7 @@ app.post('/api/clients/update', authenticateToken, requireRole(['Admin', 'Super 
         id: updatedClient.id,
         name: updatedClient.name,
         mobileNumber: updatedClient.phone,
-        city: cityRecord.name,
+        city: city, // Use city directly from request
         notes: updatedClient.address,
         updatedAt: updatedClient.updatedAt
       }
@@ -1180,6 +1118,105 @@ app.post('/api/seed/clients', async (req, res) => {
     
   } catch (error) {
     console.error("Manual client seeding failed:", error);
+    res.status(500).json({
+      success: false,
+      message: "Client seeding failed",
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Temporary client seeding endpoint without authentication
+app.post('/api/temp-seed-clients', async (req, res) => {
+  try {
+    console.log("=== TEMPORARY CLIENT SEEDING TRIGGERED ===");
+    
+    const prisma = new PrismaClient();
+    
+    // Real clients data from local database - client city is separate from cities
+    const clients = [
+      { name: 'PM 3 YARD', phone: '9099916309', city: 'JND95V', address: 'YARD ' },
+      { name: 'PM 4 ZANZARDA', phone: '9099967152', city: 'JND95V', address: 'JND' },
+      { name: 'MADHURAM', phone: '9099912345', city: 'JND95V', address: 'JND' },
+      { name: 'NAYAN BHAI', phone: '8787874040', city: 'RAJDXL', address: '' },
+      { name: 'BHEDA BHAI', phone: '9090901212', city: 'JND95V', address: '' }
+    ];
+    
+    // Check current count
+    const currentCount = await prisma.party.count({
+      where: { isActive: true, isDeleted: false }
+    });
+    
+    console.log("Current clients count:", currentCount);
+    
+    if (currentCount >= 5) {
+      return res.json({
+        success: true,
+        message: `Database already has ${currentCount} clients`,
+        count: currentCount
+      });
+    }
+    
+    // Process clients - city is now a text field, separate from cities table
+    let inserted = 0;
+    let updated = 0;
+    
+    for (const client of clients) {
+      // Check if client already exists
+      const existingClient = await prisma.party.findFirst({
+        where: { 
+          phone: client.phone,
+          isActive: true,
+          isDeleted: false 
+        }
+      });
+
+      if (existingClient) {
+        // Update existing client
+        await prisma.party.update({
+          where: { id: existingClient.id },
+          data: {
+            name: client.name,
+            phone: client.phone,
+            address: client.address,
+            city: client.city,
+            updatedAt: new Date(),
+          }
+        });
+        updated++;
+      } else {
+        // Create new client
+        await prisma.party.create({
+          data: {
+            name: client.name,
+            phone: client.phone,
+            address: client.address,
+            city: client.city,
+            isActive: true,
+            isDeleted: false,
+          }
+        });
+        inserted++;
+      }
+    }
+    
+    // Check new count
+    const newCount = await prisma.party.count({
+      where: { isActive: true, isDeleted: false }
+    });
+    
+    console.log("Clients count after seeding:", newCount);
+    
+    res.json({
+      success: true,
+      message: `Successfully seeded ${newCount} clients (${inserted} inserted, ${updated} updated)`,
+      count: newCount,
+      inserted,
+      updated
+    });
+    
+  } catch (error) {
+    console.error("Temporary client seeding failed:", error);
     res.status(500).json({
       success: false,
       message: "Client seeding failed",

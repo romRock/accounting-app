@@ -17,7 +17,8 @@
     "db:seed:cities:production": "tsx scripts/seed-cities-production.ts",
     "db:seed:clients:production": "tsx scripts/seed-clients-production.ts",
     "db:seed:roles:production": "tsx scripts/seed-roles-production.ts",
-    "db:seed:users:production": "tsx scripts/seed-users-production.ts",
+    "db:seed:users:production": "node scripts/seed-users-production.ts",
+    "update:admin-role:production": "node scripts/update-admin-role-production.ts",
     "db:migrate:permissions": "node scripts/permissions-migration.js",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate"

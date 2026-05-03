@@ -25,7 +25,7 @@ async function productionBuild() {
       execSync('node scripts/permissions-migration.js', { stdio: 'inherit' });
       
       console.log('🔧 Updating admin role permissions...');
-      execSync('node scripts/update-admin-role-production.js', { stdio: 'inherit' });
+      execSync('npx tsx scripts/update-admin-role-production.ts', { stdio: 'inherit' });
       
       console.log('🏗️ Building TypeScript...');
       execSync('npx tsc', { stdio: 'inherit' });

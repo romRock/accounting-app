@@ -105,24 +105,32 @@ export default function LayoutWrapper({
         // Check both new format (dashboard.view) and old format (dashboard.read)
         return permissions.dashboard?.view || permissions.dashboard?.read || false;
       case 'transactions':
-        return action === 'outward' 
-          ? permissions.transactions?.outward || false
-          : action === 'inward'
-          ? permissions.transactions?.inward || false
-          : (permissions.transactions?.outward || permissions.transactions?.inward || false);
+        // Check both new format and old production format
+        if (action === 'outward') {
+          return permissions.transactions?.outward || permissions.transactions?.read || false;
+        } else if (action === 'inward') {
+          return permissions.transactions?.inward || permissions.transactions?.read || false;
+        } else {
+          return permissions.transactions?.outward || permissions.transactions?.inward || 
+                 permissions.transactions?.read || false;
+        }
       case 'accounting':
-        return permissions.accounting === 'all';
+        // Check both new format and old production format
+        return permissions.accounting === 'all' || permissions.accounting?.read;
       case 'hawala':
-        return permissions.hawala === 'all';
+        // Check both new format and old production format
+        return permissions.hawala === 'all' || permissions.hawala?.read;
       case 'specialEntry':
-        return permissions.specialEntry === 'all';
+        // Check both new format and old production format
+        return permissions.specialEntry === 'all' || permissions.specialEntry?.read;
       case 'reports':
         // Check both new format (reports) and old format (reports.read)
         return permissions.accounting === 'all' || 
                Object.values(permissions.reports || {}).some(Boolean) ||
                permissions.reports?.read;
       case 'balanceSheet':
-        return permissions.balanceSheet === 'all';
+        // Check both new format and old production format
+        return permissions.balanceSheet === 'all' || permissions.balanceSheet?.read;
       case 'master':
         // Check both new format (masterData) and old format (master)
         return permissions.masterData === 'full_access' || 

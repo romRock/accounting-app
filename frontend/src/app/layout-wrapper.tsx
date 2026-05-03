@@ -99,9 +99,11 @@ export default function LayoutWrapper({
       return false;
     }
     
+    // Handle both old and new permission formats
     switch (module) {
       case 'dashboard':
-        return permissions.dashboard?.view || false;
+        // Check both new format (dashboard.view) and old format (dashboard.read)
+        return permissions.dashboard?.view || permissions.dashboard?.read || false;
       case 'transactions':
         return action === 'outward' 
           ? permissions.transactions?.outward || false
@@ -115,11 +117,18 @@ export default function LayoutWrapper({
       case 'specialEntry':
         return permissions.specialEntry === 'all';
       case 'reports':
-        return permissions.accounting === 'all' || Object.values(permissions.reports || {}).some(Boolean);
+        // Check both new format (reports) and old format (reports.read)
+        return permissions.accounting === 'all' || 
+               Object.values(permissions.reports || {}).some(Boolean) ||
+               permissions.reports?.read;
       case 'balanceSheet':
         return permissions.balanceSheet === 'all';
       case 'master':
-        return permissions.masterData === 'full_access' || permissions.masterData === 'role_based_access';
+        // Check both new format (masterData) and old format (master)
+        return permissions.masterData === 'full_access' || 
+               permissions.masterData === 'role_based_access' ||
+               permissions.master?.read ||
+               permissions.master?.write;
       default:
         return true; // Help page is always accessible
     }

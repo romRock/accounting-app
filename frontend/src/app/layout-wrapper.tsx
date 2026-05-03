@@ -102,7 +102,7 @@ export default function LayoutWrapper({
     // Handle both old and new permission formats
     switch (module) {
       case 'dashboard':
-        // Check both new format (dashboard.view) and old format (dashboard.read)
+        // Strict RBAC - only allow if user has explicit dashboard permission
         return permissions.dashboard?.view || permissions.dashboard?.read || false;
       case 'transactions':
         // Check both new format and old production format
@@ -115,36 +115,31 @@ export default function LayoutWrapper({
                  permissions.transactions?.read || false;
         }
       case 'accounting':
-        // Check both new format and old production format
-        return permissions.accounting === 'all' || permissions.accounting?.read;
+        // Strict RBAC - only allow if user has explicit accounting permission
+        return permissions.accounting === 'all' || permissions.accounting?.read || permissions.accounting?.write;
       case 'hawala':
-        // Check both new format and old production format, also check if user has admin-like permissions
-        return permissions.hawala === 'all' || permissions.hawala?.read || 
-               permissions.accounting?.write || permissions.transactions?.write;
+        // Strict RBAC - only allow if user has explicit hawala permission
+        return permissions.hawala === 'all' || permissions.hawala?.read || permissions.hawala?.write;
       case 'specialEntry':
-        // Check both new format and old production format, also check if user has admin-like permissions
-        return permissions.specialEntry === 'all' || permissions.specialEntry?.read ||
-               permissions.accounting?.write || permissions.transactions?.write || permissions.accounting?.read || false;
+        // Strict RBAC - only allow if user has explicit specialEntry permission
+        return permissions.specialEntry === 'all' || permissions.specialEntry?.read || permissions.specialEntry?.write;
       case 'reports':
-        // Check both new format (reports) and old format (reports.read)
-        return permissions.accounting === 'all' || 
-               Object.values(permissions.reports || {}).some(Boolean) ||
-               permissions.reports?.read;
+        // Strict RBAC - only allow if user has explicit reports permission
+        if (action && action.startsWith('report_')) {
+          // Check for specific report permission
+          return permissions.reports?.[action] === true;
+        }
+        return permissions.reports?.read || permissions.reports?.write ||
+               Object.values(permissions.reports || {}).some(Boolean);
       case 'balanceSheet':
-        // Check both new format and old production format, also check if user has admin-like permissions
-        return permissions.balanceSheet === 'all' || permissions.balanceSheet?.read ||
-               permissions.accounting?.write || permissions.transactions?.write;
+        // Strict RBAC - only allow if user has explicit balanceSheet permission
+        return permissions.balanceSheet === 'all' || permissions.balanceSheet?.read || permissions.balanceSheet?.write;
       case 'master':
-        // Check both new format (masterData) and old format (master) with fallback
-        return permissions.masterData === 'full_access' || 
-               permissions.masterData === 'role_based_access' ||
+        // Strict RBAC - only allow if user has explicit full_access permission (admin/super admin only)
+        // Works like other single access modules - no access by default
+        return permissions.masterData === 'full_access' ||
                permissions.master?.read ||
-               permissions.master?.write ||
-               permissions.roles?.write || permissions.users?.write ||
-               permissions.users?.read ||
-               permissions.roles?.read ||
-               permissions.cities?.read ||
-               false;
+               permissions.master?.write;
       default:
         return true; // Help page is always accessible
     }
@@ -470,39 +465,43 @@ export default function LayoutWrapper({
                 </svg>
               </Button>
               
-              {/* Transaction Tabs - Only show on transactions page */}
+              {/* Transaction Tabs - Only show on transactions page with RBAC */}
               {pathname === '/transactions' && (
                 <div className="flex items-center space-x-1 fixed">
-                  <button
-                    onClick={() => {
-                      setActiveTransactionTab('outward');
-                      // Dispatch event for transactions page
-                      const event = new CustomEvent('setTransactionTab', { detail: 'outward' });
-                      window.dispatchEvent(event);
-                    }}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
-                      activeTransactionTab === 'outward'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                    }`}
-                  >
-                    Outward Booking
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveTransactionTab('inward');
-                      // Dispatch event for transactions page
-                      const event = new CustomEvent('setTransactionTab', { detail: 'inward' });
-                      window.dispatchEvent(event);
-                    }}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
-                      activeTransactionTab === 'inward'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                    }`}
-                  >
-                    Inward Booking
-                  </button>
+                  {hasPermission('transactions', 'outward') && (
+                    <button
+                      onClick={() => {
+                        setActiveTransactionTab('outward');
+                        // Dispatch event for transactions page
+                        const event = new CustomEvent('setTransactionTab', { detail: 'outward' });
+                        window.dispatchEvent(event);
+                      }}
+                      className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                        activeTransactionTab === 'outward'
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      }`}
+                    >
+                      Outward Booking
+                    </button>
+                  )}
+                  {hasPermission('transactions', 'inward') && (
+                    <button
+                      onClick={() => {
+                        setActiveTransactionTab('inward');
+                        // Dispatch event for transactions page
+                        const event = new CustomEvent('setTransactionTab', { detail: 'inward' });
+                        window.dispatchEvent(event);
+                      }}
+                      className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                        activeTransactionTab === 'inward'
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      }`}
+                    >
+                      Inward Booking
+                    </button>
+                  )}
                 </div>
               )}
               
@@ -705,14 +704,17 @@ export default function LayoutWrapper({
                     <div className="absolute top-full left-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
                       <div className="py-2">
                         {[
-                          { id: 'outward', name: 'Outward Report' },
-                          { id: 'inward', name: 'Inward Report' },
-                          { id: 'combo', name: 'Combo Report' },
-                          { id: 'outward-centerwise', name: 'Outward Centerwise Report' },
-                          { id: 'inward-centerwise', name: 'Inward Centerwise Report' },
-                          { id: 'amount-type', name: 'Amount Type Report' },
-                          { id: 'customer', name: 'Customer Transaction Report' },
-                        ].map((report) => (
+                          { id: 'outward', name: 'Outward Report', permission: 'report_1' },
+                          { id: 'inward', name: 'Inward Report', permission: 'report_2' },
+                          { id: 'combo', name: 'Combo Report', permission: 'report_3' },
+                          { id: 'outward-centerwise', name: 'Outward Centerwise Report', permission: 'report_4' },
+                          { id: 'inward-centerwise', name: 'Inward Centerwise Report', permission: 'report_5' },
+                          { id: 'amount-type', name: 'Amount Type Report', permission: 'report_6' },
+                          { id: 'customer', name: 'Customer Transaction Report', permission: 'report_7' },
+                        ].filter((report) => {
+                          // Check if user has permission for this specific report
+                          return hasPermission('reports', report.permission);
+                        }).map((report) => (
                           <button
                             key={report.id}
                             onClick={() => {

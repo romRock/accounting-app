@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -106,6 +108,8 @@ const mockCategories: Category[] = [
 ];
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const { user } = useAuthStore();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [quickForm, setQuickForm] = useState({
     amount: '',
@@ -116,6 +120,48 @@ export default function DashboardPage() {
   const [accountingEntries] = useState<AccountingEntry[]>(mockAccountingEntries);
   const [users] = useState<User[]>(mockUsers);
   const [categories] = useState<Category[]>(mockCategories);
+
+  // Check dashboard permissions and redirect if not allowed
+  useEffect(() => {
+    if (!user?.role?.permissions) return;
+
+    // Parse permissions from JSON string if needed
+    let permissions;
+    try {
+      permissions = typeof user.role.permissions === 'string' 
+        ? JSON.parse(user.role.permissions) 
+        : user.role.permissions;
+    } catch (error) {
+      console.error('Error parsing permissions:', error);
+      return;
+    }
+
+    // Check if user has dashboard permission
+    const hasDashboardPermission = permissions.dashboard?.view || permissions.dashboard?.read || false;
+
+    if (!hasDashboardPermission) {
+      // Redirect to first allowed page
+      const pagePriority = [
+        { path: '/transactions', check: () => permissions.transactions?.outward || permissions.transactions?.inward || permissions.transactions?.read },
+        { path: '/reports', check: () => permissions.reports?.read || Object.values(permissions.reports || {}).some(Boolean) },
+        { path: '/accounting', check: () => permissions.accounting === 'all' || permissions.accounting?.read },
+        { path: '/hawala', check: () => permissions.hawala === 'all' || permissions.hawala?.read },
+        { path: '/balance-sheet', check: () => permissions.balanceSheet === 'all' || permissions.balanceSheet?.read },
+        { path: '/master', check: () => permissions.masterData === 'full_access' || permissions.master?.read },
+        { path: '/help', check: () => true } // Help is always accessible
+      ];
+
+      for (const page of pagePriority) {
+        if (page.check()) {
+          router.push(page.path);
+          return;
+        }
+      }
+
+      // If no permissions found, redirect to help
+      router.push('/help');
+    }
+  }, [user, router]);
 
   // Handle events from layout-wrapper
   useEffect(() => {

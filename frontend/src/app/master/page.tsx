@@ -45,7 +45,7 @@ interface Role {
       report_7: boolean;
     };
     balanceSheet: 'all' | 'none';
-    masterData: 'full_access' | 'role_based_access';
+    masterData: 'full_access' | 'role_based_access' | 'none';
   };
   createdAt: string;
   updatedAt: string;
@@ -98,7 +98,7 @@ export default function MasterPage() {
         report_7: false
       },
       balanceSheet: 'none',
-      masterData: 'role_based_access'
+      masterData: 'none'
     }
   });
   const [centerForm, setCenterForm] = useState<Partial<Center>>({});
@@ -116,8 +116,65 @@ export default function MasterPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Check if user is admin
-  const isAdmin = (user && user.role.name === 'Super Admin') || (user && user.username === 'admin');
+  // Check if user is admin or super admin based on permissions only
+  const isAdmin = () => {
+    if (!user?.role?.permissions) return false;
+
+    // Parse permissions from JSON string if needed
+    let permissions;
+    try {
+      permissions = typeof user.role.permissions === 'string' 
+        ? JSON.parse(user.role.permissions) 
+        : user.role.permissions;
+    } catch (error) {
+      console.error('Error parsing permissions:', error);
+      return false;
+    }
+
+    // Strict RBAC - only allow if user has explicit full_access permission
+    // Works like other single access modules - no access by default
+    return permissions.masterData === 'full_access' ||
+           permissions.master?.read ||
+           permissions.master?.write;
+  };
+
+  // Redirect non-admin users
+  useEffect(() => {
+    if (user && !isAdmin()) {
+      // Redirect to first allowed page
+      const pagePriority = [
+        { path: '/transactions', check: () => {
+          const permissions = typeof user.role.permissions === 'string' 
+            ? JSON.parse(user.role.permissions) 
+            : user.role.permissions;
+          return permissions.transactions?.outward || permissions.transactions?.inward || permissions.transactions?.read;
+        }},
+        { path: '/reports', check: () => {
+          const permissions = typeof user.role.permissions === 'string' 
+            ? JSON.parse(user.role.permissions) 
+            : user.role.permissions;
+          return permissions.reports?.read || Object.values(permissions.reports || {}).some(Boolean);
+        }},
+        { path: '/accounting', check: () => {
+          const permissions = typeof user.role.permissions === 'string' 
+            ? JSON.parse(user.role.permissions) 
+            : user.role.permissions;
+          return permissions.accounting === 'all' || permissions.accounting?.read;
+        }},
+        { path: '/help', check: () => true } // Help is always accessible
+      ];
+
+      for (const page of pagePriority) {
+        if (page.check()) {
+          router.push(page.path);
+          return;
+        }
+      }
+
+      // If no permissions found, redirect to help
+      router.push('/help');
+    }
+  }, [user, router]);
 
   // Load real centers data
   const loadCenters = async () => {
@@ -1453,12 +1510,12 @@ export default function MasterPage() {
                           <input
                             type="radio"
                             name="masterData"
-                            checked={roleForm.permissions?.masterData === 'role_based_access'}
+                            checked={roleForm.permissions?.masterData === 'none'}
                             onChange={() => setRoleForm({
                               ...roleForm,
                               permissions: {
                                 ...roleForm.permissions!,
-                                masterData: 'role_based_access'
+                                masterData: 'none'
                               }
                             })}
                             className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
@@ -1718,7 +1775,7 @@ export default function MasterPage() {
                                 </span>
                               </td>
                               <td className="px-3 py-2 whitespace-nowrap text-sm">
-                                {isAdmin && (
+                                {isAdmin() && (
                                   <div className="flex space-x-1">
                                     <Button
                                       size="sm"
@@ -1882,7 +1939,7 @@ export default function MasterPage() {
                                 {client.notes || '-'}
                               </td>
                               <td className="px-3 py-2 whitespace-nowrap text-sm">
-                                {isAdmin && (
+                                {isAdmin() && (
                                   <div className="flex space-x-1">
                                     <Button
                                       size="sm"

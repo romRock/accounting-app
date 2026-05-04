@@ -149,7 +149,7 @@ export const createTransaction = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('=== TRANSACTION CREATION ERROR ===');
-    console.error('Error details:', error);
+    console.error('Error details 1:', error);
     console.error('Error message:', error instanceof Error ? error.message : 'Unknown error');
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     

@@ -346,9 +346,10 @@ export default function TransactionsPage() {
     }
   };
 
+  // Handle row click to edit transaction
   const handleRowClick = (transaction: Transaction) => {
     setEditingTransaction(transaction);
-    setValue('id', transaction.id);
+    setActiveTab(transaction.type.toLowerCase() as 'outward' | 'inward');
     setValue('transactionId', transaction.transactionId);
     setValue('tokenNo', transaction.tokenNo);
     setValue('date', transaction.date);
@@ -366,6 +367,11 @@ export default function TransactionsPage() {
     setValue('remark', transaction.remark || '');
     setValue('status', transaction.status);
     setValue('autoCommission', false);
+    
+    // Set selectedCity for editing
+    if (transaction.center) {
+      setSelectedCity(transaction.center);
+    }
   };
 
   // Filter transactions
@@ -513,9 +519,9 @@ export default function TransactionsPage() {
                   <CityTypeahead
                     id="centerId"
                     label="Center"
-                    value={watch('centerId') || ''}
+                    value={selectedCity?.name || watch('centerId') || ''}
                     onChange={(value, city) => {
-                      setValue('centerId', value);
+                      setValue('centerId', city?.id || value);
                       setSelectedCity(city);
                     }}
                     placeholder="Search city..."

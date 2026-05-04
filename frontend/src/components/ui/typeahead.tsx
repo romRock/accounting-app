@@ -84,7 +84,7 @@ export function CityTypeahead({
   // Handle city selection
   const handleCitySelect = (city: City) => {
     setSearchTerm(city.name);
-    onChange(city.name, city);
+    onChange(city.id, city);
     setIsOpen(false);
     setSelectedIndex(-1);
     inputRef.current?.blur();

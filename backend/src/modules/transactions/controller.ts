@@ -148,7 +148,25 @@ export const createTransaction = async (req: Request, res: Response) => {
       transaction,
     });
   } catch (error) {
-    throw error;
+    console.error('=== TRANSACTION CREATION ERROR ===');
+    console.error('Error details:', error);
+    console.error('Error message:', error instanceof Error ? error.message : 'Unknown error');
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    
+    // Handle specific database errors
+    if (error instanceof Error) {
+      if (error.message.includes('Unique constraint')) {
+        throw createError('Transaction ID already exists', 400);
+      } else if (error.message.includes('Foreign key constraint')) {
+        throw createError('Invalid center or user reference', 400);
+      } else if (error.message.includes('Database operation failed')) {
+        throw createError('Database operation failed. Please check your data.', 400);
+      } else {
+        throw createError(`Transaction creation failed: ${error.message}`, 500);
+      }
+    } else {
+      throw createError('Transaction creation failed: Unknown error', 500);
+    }
   }
 };
 

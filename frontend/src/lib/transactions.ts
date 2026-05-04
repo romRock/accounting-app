@@ -1,5 +1,5 @@
 // Real transaction API service for backend
-import API_BASE_URL from './api';
+import API_BASE_URL, { LIVE_API_URL } from './api';
 import { useAuthStore } from '../store/index';
 
 export interface Transaction {
@@ -109,7 +109,9 @@ export const transactionApi = {
 
   async createTransaction(transactionData: Partial<Transaction>): Promise<Transaction> {
     const { accessToken } = useAuthStore.getState();
-    const response = await fetch(`${API_BASE_URL}/api/transactions`, {
+    
+    // Try local API first
+    let response = await fetch(`${API_BASE_URL}/api/transactions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -118,8 +120,22 @@ export const transactionApi = {
       body: JSON.stringify(transactionData),
     });
 
+    // If local API fails, fallback to live API
     if (!response.ok) {
-      throw new Error('Failed to create transaction');
+      console.log("Local API failed, trying live API for transaction creation...");
+      response = await fetch(`${LIVE_API_URL}/api/transactions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(transactionData),
+      });
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to create transaction');
     }
 
     return await response.json();

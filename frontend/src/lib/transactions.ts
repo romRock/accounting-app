@@ -4,28 +4,44 @@ import { useAuthStore } from '../store/index';
 
 export interface Transaction {
   id: string;
-  token: string;
-  tokenNo?: string;
+  transactionId: string;
+  tokenNo: number;
   date: string;
   time: string;
-  center: string;
+  centerId: string;
   amount: number;
   type: string;
   amountType: string;
   commission: number;
-  bookingCommission?: number;
-  centerCommission?: number;
+  bookingCommission: number;
+  centerCommission: number;
   autoCommission: boolean;
   receiverName: string;
-  receiverNumber: string;
+  receiverNumber?: string;
   senderName: string;
-  senderNumber: string;
+  senderNumber?: string;
+  receiverClientId?: string;
+  senderClientId?: string;
   remark?: string;
   status: boolean;
   statusTime: string;
-  fromParty?: string;
-  toParty?: string;
-  description?: string;
+  center?: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  receiverClient?: {
+    id: string;
+    name: string;
+    phone: string;
+    city: string;
+  };
+  senderClient?: {
+    id: string;
+    name: string;
+    phone: string;
+    city: string;
+  };
   createdBy?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -82,11 +98,7 @@ export const transactionApi = {
     if (params.status !== undefined) queryParams.append('status', params.status);
     if (params.search) queryParams.append('search', params.search);
 
-    const response = await fetch(`${API_BASE_URL}/api/transactions?${queryParams}`, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-      },
-    });
+    const response = await fetch(`${API_BASE_URL}/api/transactions?${queryParams}`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch transactions');
@@ -96,11 +108,12 @@ export const transactionApi = {
   },
 
   async createTransaction(transactionData: Partial<Transaction>): Promise<Transaction> {
+    const { accessToken } = useAuthStore.getState();
     const response = await fetch(`${API_BASE_URL}/api/transactions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+        'Authorization': `Bearer ${accessToken}`,
       },
       body: JSON.stringify(transactionData),
     });
@@ -113,11 +126,12 @@ export const transactionApi = {
   },
 
   async updateTransaction(id: string, transactionData: Partial<Transaction>): Promise<Transaction> {
+    const { accessToken } = useAuthStore.getState();
     const response = await fetch(`${API_BASE_URL}/api/transactions/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+        'Authorization': `Bearer ${accessToken}`,
       },
       body: JSON.stringify(transactionData),
     });
@@ -130,10 +144,11 @@ export const transactionApi = {
   },
 
   async deleteTransaction(id: string): Promise<void> {
+    const { accessToken } = useAuthStore.getState();
     const response = await fetch(`${API_BASE_URL}/api/transactions/${id}`, {
       method: 'DELETE',
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+        'Authorization': `Bearer ${accessToken}`,
       },
     });
 
@@ -142,20 +157,7 @@ export const transactionApi = {
     }
   },
 
-  async getBranches(): Promise<Center[]> {
-    const response = await fetch(`${API_BASE_URL}/api/branches`, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch branches');
-    }
-
-    return await response.json();
-  },
-
+  
   async searchCities(search?: string, limit?: number): Promise<City[]> {
     const params = new URLSearchParams();
     if (search && search.trim()) {

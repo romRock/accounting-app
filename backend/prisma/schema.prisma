@@ -85,8 +85,7 @@ model City {
   isDeleted        Boolean       @default(false)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
-  fromTransactions Transaction[] @relation("FromCity")
-  toTransactions   Transaction[] @relation("ToCity")
+  transactions     Transaction[] @relation("TransactionCenter")
 
   @@index([code])
   @@index([name])
@@ -94,19 +93,20 @@ model City {
 }
 
 model Party {
-  id           String        @id @default(cuid())
-  name         String
-  phone        String?
-  email        String?
-  address      String?
-  city         String?       // Client city - separate from cities table
-  panNumber    String?
-  gstNumber    String?
-  isActive     Boolean       @default(true)
-  isDeleted    Boolean       @default(false)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  transactions Transaction[]
+  id                   String        @id @default(cuid())
+  name                 String
+  phone                String?
+  email                String?
+  address              String?
+  city                 String?       // Client city - separate from cities table
+  panNumber            String?
+  gstNumber            String?
+  isActive             Boolean       @default(true)
+  isDeleted            Boolean       @default(false)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  receivedTransactions Transaction[] @relation("ReceiverTransactions")
+  sentTransactions     Transaction[] @relation("SenderTransactions")
 
   @@index([name])
   @@index([city])
@@ -138,38 +138,48 @@ model Branch {
 // ================== TRANSACTIONS ==================
 
 model Transaction {
-  id            String        @id @default(cuid())
-  transactionId String        @unique
-  date          DateTime
-  type          String
-  fromCityId    String
-  toCityId      String
-  partyId       String
-  amount        Float
-  commission    Float
-  paymentType   String
-  referenceId   String?
-  notes         String?
-  status        String        @default("PENDING")
-  isActive      Boolean       @default(true)
-  isDeleted     Boolean       @default(false)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  branchId      String?
-  createdBy     String
-  ledgerEntries LedgerEntry[]
-  branch        Branch?       @relation(fields: [branchId], references: [id])
-  creator       User          @relation("TransactionCreator", fields: [createdBy], references: [id])
-  fromCity      City          @relation("FromCity", fields: [fromCityId], references: [id])
-  party         Party         @relation(fields: [partyId], references: [id])
-  toCity        City          @relation("ToCity", fields: [toCityId], references: [id])
+  id                   String        @id @default(cuid())
+  transactionId        String        @unique // PM2_001, PM2_002...
+  tokenNo             Int           // Daily token number
+  date                 DateTime      // Transaction date
+  time                 DateTime      // Transaction time
+  centerId             String        // City/center reference
+  amount               Int           // Full amount only (no decimals)
+  amountType           String        // CASH or CREDIT
+  commission           Int           // Total commission
+  bookingCommission    Int           // 35% of commission
+  centerCommission     Int           // 65% of commission
+  autoCommission       Boolean       @default(true)
+  receiverName         String        // Receiver name (can be free text)
+  receiverNumber       String?       // Optional receiver number
+  senderName           String        // Sender name (can be free text)
+  senderNumber         String?       // Optional sender number
+  receiverClientId     String?       // If receiver is from client list
+  senderClientId       String?       // If sender is from client list
+  remark               String?       // Optional remark
+  status               Boolean       @default(true) // Active/Inactive
+  statusTime           DateTime      // Status timestamp
+  type                 String        // OUTWARD or INWARD
+  isActive             Boolean       @default(true)
+  isDeleted            Boolean       @default(false)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  branchId             String?
+  createdBy            String
+  ledgerEntries        LedgerEntry[]
+  branch               Branch?       @relation(fields: [branchId], references: [id])
+  creator              User          @relation("TransactionCreator", fields: [createdBy], references: [id])
+  center               City          @relation("TransactionCenter", fields: [centerId], references: [id])
+  receiverClient       Party?        @relation("ReceiverTransactions", fields: [receiverClientId], references: [id])
+  senderClient         Party?        @relation("SenderTransactions", fields: [senderClientId], references: [id])
 
   @@index([transactionId])
   @@index([date])
+  @@index([tokenNo])
+  @@index([centerId])
+  @@index([receiverClientId])
+  @@index([senderClientId])
   @@index([type])
-  @@index([fromCityId])
-  @@index([toCityId])
-  @@index([partyId])
   @@index([status])
   @@index([branchId])
   @@index([createdBy])

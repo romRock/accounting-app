@@ -7,24 +7,26 @@ import {
   updateTransaction,
   deleteTransaction,
   getTransactionStats,
+  getNextTransactionIds,
 } from './controller';
 import { validateCreateTransaction, validateUpdateTransaction } from './validation';
 
 const router = Router();
 
-// Apply authentication to all routes
+// Transaction CRUD operations - Main GET routes without authentication
+router.get('/', getTransactions);
+router.get('/next-ids', getNextTransactionIds);
+router.get('/stats', getTransactionStats);
+router.get('/:id', getTransactionById);
+
+// Special routes with RBAC protection - these require authentication for permission checking
+router.get('/inward', authenticateToken, requirePermission('transactions.read'), getTransactions);
+router.get('/outward', authenticateToken, requirePermission('transactions.read'), getTransactions);
+
+// Apply authentication to POST, PUT, DELETE routes (no permission check required)
 router.use(authenticateToken);
-
-// Transaction CRUD operations
-router.post('/', requirePermission('transactions.create'), validateCreateTransaction, createTransaction);
-router.get('/', requirePermission('transactions.read'), getTransactions);
-router.get('/stats', requirePermission('transactions.read'), getTransactionStats);
-router.get('/:id', requirePermission('transactions.read'), getTransactionById);
-router.put('/:id', requirePermission('transactions.update'), validateUpdateTransaction, updateTransaction);
-router.delete('/:id', requirePermission('transactions.delete'), deleteTransaction);
-
-// Special routes
-router.get('/inward', requirePermission('transactions.read'), getTransactions);
-router.get('/outward', requirePermission('transactions.read'), getTransactions);
+router.post('/', validateCreateTransaction, createTransaction);
+router.put('/:id', validateUpdateTransaction, updateTransaction);
+router.delete('/:id', deleteTransaction);
 
 export default router;

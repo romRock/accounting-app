@@ -22,7 +22,7 @@ CREATE TABLE "roles" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
-    "permissions" TEXT NOT NULL,
+    "permissions" JSONB NOT NULL,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "isDeleted" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -48,21 +48,6 @@ CREATE TABLE "user_sessions" (
 );
 
 -- CreateTable
-CREATE TABLE "Client" (
-    "id" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "mobileNumber" TEXT NOT NULL,
-    "city" TEXT NOT NULL,
-    "notes" TEXT,
-    "isActive" BOOLEAN NOT NULL DEFAULT true,
-    "isDeleted" BOOLEAN NOT NULL DEFAULT false,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "Client_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "cities" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -85,13 +70,13 @@ CREATE TABLE "parties" (
     "phone" TEXT,
     "email" TEXT,
     "address" TEXT,
+    "city" TEXT,
     "panNumber" TEXT,
     "gstNumber" TEXT,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "isDeleted" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "cityId" TEXT NOT NULL,
 
     CONSTRAINT "parties_pkey" PRIMARY KEY ("id")
 );
@@ -251,12 +236,6 @@ CREATE INDEX "user_sessions_expiresAt_idx" ON "user_sessions"("expiresAt");
 CREATE INDEX "user_sessions_createdAt_idx" ON "user_sessions"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "Client_city_idx" ON "Client"("city");
-
--- CreateIndex
-CREATE INDEX "Client_mobileNumber_idx" ON "Client"("mobileNumber");
-
--- CreateIndex
 CREATE UNIQUE INDEX "cities_code_key" ON "cities"("code");
 
 -- CreateIndex
@@ -269,7 +248,7 @@ CREATE INDEX "cities_name_idx" ON "cities"("name");
 CREATE INDEX "parties_name_idx" ON "parties"("name");
 
 -- CreateIndex
-CREATE INDEX "parties_cityId_idx" ON "parties"("cityId");
+CREATE INDEX "parties_city_idx" ON "parties"("city");
 
 -- CreateIndex
 CREATE INDEX "parties_createdAt_idx" ON "parties"("createdAt");
@@ -381,9 +360,6 @@ ALTER TABLE "users" ADD CONSTRAINT "users_roleId_fkey" FOREIGN KEY ("roleId") RE
 
 -- AddForeignKey
 ALTER TABLE "user_sessions" ADD CONSTRAINT "user_sessions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "parties" ADD CONSTRAINT "parties_cityId_fkey" FOREIGN KEY ("cityId") REFERENCES "cities"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "transactions" ADD CONSTRAINT "transactions_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "branches"("id") ON DELETE SET NULL ON UPDATE CASCADE;

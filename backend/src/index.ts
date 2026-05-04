@@ -1587,7 +1587,7 @@ app.get('/api/clients', async (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/transactions', authenticateToken, transactionRoutes);
+app.use('/api/transactions', transactionRoutes);
 app.use('/api/accounting', authenticateToken, accountingRoutes);
 app.use('/api/reports', authenticateToken, reportsRoutes);
 app.use('/api/master', authenticateToken, masterRoutes);

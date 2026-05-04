@@ -179,16 +179,48 @@ export const requireRole = (roles: string[]) => {
 
 export const requirePermission = (permission: string) => {
   return (req: Request, res: Response, next: NextFunction) => {
+    console.log('=== REQUIRE PERMISSION DEBUG ===');
+    console.log('Required permission:', permission);
+    console.log('req.user exists:', !!req.user);
+    
     if (!req.user) {
+      console.log('ERROR: No user found in request');
       return next(createError('Authentication required', 401));
     }
 
     const userPermissions = req.user.role.permissions;
+    console.log('User permissions:', userPermissions);
     
-    if (!userPermissions || !userPermissions[permission]) {
+    if (!userPermissions) {
+      console.log('ERROR: No permissions found for user');
       return next(createError('Insufficient permissions', 403));
     }
 
+    // Parse permissions if they're stored as string
+    let parsedPermissions = userPermissions;
+    if (typeof userPermissions === 'string') {
+      try {
+        parsedPermissions = JSON.parse(userPermissions);
+      } catch (error) {
+        console.log('ERROR: Failed to parse permissions JSON');
+        return next(createError('Invalid permissions format', 403));
+      }
+    }
+
+    // Check nested permission (e.g., transactions.create)
+    const [module, action] = permission.split('.');
+    const hasPermission = parsedPermissions[module] && parsedPermissions[module][action];
+    
+    console.log('Module:', module);
+    console.log('Action:', action);
+    console.log('Has permission:', hasPermission);
+    
+    if (!hasPermission) {
+      console.log('ERROR: User does not have required permission');
+      return next(createError('Insufficient permissions', 403));
+    }
+
+    console.log('Permission check passed');
     next();
   };
 };

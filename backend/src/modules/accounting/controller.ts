@@ -49,9 +49,9 @@ export const createLedgerEntry = async (req: Request, res: Response) => {
       include: {
         transaction: {
           include: {
-            fromCity: true,
-            toCity: true,
-            party: true,
+            center: true,
+            receiverClient: true,
+            senderClient: true,
           },
         },
       },
@@ -117,9 +117,9 @@ export const getLedgerEntries = async (req: Request, res: Response) => {
       include: {
         transaction: {
           include: {
-            fromCity: true,
-            toCity: true,
-            party: true,
+            center: true,
+            receiverClient: true,
+            senderClient: true,
           },
         },
         creator: {
@@ -172,9 +172,9 @@ export const getLedgerEntryById = async (req: Request, res: Response) => {
       include: {
         transaction: {
           include: {
-            fromCity: true,
-            toCity: true,
-            party: true,
+            center: true,
+            receiverClient: true,
+            senderClient: true,
           },
         },
         creator: {
@@ -239,9 +239,9 @@ export const updateLedgerEntry = async (req: Request, res: Response) => {
       include: {
         transaction: {
           include: {
-            fromCity: true,
-            toCity: true,
-            party: true,
+            center: true,
+            receiverClient: true,
+            senderClient: true,
           },
         },
       },

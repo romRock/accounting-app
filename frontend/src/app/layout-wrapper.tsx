@@ -451,7 +451,7 @@ export default function LayoutWrapper({
       {/* Main Content Area - 80% width on desktop */}
       <div className="flex-1 lg:w-4/5 flex flex-col overflow-hidden lg:ml-[20%]">
         {/* Top Bar */}
-        <div className="bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
+        <div className="bg-white border-b border-gray-200 shadow-sm flex-shrink-0" style={{ zIndex: 9999999 }}>
           <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16 fixed w-full top-0 bg-white z-50">
             <div className="flex items-center space-x-4">
               <Button

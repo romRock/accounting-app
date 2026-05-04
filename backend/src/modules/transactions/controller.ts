@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { createError } from '../../middlewares/errorHandler';
-import { generateTransactionId, calculateCommission } from '../auth/utils';
 
 // Define enum values as strings since Prisma enums aren't being exported properly
 enum TransactionType {
@@ -24,67 +23,110 @@ const prisma = new PrismaClient();
 
 export const createTransaction = async (req: Request, res: Response) => {
   try {
+    console.log('=== CREATE TRANSACTION DEBUG ===');
+    console.log('Request body:', req.body);
+    
     const {
       date,
-      type,
-      fromCityId,
-      toCityId,
-      partyId,
+      time,
+      centerId,
       amount,
-      paymentType,
-      referenceId,
-      notes,
+      amountType,
+      autoCommission,
+      commission,
+      bookingCommission,
+      centerCommission,
+      receiverName,
+      receiverNumber,
+      senderName,
+      senderNumber,
+      receiverClientId,
+      senderClientId,
+      remark,
+      type = 'OUTWARD'
     } = req.body;
 
     const userId = req.user?.id;
     const branchId = req.user?.branchId;
 
-    // Generate unique transaction ID
-    const transactionId = generateTransactionId();
-
-    // Calculate commission (you may want to get commission rates from database)
-    let commission = 0;
-    const commissionRate = await prisma.commissionRate.findFirst({
-      where: {
-        fromCityId,
-        toCityId,
-        isActive: true,
-        isDeleted: false,
-      },
-    });
-
-    if (commissionRate) {
-      commission = calculateCommission(
-        Number(amount),
-        Number(commissionRate.rate),
-        commissionRate.rateType as 'PERCENTAGE' | 'FIXED',
-        commissionRate.minAmount ? Number(commissionRate.minAmount) : undefined,
-        commissionRate.maxAmount ? Number(commissionRate.maxAmount) : undefined
-      );
+    // Find the actual center ID from city code/name
+    let actualCenterId = centerId;
+    if (centerId && typeof centerId === 'string') {
+      const center = await prisma.city.findFirst({
+        where: {
+          OR: [
+            { code: centerId },
+            { name: centerId }
+          ]
+        },
+        select: { id: true }
+      });
+      actualCenterId = center?.id || centerId;
+      console.log('Center lookup:', { input: centerId, found: actualCenterId });
     }
 
-    // Create transaction
+    // Generate unique transaction ID (PM2_001, PM2_002...)
+    const transactionId = await generateTransactionId();
+    
+    // Generate token number (daily reset)
+    const tokenNo = await generateTokenNumber(date);
+
+    // Calculate commission if auto is enabled
+    let calculatedCommission = commission || 0;
+    let calculatedBookingCommission = bookingCommission || 0;
+    let calculatedCenterCommission = centerCommission || 0;
+
+    if (autoCommission) {
+      calculatedCommission = Math.round(Number(amount) * 0.001); // 0.1% commission
+      calculatedBookingCommission = Math.round(calculatedCommission * 0.35); // 35%
+      calculatedCenterCommission = Math.round(calculatedCommission * 0.65); // 65%
+    }
+
+    // Create transaction with new schema
     const transaction = await prisma.transaction.create({
       data: {
         transactionId,
+        tokenNo,
         date: new Date(date),
-        type: type as TransactionType,
-        fromCityId,
-        toCityId,
-        partyId,
+        time: time ? new Date(`${date}T${time}:00`) : new Date(),
+        centerId: actualCenterId,
         amount: Number(amount),
-        commission,
-        paymentType: paymentType as PaymentType,
-        referenceId,
-        notes,
-        status: TransactionStatus.PENDING,
+        amountType: amountType as PaymentType,
+        commission: calculatedCommission,
+        bookingCommission: calculatedBookingCommission,
+        centerCommission: calculatedCenterCommission,
+        autoCommission: autoCommission || true,
+        receiverName,
+        receiverNumber: receiverNumber || null,
+        senderName,
+        senderNumber: senderNumber || null,
+        receiverClientId: receiverClientId || null,
+        senderClientId: senderClientId || null,
+        remark: remark || null,
+        status: true,
+        statusTime: new Date(),
+        type: type as TransactionType,
         branchId,
         createdBy: userId!,
       },
       include: {
-        fromCity: true,
-        toCity: true,
-        party: true,
+        center: true,
+        receiverClient: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            city: true,
+          },
+        },
+        senderClient: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            city: true,
+          },
+        },
         creator: {
           select: {
             id: true,
@@ -96,8 +138,10 @@ export const createTransaction = async (req: Request, res: Response) => {
       },
     });
 
-    // Create corresponding ledger entries (double entry)
-    await createLedgerEntries(transaction);
+    // Create corresponding ledger entries for credit transactions
+    if (amountType === 'CREDIT' && senderClientId) {
+      await createClientLedgerEntries(transaction);
+    }
 
     res.status(201).json({
       message: 'Transaction created successfully',
@@ -115,9 +159,9 @@ export const getTransactions = async (req: Request, res: Response) => {
       limit = 10,
       type,
       status,
-      fromCityId,
-      toCityId,
-      partyId,
+      centerId,
+      receiverClientId,
+      senderClientId,
       dateFrom,
       dateTo,
       search,
@@ -133,16 +177,16 @@ export const getTransactions = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    // Apply role-based filtering
-    if (userRole !== 'Super Admin' && userRole !== 'Admin') {
+    // Apply role-based filtering only if user is authenticated
+    if (req.user && userRole !== 'Super Admin' && userRole !== 'Admin') {
       where.branchId = userBranchId;
     }
 
     if (type) where.type = type as TransactionType;
-    if (status) where.status = status as TransactionStatus;
-    if (fromCityId) where.fromCityId = fromCityId as string;
-    if (toCityId) where.toCityId = toCityId as string;
-    if (partyId) where.partyId = partyId as string;
+    if (status !== undefined) where.status = status === 'true';
+    if (centerId) where.centerId = centerId as string;
+    if (receiverClientId) where.receiverClientId = receiverClientId as string;
+    if (senderClientId) where.senderClientId = senderClientId as string;
 
     if (dateFrom || dateTo) {
       where.date = {};
@@ -153,9 +197,10 @@ export const getTransactions = async (req: Request, res: Response) => {
     if (search) {
       where.OR = [
         { transactionId: { contains: search as string, mode: 'insensitive' } },
-        { referenceId: { contains: search as string, mode: 'insensitive' } },
-        { notes: { contains: search as string, mode: 'insensitive' } },
-        { party: { name: { contains: search as string, mode: 'insensitive' } } },
+        { receiverName: { contains: search as string, mode: 'insensitive' } },
+        { senderName: { contains: search as string, mode: 'insensitive' } },
+        { remark: { contains: search as string, mode: 'insensitive' } },
+        { center: { name: { contains: search as string, mode: 'insensitive' } } },
       ];
     }
 
@@ -166,9 +211,29 @@ export const getTransactions = async (req: Request, res: Response) => {
     const transactions = await prisma.transaction.findMany({
       where,
       include: {
-        fromCity: true,
-        toCity: true,
-        party: true,
+        center: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
+        receiverClient: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            city: true,
+          },
+        },
+        senderClient: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            city: true,
+          },
+        },
         creator: {
           select: {
             id: true,
@@ -217,9 +282,23 @@ export const getTransactionById = async (req: Request, res: Response) => {
     const transaction = await prisma.transaction.findFirst({
       where,
       include: {
-        fromCity: true,
-        toCity: true,
-        party: true,
+        center: true,
+        receiverClient: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            city: true,
+          },
+        },
+        senderClient: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            city: true,
+          },
+        },
         creator: {
           select: {
             id: true,
@@ -247,15 +326,23 @@ export const updateTransaction = async (req: Request, res: Response) => {
     const { id } = req.params;
     const {
       date,
-      type,
-      fromCityId,
-      toCityId,
-      partyId,
+      time,
+      centerId,
       amount,
-      paymentType,
-      referenceId,
-      notes,
+      amountType,
+      autoCommission,
+      commission,
+      bookingCommission,
+      centerCommission,
+      receiverName,
+      receiverNumber,
+      senderName,
+      senderNumber,
+      receiverClientId,
+      senderClientId,
+      remark,
       status,
+      type,
     } = req.body;
 
     const userId = req.user?.id;
@@ -278,20 +365,42 @@ export const updateTransaction = async (req: Request, res: Response) => {
       where: { id: id as string },
       data: {
         date: date ? new Date(date) : undefined,
-        type: type as TransactionType,
-        fromCityId,
-        toCityId,
-        partyId,
+        time: time ? new Date(time) : undefined,
+        centerId,
         amount: amount ? Number(amount) : undefined,
-        paymentType: paymentType as PaymentType,
-        referenceId,
-        notes,
-        status: status as TransactionStatus,
+        amountType: amountType as PaymentType,
+        autoCommission: autoCommission !== undefined ? autoCommission : undefined,
+        commission: commission !== undefined ? Number(commission) : undefined,
+        bookingCommission: bookingCommission !== undefined ? Number(bookingCommission) : undefined,
+        centerCommission: centerCommission !== undefined ? Number(centerCommission) : undefined,
+        receiverName,
+        receiverNumber: receiverNumber || null,
+        senderName,
+        senderNumber: senderNumber || null,
+        receiverClientId: receiverClientId || null,
+        senderClientId: senderClientId || null,
+        remark: remark || null,
+        status: status !== undefined ? status : undefined,
+        type: type as TransactionType,
       },
       include: {
-        fromCity: true,
-        toCity: true,
-        party: true,
+        center: true,
+        receiverClient: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            city: true,
+          },
+        },
+        senderClient: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            city: true,
+          },
+        },
         creator: {
           select: {
             id: true,
@@ -372,6 +481,25 @@ export const deleteTransaction = async (req: Request, res: Response) => {
   }
 };
 
+export const getNextTransactionIds = async (req: Request, res: Response) => {
+  try {
+    const { date, type } = req.query;
+    
+    // Generate next transaction ID for the specific type (outward/inward)
+    const nextTransactionId = await generateTransactionIdByType(type as string || 'OUTWARD');
+    
+    // Generate next token number for the given date and type
+    const nextTokenNo = await generateTokenNumberByType(date as string || new Date().toISOString().split('T')[0], type as string || 'OUTWARD');
+
+    res.json({
+      nextTransactionId,
+      nextTokenNo,
+    });
+  } catch (error) {
+    throw error;
+  }
+};
+
 export const getTransactionStats = async (req: Request, res: Response) => {
   try {
     const { dateFrom, dateTo } = req.query;
@@ -420,10 +548,10 @@ export const getTransactionStats = async (req: Request, res: Response) => {
         where: { ...where, type: TransactionType.OUTWARD },
       }),
       prisma.transaction.count({
-        where: { ...where, status: TransactionStatus.PENDING },
+        where: { ...where, status: false },
       }),
       prisma.transaction.count({
-        where: { ...where, status: TransactionStatus.COMPLETED },
+        where: { ...where, status: true },
       }),
     ]);
 
@@ -441,44 +569,164 @@ export const getTransactionStats = async (req: Request, res: Response) => {
   }
 };
 
-// Helper function to create ledger entries for double entry accounting
-async function createLedgerEntries(transaction: any) {
-  // This would implement double entry accounting logic
-  // For now, we'll create basic entries
-  const entries = [];
-
-  // Debit entry (party owes money or we owe money)
-  entries.push({
-    date: transaction.date,
-    accountId: transaction.partyId,
-    accountType: 'PARTY',
-    description: `${transaction.type} transaction ${transaction.transactionId}`,
-    debitAmount: transaction.type === TransactionType.INWARD ? transaction.amount : 0,
-    creditAmount: transaction.type === TransactionType.OUTWARD ? transaction.amount : 0,
-    balance: 0, // Would be calculated based on previous entries
-    transactionId: transaction.id,
-    branchId: transaction.branchId,
-    createdBy: transaction.createdBy,
-  });
-
-  // Credit entry (commission income)
-  if (transaction.commission > 0) {
-    entries.push({
-      date: transaction.date,
-      accountId: 'COMMISSION_INCOME',
-      accountType: 'INCOME',
-      description: `Commission on transaction ${transaction.transactionId}`,
-      debitAmount: 0,
-      creditAmount: transaction.commission,
-      balance: 0,
-      transactionId: transaction.id,
-      branchId: transaction.branchId,
-      createdBy: transaction.createdBy,
+// Helper function to generate transaction ID (PM2_001, PM2_002...)
+async function generateTransactionId(): Promise<string> {
+  try {
+    // Get the last transaction ID
+    const lastTransaction = await prisma.transaction.findFirst({
+      orderBy: { createdAt: 'desc' },
+      select: { transactionId: true },
     });
-  }
 
-  // SQLite doesn't support createMany, so create entries individually
-  for (const entry of entries) {
-    await prisma.ledgerEntry.create({ data: entry });
+    let nextNumber = 1;
+    if (lastTransaction && lastTransaction.transactionId) {
+      // Extract number from PM2_XXX format
+      const match = lastTransaction.transactionId.match(/PM2_(\d+)/);
+      if (match) {
+        nextNumber = parseInt(match[1]) + 1;
+      }
+    }
+
+    return `PM2_${nextNumber.toString().padStart(3, '0')}`;
+  } catch (error) {
+    // If there's an error, start from 1
+    return 'PM2_001';
   }
+}
+
+// Helper function to generate transaction ID by type (separate for outward/inward)
+async function generateTransactionIdByType(type: string): Promise<string> {
+  try {
+    // Get the last transaction ID for the specific type
+    const lastTransaction = await prisma.transaction.findFirst({
+      where: { type: type as TransactionType },
+      orderBy: { createdAt: 'desc' },
+      select: { transactionId: true },
+    });
+
+    let nextNumber = 1;
+    if (lastTransaction && lastTransaction.transactionId) {
+      // Extract number from PM2_XXX format
+      const match = lastTransaction.transactionId.match(/PM2_(\d+)/);
+      if (match) {
+        nextNumber = parseInt(match[1]) + 1;
+      }
+    }
+
+    return `PM2_${nextNumber.toString().padStart(3, '0')}`;
+  } catch (error) {
+    // If there's an error, start from 1
+    return 'PM2_001';
+  }
+}
+
+// Helper function to generate token number (daily reset at 12:00 AM IST)
+async function generateTokenNumber(date: string): Promise<number> {
+  try {
+    const targetDate = new Date(date);
+    // Set time to start of day in IST (UTC+5:30)
+    targetDate.setHours(0, 0, 0, 0);
+    const nextDay = new Date(targetDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    // Get the last token number for the given date
+    const lastTransaction = await prisma.transaction.findFirst({
+      where: {
+        date: {
+          gte: targetDate,
+          lt: nextDay,
+        },
+      },
+      orderBy: { tokenNo: 'desc' },
+      select: { tokenNo: true },
+    });
+
+    return lastTransaction ? lastTransaction.tokenNo + 1 : 1;
+  } catch (error) {
+    // If there's an error, start from 1
+    return 1;
+  }
+}
+
+// Helper function to generate token number by type (separate for outward/inward, daily reset at 12:00 AM IST)
+async function generateTokenNumberByType(date: string, type: string): Promise<number> {
+  try {
+    const targetDate = new Date(date);
+    // Set time to start of day in IST (UTC+5:30)
+    targetDate.setHours(0, 0, 0, 0);
+    const nextDay = new Date(targetDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    // Get the last token number for the given date and type
+    const lastTransaction = await prisma.transaction.findFirst({
+      where: {
+        type: type as TransactionType,
+        date: {
+          gte: targetDate,
+          lt: nextDay,
+        },
+      },
+      orderBy: { tokenNo: 'desc' },
+      select: { tokenNo: true },
+    });
+
+    return lastTransaction ? lastTransaction.tokenNo + 1 : 1;
+  } catch (error) {
+    // If there's an error, start from 1
+    return 1;
+  }
+}
+
+// Helper function to create ledger entries for client accounts
+async function createClientLedgerEntries(transaction: any) {
+  try {
+    // Only create ledger entries for credit transactions
+    if (transaction.amountType !== 'CREDIT' || !transaction.senderClientId) {
+      return;
+    }
+
+    // Debit entry for sender (money sent out)
+    await prisma.ledgerEntry.create({
+      data: {
+        date: transaction.date,
+        accountId: transaction.senderClientId,
+        accountType: 'CLIENT',
+        description: `Outward transaction ${transaction.transactionId} - ${transaction.receiverName}`,
+        debitAmount: transaction.amount,
+        creditAmount: 0,
+        balance: 0, // Would be calculated based on previous entries
+        transactionId: transaction.id,
+        branchId: transaction.branchId,
+        createdBy: transaction.createdBy,
+      },
+    });
+
+    // If receiver is also a client, create credit entry
+    if (transaction.receiverClientId) {
+      await prisma.ledgerEntry.create({
+        data: {
+          date: transaction.date,
+          accountId: transaction.receiverClientId,
+          accountType: 'CLIENT',
+          description: `Inward transaction ${transaction.transactionId} - ${transaction.senderName}`,
+          debitAmount: 0,
+          creditAmount: transaction.amount,
+          balance: 0, // Would be calculated based on previous entries
+          transactionId: transaction.id,
+          branchId: transaction.branchId,
+          createdBy: transaction.createdBy,
+        },
+      });
+    }
+  } catch (error) {
+    console.error('Error creating ledger entries:', error);
+    // Don't throw error to avoid failing the transaction
+  }
+}
+
+// Helper function to create ledger entries for double entry accounting (legacy)
+async function createLedgerEntries(transaction: any) {
+  // This function is kept for backward compatibility
+  // New transactions use createClientLedgerEntries
+  await createClientLedgerEntries(transaction);
 }

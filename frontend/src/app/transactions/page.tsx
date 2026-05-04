@@ -11,29 +11,34 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CityTypeahead } from '@/components/ui/typeahead';
-import { useAuthStore } from '@/store';
+import { ClientTypeahead } from '@/components/ui/client-typeahead';
+import { useAuthStore } from '@/store/index';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { transactionApi, Transaction } from '@/lib/transactions';
 
-// Modern transaction schema
+// Modern transaction schema matching backend
 const transactionSchema = z.object({
   id: z.string().optional(),
-  tokenNo: z.string().optional(),
+  transactionId: z.string().optional(),
+  tokenNo: z.number().optional(),
   date: z.string().min(1, 'Date is required'),
   time: z.string().min(1, 'Time is required'),
-  center: z.string().min(1, 'Center is required'),
+  centerId: z.string().min(1, 'Center is required'),
   amount: z.number().positive('Amount must be positive'),
-  amountType: z.enum(['CASH', 'ACCOUNT / CREDIT']),
+  amountType: z.enum(['CASH', 'CREDIT']),
   commission: z.number().min(0, 'Commission must be non-negative'),
   autoCommission: z.boolean(),
   bookingCommission: z.number().optional(),
   centerCommission: z.number().optional(),
   receiverName: z.string().min(1, 'Receiver name is required'),
-  receiverNumber: z.string().min(1, 'Receiver number is required'),
+  receiverNumber: z.string().optional(),
   senderName: z.string().min(1, 'Sender name is required'),
-  senderNumber: z.string().min(1, 'Sender number is required'),
+  senderNumber: z.string().optional(),
+  receiverClientId: z.string().optional(),
+  senderClientId: z.string().optional(),
   remark: z.string().optional(),
   status: z.boolean(),
+  type: z.enum(['OUTWARD', 'INWARD']),
 });
 
 type TransactionForm = z.infer<typeof transactionSchema>;
@@ -44,12 +49,24 @@ interface Center {
   code: string;
 }
 
+interface ClientData {
+  id: string;
+  name: string;
+  mobileNumber: string;
+  city: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export default function TransactionsPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [centers, setCenters] = useState<Center[]>([]);
   const [selectedCity, setSelectedCity] = useState<any>(null);
+  const [selectedReceiverClient, setSelectedReceiverClient] = useState<ClientData | null>(null);
+  const [selectedSenderClient, setSelectedSenderClient] = useState<ClientData | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +74,9 @@ export default function TransactionsPage() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [filterByDate, setFilterByDate] = useState(false);
   const [dateFilter, setDateFilter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [isSelectingRange, setIsSelectingRange] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const firstInputRef = useRef<HTMLInputElement>(null);
@@ -71,9 +91,16 @@ export default function TransactionsPage() {
   } = useForm<TransactionForm>({
     resolver: zodResolver(transactionSchema),
     defaultValues: {
-      date: new Date().toISOString().split('T')[0],
+      transactionId: '',
+      tokenNo: 1,
+      date: (() => {
+        const today = new Date();
+        return today.getFullYear() + '-' + 
+          String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+          String(today.getDate()).padStart(2, '0');
+      })(),
       time: new Date().toTimeString().slice(0, 5),
-      center: '',
+      centerId: '',
       amount: 0,
       amountType: 'CASH',
       commission: 0,
@@ -84,33 +111,134 @@ export default function TransactionsPage() {
       senderNumber: '',
       remark: '',
       status: true,
+      type: 'OUTWARD',
     },
   });
 
   const autoCommission = watch('autoCommission');
   const amount = watch('amount');
 
-  // Auto-generate ID and token
-  const generateId = () => 'TXN' + Date.now();
-  const generateToken = () => 'TKN' + Math.floor(Math.random() * 10000);
+  // Fetch next transaction IDs from backend
+  const fetchNextIds = async (date: string) => {
+    try {
+      const { accessToken } = useAuthStore.getState();
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/transactions/next-ids?date=${date}&type=${activeTab.toUpperCase()}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Next IDs fetched:', data);
+        return data;
+      } else {
+        console.error('Failed to fetch next IDs:', response.status, response.statusText);
+      }
+    } catch (error) {
+      console.error('Failed to fetch next IDs:', error);
+    }
+    return { nextTransactionId: 'PM2_001', nextTokenNo: 1 };
+  };
 
-  // Initialize form with auto-generated values
+  // Set current date and fetch next transaction IDs on mount and when editing changes or tab changes
   useEffect(() => {
     if (!editingTransaction) {
-      setValue('id', generateId());
-      setValue('tokenNo', generateToken());
+      // Get current date in local timezone (Indian time)
+      const today = new Date();
+      const currentDate = today.getFullYear() + '-' + 
+        String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+        String(today.getDate()).padStart(2, '0');
+      // Set current date in form
+      setValue('date', currentDate);
+      // Fetch next IDs
+      fetchNextIds(currentDate).then(({ nextTransactionId, nextTokenNo }) => {
+        setValue('transactionId', nextTransactionId);
+        setValue('tokenNo', nextTokenNo);
+      });
     }
-  }, [editingTransaction, setValue]);
+  }, [editingTransaction, setValue, activeTab]);
+
+  // Manual commission calculation for testing
+  const calculateCommissionManually = () => {
+    const currentAmount = watch('amount');
+    const currentAutoCommission = watch('autoCommission');
+    console.log('Manual calculation triggered:', { currentAmount, currentAutoCommission });
+    
+    if (currentAutoCommission && currentAmount > 0) {
+      const commission = Math.round(currentAmount * 0.001); // 0.1% commission
+      const bookingCommission = Math.round(commission * 0.35); // 35% booking
+      const centerCommission = Math.round(commission * 0.65); // 65% center
+      
+      console.log('Manual setting commission values:', { commission, bookingCommission, centerCommission });
+      
+      setValue('commission', commission);
+      setValue('bookingCommission', bookingCommission);
+      setValue('centerCommission', centerCommission);
+      
+      alert(`Commission calculated: Total=${commission}, Booking=${bookingCommission}, Center=${centerCommission}`);
+    } else {
+      alert('Please enable Auto Commission and enter an amount > 0');
+    }
+  };
 
   // Auto-calculate commission
   useEffect(() => {
+    console.log('Commission effect triggered:', { autoCommission, amount });
     if (autoCommission && amount > 0) {
-      const commission = Math.round(amount * 0.02); // 2% commission
+      const commission = Math.round(amount * 0.001); // 0.1% commission
+      const bookingCommission = Math.round(commission * 0.35); // 35% booking
+      const centerCommission = Math.round(commission * 0.65); // 65% center
+      
+      console.log('Setting commission values:', { commission, bookingCommission, centerCommission });
+      
       setValue('commission', commission);
-      setValue('bookingCommission', Math.round(commission * 0.6));
-      setValue('centerCommission', Math.round(commission * 0.4));
+      setValue('bookingCommission', bookingCommission);
+      setValue('centerCommission', centerCommission);
+      
+      // Force a re-render by triggering a small delay
+      setTimeout(() => {
+        console.log('Commission values after timeout:', {
+          commission: watch('commission'),
+          bookingCommission: watch('bookingCommission'),
+          centerCommission: watch('centerCommission')
+        });
+      }, 100);
+    } else if (amount === 0) {
+      // Reset commissions when amount is 0
+      console.log('Resetting commission values to 0');
+      setValue('commission', 0);
+      setValue('bookingCommission', 0);
+      setValue('centerCommission', 0);
     }
-  }, [amount, autoCommission, setValue]);
+  }, [amount, autoCommission, setValue, watch]);
+
+  // Calculate total commission as sum of booking and center when manual mode
+  useEffect(() => {
+    if (!autoCommission) {
+      const bookingCommission = watch('bookingCommission') || 0;
+      const centerCommission = watch('centerCommission') || 0;
+      const totalCommission = bookingCommission + centerCommission;
+      console.log('Manual mode - calculating total commission:', { bookingCommission, centerCommission, totalCommission });
+      setValue('commission', totalCommission);
+    }
+  }, [watch('bookingCommission'), watch('centerCommission'), autoCommission, setValue]);
+
+  // Update time continuously every second
+  useEffect(() => {
+    const updateTime = () => {
+      if (!editingTransaction) {
+        const currentTime = new Date().toTimeString().slice(0, 5);
+        setValue('time', currentTime);
+        console.log('Time updated:', currentTime);
+      }
+    };
+
+    // Update immediately and then every second
+    updateTime();
+    const interval = setInterval(updateTime, 1000); // Update every 1 second
+
+    return () => clearInterval(interval);
+  }, [editingTransaction, setValue]);
 
   // Fetch data
   useEffect(() => {
@@ -120,17 +248,18 @@ export default function TransactionsPage() {
     }
 
     fetchTransactions();
-    fetchCenters();
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, activeTab]);
 
   const fetchTransactions = async () => {
     try {
       setLoading(true);
+      console.log('Fetching transactions with type:', activeTab.toUpperCase());
       const data = await transactionApi.getTransactions({
         page: currentPage,
         limit: 20,
         type: activeTab.toUpperCase(),
       });
+      console.log('Transactions received:', data);
       setTransactions(data.transactions);
     } catch (error) {
       console.error('Failed to fetch transactions:', error);
@@ -139,15 +268,7 @@ export default function TransactionsPage() {
     }
   };
 
-  const fetchCenters = async () => {
-    try {
-      const data = await transactionApi.getBranches();
-      setCenters(data);
-    } catch (error) {
-      console.error('Failed to fetch centers:', error);
-    }
-  };
-
+  
   const onSubmit = async (data: TransactionForm) => {
     try {
       setSubmitting(true);
@@ -168,14 +289,22 @@ export default function TransactionsPage() {
         setEditingTransaction(null);
       } else {
         // Create new transaction
-        const newTransaction = await transactionApi.createTransaction(transactionData);
-        setTransactions([newTransaction, ...transactions]);
+        await transactionApi.createTransaction(transactionData);
+        // Refetch transactions to get complete data with relationships
+        await fetchTransactions();
       }
 
       reset();
-      setValue('id', generateId());
-      setValue('tokenNo', generateToken());
-      setValue('date', new Date().toISOString().split('T')[0]);
+      // Get current date in local timezone (Indian time)
+      const today = new Date();
+      const currentDate = today.getFullYear() + '-' + 
+        String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+        String(today.getDate()).padStart(2, '0');
+      fetchNextIds(currentDate).then(({ nextTransactionId, nextTokenNo }) => {
+        setValue('transactionId', nextTransactionId);
+        setValue('tokenNo', nextTokenNo);
+      });
+      setValue('date', currentDate);
       setValue('time', new Date().toTimeString().slice(0, 5));
       setValue('autoCommission', true);
       
@@ -190,9 +319,14 @@ export default function TransactionsPage() {
 
   const handleClear = () => {
     reset();
-    setValue('id', generateId());
-    setValue('tokenNo', generateToken());
-    setValue('date', new Date().toISOString().split('T')[0]);
+    // Get current date in local timezone (Indian time)
+    const today = new Date();
+    const currentDate = today.toLocaleDateString('en-CA'); // Fix timezone issue
+    fetchNextIds(currentDate).then(({ nextTransactionId, nextTokenNo }) => {
+      setValue('transactionId', nextTransactionId);
+      setValue('tokenNo', nextTokenNo);
+    });
+    setValue('date', currentDate);
     setValue('time', new Date().toTimeString().slice(0, 5));
     setValue('autoCommission', true);
     setEditingTransaction(null);
@@ -215,19 +349,20 @@ export default function TransactionsPage() {
   const handleRowClick = (transaction: Transaction) => {
     setEditingTransaction(transaction);
     setValue('id', transaction.id);
-    setValue('tokenNo', transaction.token);
+    setValue('transactionId', transaction.transactionId);
+    setValue('tokenNo', transaction.tokenNo);
     setValue('date', transaction.date);
     setValue('time', transaction.time);
-    setValue('center', transaction.center);
+    setValue('centerId', transaction.centerId);
     setValue('amount', transaction.amount);
     setValue('amountType', transaction.amountType as any);
     setValue('commission', transaction.commission);
     setValue('bookingCommission', transaction.bookingCommission);
     setValue('centerCommission', transaction.centerCommission);
     setValue('receiverName', transaction.receiverName);
-    setValue('receiverNumber', transaction.receiverNumber);
+    setValue('receiverNumber', transaction.receiverNumber || '');
     setValue('senderName', transaction.senderName);
-    setValue('senderNumber', transaction.senderNumber);
+    setValue('senderNumber', transaction.senderNumber || '');
     setValue('remark', transaction.remark || '');
     setValue('status', transaction.status);
     setValue('autoCommission', false);
@@ -239,19 +374,34 @@ export default function TransactionsPage() {
     const matchesSearch = searchTerm === '' || 
       transaction.receiverName.toLowerCase().includes(searchLower) ||
       transaction.senderName.toLowerCase().includes(searchLower) ||
-      transaction.token.toLowerCase().includes(searchLower) ||
+      transaction.transactionId.toLowerCase().includes(searchLower) ||
+      transaction.tokenNo.toString().includes(searchLower) ||
       transaction.amount.toString().includes(searchLower) ||
       transaction.commission?.toString().includes(searchLower) ||
       transaction.receiverNumber?.toLowerCase().includes(searchLower) ||
       transaction.senderNumber?.toLowerCase().includes(searchLower) ||
-      transaction.center?.toLowerCase().includes(searchLower) ||
+      transaction.center?.name?.toLowerCase().includes(searchLower) ||
       transaction.amountType?.toLowerCase().includes(searchLower) ||
       transaction.date?.includes(searchLower) ||
       transaction.time?.includes(searchLower) ||
       transaction.remark?.toLowerCase().includes(searchLower);
     
-    const matchesDate = !filterByDate || 
-      (dateFilter && transaction.date === dateFilter);
+    // Convert transaction date to Date object for comparison
+    const transactionDate = new Date(transaction.date);
+    const transactionDateString = transactionDate.toISOString().split('T')[0];
+    
+    // Get today's date in local timezone for comparison
+    const today = new Date();
+    const todayString = today.getFullYear() + '-' + 
+      String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+      String(today.getDate()).padStart(2, '0');
+    
+    // Default to showing current day transactions, or filter by date range
+    const matchesDate = !filterByDate ? 
+      transactionDateString === todayString : 
+      (isSelectingRange && startDate && endDate ? 
+        transactionDateString >= startDate && transactionDateString <= endDate :
+        dateFilter && transactionDateString === dateFilter);
     
     return matchesSearch && matchesDate;
   });
@@ -321,10 +471,10 @@ export default function TransactionsPage() {
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
                   <div>
-                    <Label htmlFor="id" className="text-sm font-medium text-gray-700">Id No</Label>
+                    <Label htmlFor="transactionId" className="text-sm font-medium text-gray-700">Id No</Label>
                     <Input
-                      id="id"
-                      {...register('id')}
+                      id="transactionId"
+                      {...register('transactionId')}
                       readOnly
                       className="bg-gray-50 border-gray-300 text-gray-500 text-sm"
                     />
@@ -335,7 +485,8 @@ export default function TransactionsPage() {
                     <Input
                       id="tokenNo"
                       {...register('tokenNo')}
-                      className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                      readOnly
+                      className="bg-gray-50 border-gray-300 text-gray-500 text-sm"
                     />
                   </div>
                   
@@ -360,11 +511,11 @@ export default function TransactionsPage() {
                   </div>
                   
                   <CityTypeahead
-                    id="center"
+                    id="centerId"
                     label="Center"
-                    value={watch('center') || ''}
+                    value={watch('centerId') || ''}
                     onChange={(value, city) => {
-                      setValue('center', value);
+                      setValue('centerId', value);
                       setSelectedCity(city);
                     }}
                     placeholder="Search city..."
@@ -377,9 +528,27 @@ export default function TransactionsPage() {
                     <Input
                       id="amount"
                       type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      {...register('amount', { valueAsNumber: true })}
+                      placeholder="0"
+                      value={watch('amount') || ''}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value) || 0;
+                        setValue('amount', value);
+                        console.log('Amount changed to:', value);
+                        // Trigger commission calculation immediately
+                        if (watch('autoCommission') && value > 0) {
+                          const commission = Math.round(value * 0.001); // 0.1% commission
+                          const bookingCommission = Math.round(commission * 0.35);
+                          const centerCommission = Math.round(commission * 0.65);
+                          console.log('Immediate commission calculation:', { commission, bookingCommission, centerCommission });
+                          setValue('commission', commission);
+                          setValue('bookingCommission', bookingCommission);
+                          setValue('centerCommission', centerCommission);
+                        } else {
+                          setValue('commission', 0);
+                          setValue('bookingCommission', 0);
+                          setValue('centerCommission', 0);
+                        }
+                      }}
                       className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-black text-lg placeholder:text-gray-600"
                       ref={firstInputRef}
                     />
@@ -390,10 +559,10 @@ export default function TransactionsPage() {
                     <select
                       id="amountType"
                       {...register('amountType')}
-                      className="w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-sm"
+                      className="w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-black text-sm"
                     >
                       <option value="CASH">CASH</option>
-                      <option value="ACCOUNT / CREDIT">ACCOUNT / CREDIT</option>
+                      <option value="CREDIT">CREDIT</option>
                     </select>
                   </div>
                   
@@ -404,8 +573,8 @@ export default function TransactionsPage() {
                       type="number"
                       step="0.01"
                       placeholder="0.00"
-                      {...register('commission', { valueAsNumber: true })}
-                      disabled={autoCommission}
+                      value={watch('commission') || 0}
+                      readOnly={autoCommission}
                       className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-lg placeholder:text-gray-600 ${
                         autoCommission ? 'bg-gray-100 text-gray-500' : 'bg-white text-black'
                       }`}
@@ -416,7 +585,8 @@ export default function TransactionsPage() {
                     <input
                       type="checkbox"
                       id="autoCommission"
-                      {...register('autoCommission')}
+                      checked={watch('autoCommission')}
+                      onChange={(e) => setValue('autoCommission', e.target.checked)}
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
                     <Label htmlFor="autoCommission" className="text-sm font-medium text-gray-700">
@@ -430,8 +600,11 @@ export default function TransactionsPage() {
                     <Label className="text-sm font-medium text-gray-700">Booking Commission</Label>
                     <Input
                       value={watch('bookingCommission') || 0}
-                      readOnly
-                      className="bg-gray-50 border-gray-300 text-green-600 font-medium text-sm"
+                      onChange={(e) => setValue('bookingCommission', Number(e.target.value))}
+                      readOnly={autoCommission}
+                      className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-medium text-sm ${
+                        autoCommission ? 'bg-gray-50 text-green-600' : 'bg-white text-black'
+                      }`}
                     />
                   </div>
                   
@@ -439,8 +612,11 @@ export default function TransactionsPage() {
                     <Label className="text-sm font-medium text-gray-700">Center Commission</Label>
                     <Input
                       value={watch('centerCommission') || 0}
-                      readOnly
-                      className="bg-gray-50 border-gray-300 text-green-600 font-medium text-sm"
+                      onChange={(e) => setValue('centerCommission', Number(e.target.value))}
+                      readOnly={autoCommission}
+                      className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-medium text-sm ${
+                        autoCommission ? 'bg-gray-50 text-green-600' : 'bg-white text-black'
+                      }`}
                     />
                   </div>
                 </div>
@@ -451,13 +627,21 @@ export default function TransactionsPage() {
                 <h3 className="text-lg font-medium text-gray-900 border-b pb-2">Contact Information</h3>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <div>
-                    <Label htmlFor="receiverName" className="text-sm font-medium text-gray-700">Receiver Name</Label>
-                    <Input
+                  <div className="relative" style={{ zIndex: 101 }}>
+                    <ClientTypeahead
                       id="receiverName"
-                      placeholder="Enter receiver name"
-                      {...register('receiverName')}
-                      className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                      label="Receiver Name"
+                      value={watch('receiverName') || ''}
+                      onChange={(value: string, client?: ClientData) => {
+                        setValue('receiverName', value);
+                        if (client && client.mobileNumber) {
+                          setValue('receiverNumber', client.mobileNumber);
+                          setSelectedReceiverClient(client);
+                        } else {
+                          setSelectedReceiverClient(null);
+                        }
+                      }}
+                      placeholder="Search receiver name..."
                     />
                   </div>
                   
@@ -471,13 +655,21 @@ export default function TransactionsPage() {
                     />
                   </div>
                   
-                  <div>
-                    <Label htmlFor="senderName" className="text-sm font-medium text-gray-700">Sender Name</Label>
-                    <Input
+                  <div className="relative" style={{ zIndex: 99 }}>
+                    <ClientTypeahead
                       id="senderName"
-                      placeholder="Enter sender name"
-                      {...register('senderName')}
-                      className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                      label="Sender Name"
+                      value={watch('senderName') || ''}
+                      onChange={(value: string, client?: ClientData) => {
+                        setValue('senderName', value);
+                        if (client && client.mobileNumber) {
+                          setValue('senderNumber', client.mobileNumber);
+                          setSelectedSenderClient(client);
+                        } else {
+                          setSelectedSenderClient(null);
+                        }
+                      }}
+                      placeholder="Search sender name..."
                     />
                   </div>
                   
@@ -502,23 +694,7 @@ export default function TransactionsPage() {
                   />
                 </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 space-y-2 sm:space-y-0">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="status"
-                      {...register('status')}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <Label htmlFor="status" className="text-sm font-medium text-gray-700">
-                      Active
-                    </Label>
-                  </div>
-                  <span className="text-xs text-gray-500 sm:text-sm">
-                    Status: {new Date().toLocaleTimeString()}
-                  </span>
-                </div>
-              </div>
+                              </div>
 
               {/* Section 3: Action Buttons */}
               <div className="flex flex-col sm:flex-row sm:justify-end sm:space-x-3 space-y-2 sm:space-y-0 pt-4 border-t">
@@ -527,7 +703,7 @@ export default function TransactionsPage() {
                     type="button"
                     variant="outline"
                     onClick={handleClear}
-                    className="border-gray-300 text-gray-700 hover:bg-gray-50 w-full sm:w-auto"
+                    className="bg-red-600 hover:bg-red-700 text-white border-red-600 w-full sm:w-auto"
                   >
                     Clear
                   </Button>
@@ -548,17 +724,9 @@ export default function TransactionsPage() {
                   <Button
                     type="submit"
                     disabled={submitting}
-                    className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400 shadow-sm w-full sm:w-auto"
+                    className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
                   >
                     {submitting ? 'Saving...' : (editingTransaction ? 'Update' : 'Save')}
-                  </Button>
-                  
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400 shadow-sm w-full sm:w-auto"
-                  >
-                    Print
                   </Button>
                 </div>
               </div>
@@ -586,11 +754,21 @@ export default function TransactionsPage() {
                     onChange={(e) => {
                       setFilterByDate(e.target.checked);
                       if (e.target.checked) {
-                        // Set today's date when filter is enabled
-                        const today = new Date().toISOString().split('T')[0];
-                        setDateFilter(today);
+                        // Reset states when enabling filter
+                        const today = new Date();
+                        const currentDate = today.getFullYear() + '-' + 
+                          String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                          String(today.getDate()).padStart(2, '0');
+                        setDateFilter(currentDate);
+                        setStartDate('');
+                        setEndDate('');
+                        setIsSelectingRange(false);
                       } else {
+                        // Reset all date states when disabling filter
                         setDateFilter('');
+                        setStartDate('');
+                        setEndDate('');
+                        setIsSelectingRange(false);
                       }
                     }}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
@@ -599,12 +777,71 @@ export default function TransactionsPage() {
                     By Date
                   </Label>
                   {filterByDate && (
-                    <Input
-                      type="date"
-                      value={dateFilter}
-                      onChange={(e) => setDateFilter(e.target.value)}
-                      className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
-                    />
+                    <div className="flex flex-col space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStartDate('');
+                            setEndDate('');
+                            setDateFilter('');
+                            setIsSelectingRange(false);
+                          }}
+                          className={`px-3 py-1 text-xs rounded ${
+                            !isSelectingRange && !dateFilter 
+                              ? 'bg-blue-500 text-white' 
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          Single Date
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStartDate('');
+                            setEndDate('');
+                            setDateFilter('');
+                            setIsSelectingRange(true);
+                          }}
+                          className={`px-3 py-1 text-xs rounded ${
+                            isSelectingRange 
+                              ? 'bg-blue-500 text-white' 
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          Date Range
+                        </button>
+                      </div>
+                      
+                      {!isSelectingRange ? (
+                        <Input
+                          type="date"
+                          value={dateFilter}
+                          onChange={(e) => {
+                            setDateFilter(e.target.value);
+                          }}
+                          className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                        />
+                      ) : (
+                        <div className="flex items-center space-x-2">
+                          <Input
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            placeholder="Start date"
+                            className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                          />
+                          <span className="text-gray-500 text-sm">to</span>
+                          <Input
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            placeholder="End date"
+                            className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                          />
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
                 
@@ -632,22 +869,17 @@ export default function TransactionsPage() {
                     <table className="min-w-[1400px] divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Id</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Token</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Center</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Type</th>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Booking Comm</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Center Comm</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver Name</th>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver Number</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender Name</th>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender Number</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remark</th>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -657,35 +889,23 @@ export default function TransactionsPage() {
                             onClick={() => handleRowClick(transaction)}
                             className="hover:bg-gray-50 cursor-pointer transition-colors duration-150"
                           >
-                            <td className="px-2 py-2 whitespace-nowrap text-xs font-medium text-gray-900">
-                              {transaction.id}
+                            <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
+                              {transaction.tokenNo}
                             </td>
                             <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
-                              {transaction.token}
+                              {new Date(transaction.date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                             </td>
                             <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
-                              {transaction.date}
+                              {new Date(transaction.time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })}
                             </td>
                             <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
-                              {transaction.time}
-                            </td>
-                            <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
-                              {transaction.center}
+                              {transaction.center?.name}
                             </td>
                             <td className="px-2 py-2 whitespace-nowrap text-xs font-semibold text-blue-600">
                               {formatCurrency(transaction.amount)}
                             </td>
                             <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
                               {transaction.amountType}
-                            </td>
-                            <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
-                              <span className={`px-1 py-0.5 text-xs rounded-full ${
-                                transaction.type === 'OUTWARD' 
-                                  ? 'bg-blue-100 text-blue-800' 
-                                  : 'bg-green-100 text-green-800'
-                              }`}>
-                                {transaction.type}
-                              </span>
                             </td>
                             <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
                               {formatCurrency(transaction.bookingCommission || 0)}
@@ -697,25 +917,10 @@ export default function TransactionsPage() {
                               {transaction.receiverName}
                             </td>
                             <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
-                              {transaction.receiverNumber}
-                            </td>
-                            <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
                               {transaction.senderName}
                             </td>
                             <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
-                              {transaction.senderNumber}
-                            </td>
-                            <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
                               {transaction.remark || '-'}
-                            </td>
-                            <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
-                              <span className={`px-1 py-0.5 text-xs rounded-full ${
-                                transaction.status 
-                                  ? 'bg-green-100 text-green-800' 
-                                  : 'bg-red-100 text-red-800'
-                              }`}>
-                                {transaction.status ? 'Active' : 'Inactive'}
-                              </span>
                             </td>
                           </tr>
                         ))}
@@ -730,22 +935,17 @@ export default function TransactionsPage() {
                     <table className="min-w-[1400px] divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Id</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Token</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Center</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Type</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Booking Comm</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Center Comm</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver Name</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver Number</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender Name</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender Number</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remark</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -755,35 +955,23 @@ export default function TransactionsPage() {
                             onClick={() => handleRowClick(transaction)}
                             className="hover:bg-gray-50 cursor-pointer transition-colors duration-150"
                           >
-                            <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                              {transaction.id}
+                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                              {transaction.tokenNo}
                             </td>
                             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
-                              {transaction.token}
+                              {new Date(transaction.date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                             </td>
                             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
-                              {transaction.date}
+                              {new Date(transaction.time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })}
                             </td>
                             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
-                              {transaction.time}
-                            </td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
-                              {transaction.center}
+                              {transaction.center?.name}
                             </td>
                             <td className="px-3 py-3 whitespace-nowrap text-sm font-semibold text-blue-600">
                               {formatCurrency(transaction.amount)}
                             </td>
                             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                               {transaction.amountType}
-                            </td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
-                              <span className={`px-2 py-1 text-xs rounded-full ${
-                                transaction.type === 'OUTWARD' 
-                                  ? 'bg-blue-100 text-blue-800' 
-                                  : 'bg-green-100 text-green-800'
-                              }`}>
-                                {transaction.type}
-                              </span>
                             </td>
                             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                               {formatCurrency(transaction.bookingCommission || 0)}
@@ -795,25 +983,10 @@ export default function TransactionsPage() {
                               {transaction.receiverName}
                             </td>
                             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
-                              {transaction.receiverNumber}
-                            </td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                               {transaction.senderName}
                             </td>
                             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
-                              {transaction.senderNumber}
-                            </td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                               {transaction.remark || '-'}
-                            </td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
-                              <span className={`px-2 py-1 text-xs rounded-full ${
-                                transaction.status 
-                                  ? 'bg-green-100 text-green-800' 
-                                  : 'bg-red-100 text-red-800'
-                              }`}>
-                                {transaction.status ? 'Active' : 'Inactive'}
-                              </span>
                             </td>
                           </tr>
                         ))}
@@ -832,40 +1005,22 @@ export default function TransactionsPage() {
                     >
                       <div className="flex justify-between items-start mb-3">
                         <div>
-                          <p className="font-medium text-gray-900 text-sm">{transaction.id}</p>
-                          <p className="text-xs text-gray-500">{transaction.token}</p>
+                          <p className="font-medium text-gray-900 text-sm">Token: {transaction.tokenNo}</p>
                         </div>
                         <div className="text-right">
                           <p className="font-semibold text-blue-600 text-sm">{formatCurrency(transaction.amount)}</p>
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            transaction.type === 'OUTWARD' 
-                              ? 'bg-blue-100 text-blue-800' 
-                              : 'bg-green-100 text-green-800'
-                          }`}>
-                            {transaction.type}
-                          </span>
                         </div>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-2">
                         <div>
-                          <span className="font-medium">Date:</span> {transaction.date}
+                          <span className="font-medium">Date:</span> {new Date(transaction.date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                         </div>
                         <div>
-                          <span className="font-medium">Time:</span> {transaction.time}
+                          <span className="font-medium">Time:</span> {new Date(transaction.time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })}
                         </div>
                         <div>
-                          <span className="font-medium">Center:</span> {transaction.center}
-                        </div>
-                        <div>
-                          <span className="font-medium">Status:</span>
-                          <span className={`ml-1 px-1 py-0.5 text-xs rounded-full ${
-                            transaction.status 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {transaction.status ? 'Active' : 'Inactive'}
-                          </span>
+                          <span className="font-medium">Center:</span> {transaction.center?.name}
                         </div>
                       </div>
                       

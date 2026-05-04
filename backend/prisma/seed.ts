@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { seedRoles, seedUsers, seedCities, seedBranches } from './seeds';
 import { seedRBACRoles } from './seeds/rbac-roles.seed';
+import { seedTransactions } from './seeds/transactions.seed';
 
 const prisma = new PrismaClient();
 
@@ -14,6 +15,7 @@ async function main() {
     await seedCities(prisma);
     await seedBranches(prisma);
     await seedUsers(prisma);
+    await seedTransactions(prisma);
 
     console.log('✅ Database seeding completed successfully!');
     console.log('\n📋 Default Login Credentials:');

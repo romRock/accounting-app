@@ -51,9 +51,9 @@ export const getInwardReport = async (req: Request, res: Response) => {
       prisma.transaction.findMany({
         where,
         include: {
-          fromCity: true,
-          toCity: true,
-          party: true,
+          center: true,
+          receiverClient: true,
+          senderClient: true,
           creator: {
             select: {
               id: true,
@@ -141,9 +141,9 @@ export const getOutwardReport = async (req: Request, res: Response) => {
       prisma.transaction.findMany({
         where,
         include: {
-          fromCity: true,
-          toCity: true,
-          party: true,
+          center: true,
+          receiverClient: true,
+          senderClient: true,
           creator: {
             select: {
               id: true,
@@ -232,9 +232,9 @@ export const getUserLedgerReport = async (req: Request, res: Response) => {
           createdBy: userId as string,
         },
         include: {
-          fromCity: true,
-          toCity: true,
-          party: true,
+          center: true,
+          receiverClient: true,
+          senderClient: true,
         },
         orderBy: { date: 'desc' },
       }),
@@ -246,9 +246,9 @@ export const getUserLedgerReport = async (req: Request, res: Response) => {
         include: {
           transaction: {
             include: {
-              fromCity: true,
-              toCity: true,
-              party: true,
+              center: true,
+              receiverClient: true,
+              senderClient: true,
             },
           },
         },

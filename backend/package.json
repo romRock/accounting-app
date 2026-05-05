@@ -33,6 +33,8 @@
     "db:make:transaction-superior:production": "tsx scripts/make-transaction-table-superior.ts",
     "db:verify:transaction-table": "tsx scripts/verify-and-fix-transaction-table.ts",
     "db:test:transaction-creation": "tsx scripts/test-transaction-creation.ts",
+    "db:check:production:deployment": "tsx scripts/check-production-deployment.ts",
+    "db:test:production:api": "tsx scripts/test-production-api.ts",
     "db:seed:users:production": "node scripts/seed-users-production.ts",
     "update:admin-role:production": "node scripts/update-admin-role-production.ts",
     "db:migrate:permissions": "node scripts/permissions-migration.js",

@@ -184,7 +184,7 @@ model Transaction {
   @@index([branchId])
   @@index([createdBy])
   @@index([createdAt])
-  @@map("transactions")
+  @@map("Transaction")
 }
 
 model LedgerEntry {

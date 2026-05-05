@@ -70,8 +70,8 @@ export default function LoginPage() {
       
       <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl mb-6 shadow-2xl">
-            <span className="text-white font-bold text-2xl">A</span>
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-600 to-green-500 rounded-2xl mb-6 shadow-2xl">
+            <span className="text-white font-bold text-2xl">R</span>
           </div>
         </div>
 

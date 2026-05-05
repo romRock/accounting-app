@@ -20,6 +20,8 @@
     "db:seed:transactions": "tsx prisma/seeds/transactions.seed.ts",
     "db:seed:transactions:production": "tsx scripts/seed-transactions-production.ts",
     "db:clear:transactions:production": "tsx scripts/clear-transactions-production.ts",
+    "db:fix:schema:production": "tsx scripts/fix-production-schema.ts",
+    "db:create:transaction-table:production": "tsx scripts/create-transaction-table-production.ts",
     "db:seed:users:production": "node scripts/seed-users-production.ts",
     "update:admin-role:production": "node scripts/update-admin-role-production.ts",
     "db:migrate:permissions": "node scripts/permissions-migration.js",

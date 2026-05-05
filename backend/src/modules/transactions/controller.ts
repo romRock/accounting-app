@@ -65,8 +65,8 @@ export const createTransaction = async (req: Request, res: Response) => {
       console.log('Center lookup:', { input: centerId, found: actualCenterId });
     }
 
-    // Generate unique transaction ID (PM2_001, PM2_002...)
-    const transactionId = await generateTransactionId();
+    // Generate unique transaction ID based on type (book_001 for outward, cut_001 for inward)
+    const transactionId = await generateTransactionIdByType(type);
     
     // Generate token number (daily reset)
     const tokenNo = await generateTokenNumber(date);
@@ -624,17 +624,31 @@ async function generateTransactionIdByType(type: string): Promise<string> {
 
     let nextNumber = 1;
     if (lastTransaction && lastTransaction.transactionId) {
-      // Extract number from PM2_XXX format
-      const match = lastTransaction.transactionId.match(/PM2_(\d+)/);
+      // Extract number from book_XXX or cut_XXX format
+      const match = lastTransaction.transactionId.match(/(book|cut)_(\d+)/);
       if (match) {
-        nextNumber = parseInt(match[1]) + 1;
+        nextNumber = parseInt(match[2]) + 1;
       }
     }
 
-    return `PM2_${nextNumber.toString().padStart(3, '0')}`;
+    // Generate ID based on transaction type
+    if (type === 'OUTWARD') {
+      return `book_${nextNumber.toString().padStart(3, '0')}`;
+    } else if (type === 'INWARD') {
+      return `cut_${nextNumber.toString().padStart(3, '0')}`;
+    } else {
+      // Fallback to PM2 format for any other type
+      return `PM2_${nextNumber.toString().padStart(3, '0')}`;
+    }
   } catch (error) {
     // If there's an error, start from 1
-    return 'PM2_001';
+    if (type === 'OUTWARD') {
+      return 'book_001';
+    } else if (type === 'INWARD') {
+      return 'cut_001';
+    } else {
+      return 'PM2_001';
+    }
   }
 }
 

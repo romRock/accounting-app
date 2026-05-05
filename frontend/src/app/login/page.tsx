@@ -63,7 +63,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
+    <div className="h-auto bg-gray-950 flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-gray-900 to-black">
         <div className="absolute inset-0 bg-black opacity-50"></div>
       </div>
@@ -73,8 +73,6 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl mb-6 shadow-2xl">
             <span className="text-white font-bold text-2xl">A</span>
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Welcome Back</h1>
-          <p className="text-gray-400">Sign in to your Angadiya account</p>
         </div>
 
         <Card className="bg-gray-900 border-gray-800 shadow-2xl">
@@ -140,14 +138,6 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-500">
-                Demo Credentials
-              </p>
-              <p className="text-xs text-gray-600 mt-1">
-                Email: admin@angadiya.com | Password: admin123
-              </p>
-            </div>
           </CardContent>
         </Card>
 

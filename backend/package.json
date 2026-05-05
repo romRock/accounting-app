@@ -25,6 +25,7 @@
     "db:diagnose:production": "tsx scripts/diagnose-production-db.ts",
     "db:check:transactions:production": "tsx scripts/check-transactions-table.ts",
     "db:test:prisma:production": "tsx scripts/regenerate-prisma-production.ts",
+    "db:force:prisma:regenerate": "tsx scripts/force-prisma-regeneration.ts",
     "db:seed:users:production": "node scripts/seed-users-production.ts",
     "update:admin-role:production": "node scripts/update-admin-role-production.ts",
     "db:migrate:permissions": "node scripts/permissions-migration.js",

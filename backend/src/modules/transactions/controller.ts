@@ -25,6 +25,23 @@ export const createTransaction = async (req: Request, res: Response) => {
   try {
     console.log('=== CREATE TRANSACTION DEBUG ===');
     console.log('Request body:', req.body);
+    console.log('User:', req.user);
+    console.log('Environment:', process.env.NODE_ENV);
+    console.log('Database URL:', process.env.DATABASE_URL?.substring(0, 20) + '...');
+    
+    // Check what table Prisma is actually using
+    console.log('Checking Prisma table mapping...');
+    const testQuery = await prisma.$queryRaw`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE '%ransaction%'`;
+    console.log('Available transaction tables:', testQuery.map((t: any) => t.table_name));
+    
+    // Test direct connection to Transaction table
+    console.log('Testing direct connection to Transaction table...');
+    const directTest = await prisma.$queryRaw`SELECT COUNT(*) as count FROM "Transaction"`;
+    console.log('Direct connection test result:', directTest[0].count);
+    
+    // Check if lowercase table still exists
+    const lowercaseCheck = await prisma.$queryRaw`SELECT COUNT(*) as count FROM transactions`;
+    console.log('Lowercase transactions table count:', lowercaseCheck[0].count);
     
     const {
       date,

@@ -13,6 +13,7 @@ interface TypeaheadProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  resetKey?: string;
 }
 
 export function CityTypeahead({ 
@@ -22,7 +23,8 @@ export function CityTypeahead({
   onChange, 
   placeholder = "Search city...", 
   disabled = false,
-  className = ""
+  className = "",
+  resetKey
 }: TypeaheadProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState(value || '');
@@ -33,6 +35,21 @@ export function CityTypeahead({
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Sync searchTerm with value prop when it changes (for edit functionality)
+  useEffect(() => {
+    setSearchTerm(value || '');
+  }, [value]);
+
+  // Reset internal state when resetKey prop changes
+  useEffect(() => {
+    if (resetKey) {
+      setSearchTerm(''); // Force clear to empty string
+      setResults([]);
+      setSelectedIndex(-1);
+      setIsOpen(false);
+    }
+  }, [resetKey]);
 
   // Fetch cities with debounce
   const fetchCities = useCallback(async (query: string) => {

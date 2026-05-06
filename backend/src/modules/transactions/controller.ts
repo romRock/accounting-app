@@ -80,9 +80,12 @@ export const createTransaction = async (req: Request, res: Response) => {
     let calculatedCenterCommission = centerCommission || 0;
 
     if (autoCommission) {
-      calculatedCommission = Math.round(Number(amount) * 0.001); // 0.1% commission
-      calculatedBookingCommission = Math.round(calculatedCommission * 0.35); // 35%
-      calculatedCenterCommission = Math.round(calculatedCommission * 0.65); // 65%
+      const amountNum = Number(amount);
+      
+      // Simple 0.01% commission calculation
+      calculatedCommission = Math.round(amountNum * 0.001); // 0.01% commission
+      calculatedBookingCommission = Math.round(calculatedCommission * 0.33); // 33% our commission
+      calculatedCenterCommission = Math.round(calculatedCommission * 0.67); // 67% center commission
     }
 
     // Create transaction with new schema
@@ -386,7 +389,7 @@ export const updateTransaction = async (req: Request, res: Response) => {
       where: { id: id as string },
       data: {
         date: date ? new Date(date) : undefined,
-        time: time ? new Date(time) : undefined,
+        time: time && date ? new Date(`${date}T${time}:00`) : undefined,
         centerId,
         amount: amount ? Number(amount) : undefined,
         amountType: amountType as PaymentType,
@@ -474,13 +477,9 @@ export const deleteTransaction = async (req: Request, res: Response) => {
       throw createError('Transaction not found', 404);
     }
 
-    // Soft delete transaction
-    await prisma.transaction.update({
+    // Hard delete transaction - completely remove from database
+    await prisma.transaction.delete({
       where: { id: id as string },
-      data: {
-        isActive: false,
-        isDeleted: true,
-      },
     });
 
     // Create audit log

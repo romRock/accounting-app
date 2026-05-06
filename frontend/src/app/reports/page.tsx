@@ -11,7 +11,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { CityTypeahead } from '@/components/ui/typeahead';
 
 // Report Types
-type ReportType = 'outward' | 'inward' | 'combo' | 'outward-centerwise' | 'inward-centerwise' | 'amount-type' | 'customer';
+type ReportType = 'outward' | 'inward' | 'combo' | 'amount-type';
 
 interface ReportFilters {
   dateFrom: string;
@@ -59,15 +59,22 @@ export default function ReportsPage() {
   const [exporting, setExporting] = useState(false);
   const firstInputRef = useRef<HTMLInputElement>(null);
 
-  // Initialize filters with today's date
-  const [filters, setFilters] = useState<ReportFilters>({
-    dateFrom: new Date().toISOString().split('T')[0],
-    dateTo: new Date().toISOString().split('T')[0],
-    center: '',
-    amountType: '',
-    customerName: '',
-    mobileNumber: '',
-    status: '',
+  // Initialize filters with today's date (Indian time with 12:00 AM reset daily)
+  const [filters, setFilters] = useState<ReportFilters>(() => {
+    const today = new Date();
+    const currentDate = today.getFullYear() + '-' + 
+      String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+      String(today.getDate()).padStart(2, '0');
+    
+    return {
+      dateFrom: currentDate,
+      dateTo: currentDate,
+      center: '',
+      amountType: '',
+      customerName: '',
+      mobileNumber: '',
+      status: '',
+    };
   });
 
   
@@ -78,7 +85,9 @@ export default function ReportsPage() {
     
     switch (type) {
       case 'outward':
+
       case 'inward':
+
         for (let i = 1; i <= 50; i++) {
           mockData.push({
             id: `TXN${String(i).padStart(6, '0')}`,
@@ -105,18 +114,6 @@ export default function ReportsPage() {
         }
         break;
         
-      case 'outward-centerwise':
-      case 'inward-centerwise':
-        mockCities.forEach((city: string) => {
-          mockData.push({
-            center: city,
-            transactionCount: Math.floor(Math.random() * 100) + 10,
-            totalAmount: Math.floor(Math.random() * 500000) + 50000,
-            totalCommission: Math.floor(Math.random() * 10000) + 1000,
-          });
-        });
-        break;
-        
       case 'amount-type':
         ['CASH', 'ACCOUNT / CREDIT'].forEach(type => {
           mockData.push({
@@ -126,18 +123,6 @@ export default function ReportsPage() {
             totalCommission: Math.floor(Math.random() * 20000) + 2000,
           });
         });
-        break;
-        
-      case 'customer':
-        for (let i = 1; i <= 40; i++) {
-          mockData.push({
-            customerName: `Customer ${i}`,
-            mobileNumber: `9876543${String(i).padStart(4, '0')}`,
-            transactionCount: Math.floor(Math.random() * 20) + 1,
-            totalAmount: Math.floor(Math.random() * 100000) + 10000,
-            totalCommission: Math.floor(Math.random() * 2000) + 200,
-          });
-        }
         break;
     }
     
@@ -400,13 +385,8 @@ export default function ReportsPage() {
         return ['ID', 'Date', 'Time', 'Center', 'Amount', 'Type', 'Commission', 'Status'];
       case 'combo':
         return ['ID', 'Date', 'Total Amount', 'Total Commission', 'Transaction Count'];
-      case 'outward-centerwise':
-      case 'inward-centerwise':
-        return ['Center', 'Transaction Count', 'Total Amount', 'Total Commission'];
       case 'amount-type':
         return ['Amount Type', 'Transaction Count', 'Total Amount', 'Total Commission'];
-      case 'customer':
-        return ['Customer Name', 'Mobile Number', 'Transaction Count', 'Total Amount', 'Total Commission'];
       default:
         return [];
     }
@@ -481,30 +461,29 @@ export default function ReportsPage() {
               
               {/* Date Range Filters - Common for all reports */}
               <div>
-                <Label htmlFor="dateFrom" className="text-sm font-medium text-gray-700">From Date</Label>
+                <Label htmlFor="dateFrom" className="text-sm font-medium text-gray-900">From Date</Label>
                 <Input
                   id="dateFrom"
                   type="date"
                   value={filters.dateFrom}
                   onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
-                  className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
+                  className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900"
                 />
               </div>
               
               <div>
-                <Label htmlFor="dateTo" className="text-sm font-medium text-gray-700">To Date</Label>
+                <Label htmlFor="dateTo" className="text-sm font-medium text-gray-900">To Date</Label>
                 <Input
                   id="dateTo"
                   type="date"
                   value={filters.dateTo}
                   onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
-                  className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
+                  className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900"
                 />
               </div>
 
-              {/* Center Filter - For most reports except Combo */}
-              {(activeReport === 'outward' || activeReport === 'inward' || 
-                activeReport === 'outward-centerwise' || activeReport === 'inward-centerwise') && (
+              {/* Center Filter - For Outward/Inward reports */}
+              {(activeReport === 'outward' || activeReport === 'inward') && (
                 <div>
                   {/* <Label htmlFor="center" className="text-sm font-medium text-gray-700">Center</Label> */}
                   <CityTypeahead
@@ -518,8 +497,8 @@ export default function ReportsPage() {
                 </div>
               )}
 
-              {/* Amount Type Filter - For Outward/Inward/Amount Type reports */}
-              {(activeReport === 'outward' || activeReport === 'inward' || activeReport === 'amount-type') && (
+              {/* Amount Type Filter - Only for Amount Type Report */}
+              {activeReport === 'amount-type' && (
                 <div>
                   <Label htmlFor="amountType" className="text-sm font-medium text-gray-700">Amount Type</Label>
                   <select
@@ -535,63 +514,21 @@ export default function ReportsPage() {
                 </div>
               )}
 
-              {/* Customer Name Filter - For Customer Report */}
-              {activeReport === 'customer' && (
-                <>
-                  <div>
-                    <Label htmlFor="customerName" className="text-sm font-medium text-gray-700">Customer Name</Label>
-                    <Input
-                      id="customerName"
-                      placeholder="Search customer..."
-                      value={filters.customerName}
-                      onChange={(e) => setFilters({ ...filters, customerName: e.target.value })}
-                      className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="mobileNumber" className="text-sm font-medium text-gray-700">Mobile Number</Label>
-                    <Input
-                      id="mobileNumber"
-                      placeholder="Search mobile..."
-                      value={filters.mobileNumber}
-                      onChange={(e) => setFilters({ ...filters, mobileNumber: e.target.value })}
-                      className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1"
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* Status Filter - Optional for transaction reports */}
-              {(activeReport === 'outward' || activeReport === 'inward') && (
-                <div>
-                  <Label htmlFor="status" className="text-sm font-medium text-gray-700">Status</Label>
-                  <select
-                    id="status"
-                    value={filters.status}
-                    onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                    className="w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-sm mt-1"
-                  >
-                    <option value="">All Status</option>
-                    <option value="COMPLETED">Completed</option>
-                    <option value="PENDING">Pending</option>
-                  </select>
-                </div>
-              )}
-            </div>
+                          </div>
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 space-y-2 sm:space-y-0 mt-6">
               <Button
                 onClick={generateReport}
                 disabled={loading}
-                className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400 shadow-sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
               >
                 {loading ? 'Generating...' : 'Apply Filters'}
               </Button>
               <Button
                 onClick={resetFilters}
                 variant="outline"
-                className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400 shadow-sm"
+                className="bg-black hover:bg-gray-800 text-white border border-gray-300 hover:border-gray-400 shadow-sm"
               >
                 Reset Filters
               </Button>
@@ -599,7 +536,7 @@ export default function ReportsPage() {
                 onClick={() => exportReport('excel')}
                 disabled={exporting || reportData.length === 0}
                 variant="outline"
-                className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400 shadow-sm"
+                className="bg-green-600 hover:bg-green-700 text-white border border-green-300 hover:border-green-400 shadow-sm"
               >
                 {exporting ? 'Exporting...' : 'Export Excel'}
               </Button>
@@ -607,17 +544,9 @@ export default function ReportsPage() {
                 onClick={() => exportReport('pdf')}
                 disabled={exporting || reportData.length === 0}
                 variant="outline"
-                className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400 shadow-sm"
+                className="bg-red-600 hover:bg-red-700 text-white border border-red-300 hover:border-red-400 shadow-sm"
               >
                 {exporting ? 'Exporting...' : 'Export PDF'}
-              </Button>
-              <Button
-                onClick={() => window.print()}
-                disabled={reportData.length === 0}
-                variant="outline"
-                className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400 shadow-sm"
-              >
-                Print
               </Button>
             </div>
           </CardContent>

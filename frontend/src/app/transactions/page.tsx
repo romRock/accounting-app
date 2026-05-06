@@ -72,6 +72,8 @@ export default function TransactionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'outward' | 'inward'>('outward');
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const firstInputRef = useRef<HTMLInputElement>(null);
+  const cityTypeaheadRef = useRef<any>(null);
   const [filterByDate, setFilterByDate] = useState(false);
   const [dateFilter, setDateFilter] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -79,7 +81,35 @@ export default function TransactionsPage() {
   const [isSelectingRange, setIsSelectingRange] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const firstInputRef = useRef<HTMLInputElement>(null);
+  const [cityResetKey, setCityResetKey] = useState('0');
+
+  // Force form update when editingTransaction changes
+  useEffect(() => {
+    if (editingTransaction) {
+      console.log('=== FORM UPDATE EFFECT TRIGGERED ===');
+      setValue('transactionId', editingTransaction.transactionId);
+      setValue('tokenNo', editingTransaction.tokenNo);
+      setValue('date', new Date(editingTransaction.date).toISOString().split('T')[0]);
+      setValue('time', new Date().toTimeString().slice(0, 5));
+      setValue('centerId', editingTransaction.centerId);
+      setValue('amount', editingTransaction.amount);
+      setValue('amountType', editingTransaction.amountType as any);
+      setValue('commission', editingTransaction.commission);
+      setValue('bookingCommission', editingTransaction.bookingCommission);
+      setValue('centerCommission', editingTransaction.centerCommission);
+      setValue('receiverName', editingTransaction.receiverName);
+      setValue('receiverNumber', editingTransaction.receiverNumber || '');
+      setValue('senderName', editingTransaction.senderName);
+      setValue('senderNumber', editingTransaction.senderNumber || '');
+      setValue('remark', editingTransaction.remark || '');
+      setValue('status', editingTransaction.status);
+      setValue('autoCommission', false);
+      
+      if (editingTransaction.center) {
+        setSelectedCity(editingTransaction.center);
+      }
+    }
+  }, [editingTransaction]);
 
   const {
     register,
@@ -158,51 +188,21 @@ export default function TransactionsPage() {
     }
   }, [editingTransaction, setValue, activeTab]);
 
-  // Manual commission calculation for testing
-  const calculateCommissionManually = () => {
-    const currentAmount = watch('amount');
-    const currentAutoCommission = watch('autoCommission');
-    console.log('Manual calculation triggered:', { currentAmount, currentAutoCommission });
-    
-    if (currentAutoCommission && currentAmount > 0) {
-      const commission = Math.round(currentAmount * 0.001); // 0.1% commission
-      const bookingCommission = Math.round(commission * 0.35); // 35% booking
-      const centerCommission = Math.round(commission * 0.65); // 65% center
-      
-      console.log('Manual setting commission values:', { commission, bookingCommission, centerCommission });
-      
-      setValue('commission', commission);
-      setValue('bookingCommission', bookingCommission);
-      setValue('centerCommission', centerCommission);
-      
-      alert(`Commission calculated: Total=${commission}, Booking=${bookingCommission}, Center=${centerCommission}`);
-    } else {
-      alert('Please enable Auto Commission and enter an amount > 0');
-    }
-  };
+  // All commission calculation functions removed - backend handles all calculations
 
-  // Auto-calculate commission
+  // Auto-calculate commission using simple 0.01% rule
   useEffect(() => {
     console.log('Commission effect triggered:', { autoCommission, amount });
     if (autoCommission && amount > 0) {
-      const commission = Math.round(amount * 0.001); // 0.1% commission
-      const bookingCommission = Math.round(commission * 0.35); // 35% booking
-      const centerCommission = Math.round(commission * 0.65); // 65% center
+      const commission = Math.round(amount * 0.001); // 0.01% commission
+      const bookingCommission = Math.round(commission * 0.33); // 33% our commission
+      const centerCommission = Math.round(commission * 0.67); // 67% center commission
       
       console.log('Setting commission values:', { commission, bookingCommission, centerCommission });
       
       setValue('commission', commission);
       setValue('bookingCommission', bookingCommission);
       setValue('centerCommission', centerCommission);
-      
-      // Force a re-render by triggering a small delay
-      setTimeout(() => {
-        console.log('Commission values after timeout:', {
-          commission: watch('commission'),
-          bookingCommission: watch('bookingCommission'),
-          centerCommission: watch('centerCommission')
-        });
-      }, 100);
     } else if (amount === 0) {
       // Reset commissions when amount is 0
       console.log('Resetting commission values to 0');
@@ -210,7 +210,7 @@ export default function TransactionsPage() {
       setValue('bookingCommission', 0);
       setValue('centerCommission', 0);
     }
-  }, [amount, autoCommission, setValue, watch]);
+  }, [amount, autoCommission, setValue]);
 
   // Calculate total commission as sum of booking and center when manual mode
   useEffect(() => {
@@ -283,15 +283,21 @@ export default function TransactionsPage() {
       if (editingTransaction) {
         // Update existing transaction
         const updatedTransaction = await transactionApi.updateTransaction(editingTransaction.id, transactionData);
-        setTransactions(transactions.map(t => 
-          t.id === editingTransaction.id ? updatedTransaction : t
-        ));
+        // Refetch transactions to get complete data with relationships
+        await fetchTransactions();
         setEditingTransaction(null);
       } else {
         // Create new transaction
-        await transactionApi.createTransaction(transactionData);
+        const createdTransaction = await transactionApi.createTransaction(transactionData);
         // Refetch transactions to get complete data with relationships
         await fetchTransactions();
+        
+        // Set commission values from backend response
+        if (createdTransaction.commission !== undefined) {
+          setValue('commission', createdTransaction.commission);
+          setValue('bookingCommission', createdTransaction.bookingCommission || 0);
+          setValue('centerCommission', createdTransaction.centerCommission || 0);
+        }
       }
 
       reset();
@@ -329,8 +335,14 @@ export default function TransactionsPage() {
     setValue('date', currentDate);
     setValue('time', new Date().toTimeString().slice(0, 5));
     setValue('autoCommission', true);
+    setValue('centerId', ''); // Force clear city input
     setEditingTransaction(null);
+    setSelectedCity(null); // Clear city selection
+    setSelectedReceiverClient(null); // Clear receiver client
+    setSelectedSenderClient(null); // Clear sender client
     setError(null);
+    setCityResetKey(Date.now().toString()); // Trigger city typeahead reset
+        
     setTimeout(() => firstInputRef.current?.focus(), 100);
   };
 
@@ -338,7 +350,8 @@ export default function TransactionsPage() {
     if (editingTransaction) {
       try {
         await transactionApi.deleteTransaction(editingTransaction.id);
-        setTransactions(transactions.filter(t => t.id !== editingTransaction.id));
+        // Refetch transactions to get complete data with relationships
+        await fetchTransactions();
         handleClear();
       } catch (err: any) {
         setError(err.message || 'Failed to delete transaction');
@@ -348,12 +361,18 @@ export default function TransactionsPage() {
 
   // Handle row click to edit transaction
   const handleRowClick = (transaction: Transaction) => {
+    console.log('=== EDIT TRANSACTION DEBUG ===');
+    console.log('Transaction data:', transaction);
+    console.log('Transaction.center:', transaction.center);
+    console.log('Transaction.receiverName:', transaction.receiverName);
+    console.log('Transaction.senderName:', transaction.senderName);
+    
     setEditingTransaction(transaction);
     setActiveTab(transaction.type.toLowerCase() as 'outward' | 'inward');
     setValue('transactionId', transaction.transactionId);
     setValue('tokenNo', transaction.tokenNo);
-    setValue('date', transaction.date);
-    setValue('time', transaction.time);
+    setValue('date', new Date(transaction.date).toISOString().split('T')[0]);
+    setValue('time', new Date().toTimeString().slice(0, 5)); // Show current time when editing
     setValue('centerId', transaction.centerId);
     setValue('amount', transaction.amount);
     setValue('amountType', transaction.amountType as any);
@@ -370,8 +389,11 @@ export default function TransactionsPage() {
     
     // Set selectedCity for editing
     if (transaction.center) {
+      console.log('Setting selectedCity to:', transaction.center);
       setSelectedCity(transaction.center);
     }
+    
+    console.log('=== EDIT TRANSACTION SET VALUES COMPLETE ===');
   };
 
   // Filter transactions
@@ -394,6 +416,11 @@ export default function TransactionsPage() {
     
     // Convert transaction date to Date object for comparison
     const transactionDate = new Date(transaction.date);
+    // Check if date is valid before calling toISOString()
+    if (isNaN(transactionDate.getTime())) {
+      console.warn('Invalid date value:', transaction.date);
+      return false; // Skip this transaction if date is invalid
+    }
     const transactionDateString = transactionDate.toISOString().split('T')[0];
     
     // Get today's date in local timezone for comparison
@@ -511,7 +538,8 @@ export default function TransactionsPage() {
                     <Input
                       id="time"
                       type="time"
-                      {...register('time')}
+                      value={editingTransaction ? new Date().toTimeString().slice(0, 5) : watch('time')}
+                      onChange={(e) => setValue('time', e.target.value)}
                       className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
                     />
                   </div>
@@ -521,10 +549,12 @@ export default function TransactionsPage() {
                     label="Center"
                     value={selectedCity?.name || watch('centerId') || ''}
                     onChange={(value, city) => {
+                      console.log('CityTypeahead onChange - value:', value, 'city:', city);
                       setValue('centerId', city?.id || value);
                       setSelectedCity(city);
                     }}
                     placeholder="Search city..."
+                    resetKey={cityResetKey}
                   />
                 </div>
 
@@ -639,6 +669,7 @@ export default function TransactionsPage() {
                       label="Receiver Name"
                       value={watch('receiverName') || ''}
                       onChange={(value: string, client?: ClientData) => {
+                        console.log('ReceiverTypeahead onChange - value:', value, 'client:', client);
                         setValue('receiverName', value);
                         if (client && client.mobileNumber) {
                           setValue('receiverNumber', client.mobileNumber);
@@ -667,6 +698,7 @@ export default function TransactionsPage() {
                       label="Sender Name"
                       value={watch('senderName') || ''}
                       onChange={(value: string, client?: ClientData) => {
+                        console.log('SenderTypeahead onChange - value:', value, 'client:', client);
                         setValue('senderName', value);
                         if (client && client.mobileNumber) {
                           setValue('senderNumber', client.mobileNumber);
@@ -886,6 +918,7 @@ export default function TransactionsPage() {
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver Name</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender Name</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remark</th>
+                          <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -928,6 +961,35 @@ export default function TransactionsPage() {
                             <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
                               {transaction.remark || '-'}
                             </td>
+                            <td className="px-2 py-2 whitespace-nowrap text-center text-xs">
+                              <div className="flex justify-center space-x-1">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRowClick(transaction);
+                                  }}
+                                  className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                                  title="Edit"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingTransaction(transaction);
+                                    handleDelete();
+                                  }}
+                                  className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
+                                  title="Delete"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -952,6 +1014,7 @@ export default function TransactionsPage() {
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver Name</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender Name</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remark</th>
+                          <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -993,6 +1056,35 @@ export default function TransactionsPage() {
                             </td>
                             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                               {transaction.remark || '-'}
+                            </td>
+                            <td className="px-3 py-3 whitespace-nowrap text-center text-sm">
+                              <div className="flex justify-center space-x-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRowClick(transaction);
+                                  }}
+                                  className="text-blue-600 hover:text-blue-800 p-2 rounded hover:bg-blue-50"
+                                  title="Edit"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingTransaction(transaction);
+                                    handleDelete();
+                                  }}
+                                  className="text-red-600 hover:text-red-800 p-2 rounded hover:bg-red-50"
+                                  title="Delete"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -1044,6 +1136,29 @@ export default function TransactionsPage() {
                             <span className="font-medium">Remark:</span> {transaction.remark}
                           </div>
                         )}
+                        
+                        {/* Actions for mobile */}
+                        <div className="border-t pt-3 mt-3 flex justify-end space-x-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRowClick(transaction);
+                            }}
+                            className="text-blue-600 hover:text-blue-800 px-3 py-1 rounded text-xs font-medium hover:bg-blue-50 border border-blue-200"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingTransaction(transaction);
+                              handleDelete();
+                            }}
+                            className="text-red-600 hover:text-red-800 px-3 py-1 rounded text-xs font-medium hover:bg-red-50 border border-red-200"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}

@@ -707,10 +707,7 @@ export default function LayoutWrapper({
                           { id: 'outward', name: 'Outward Report', permission: 'report_1' },
                           { id: 'inward', name: 'Inward Report', permission: 'report_2' },
                           { id: 'combo', name: 'Combo Report', permission: 'report_3' },
-                          { id: 'outward-centerwise', name: 'Outward Centerwise Report', permission: 'report_4' },
-                          { id: 'inward-centerwise', name: 'Inward Centerwise Report', permission: 'report_5' },
-                          { id: 'amount-type', name: 'Amount Type Report', permission: 'report_6' },
-                          { id: 'customer', name: 'Customer Transaction Report', permission: 'report_7' },
+                          { id: 'amount-type', name: 'Amount Type Report', permission: 'report_4' },
                         ].filter((report) => {
                           // Check if user has permission for this specific report
                           return hasPermission('reports', report.permission);

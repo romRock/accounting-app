@@ -43,6 +43,11 @@ export function ClientTypeahead({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Sync searchTerm with value prop when it changes (for edit functionality)
+  useEffect(() => {
+    setSearchTerm(value || '');
+  }, [value]);
+
   // Fetch clients with debounce
   const fetchClients = useCallback(async (query: string) => {
     console.log("fetchClients called with query:", query);

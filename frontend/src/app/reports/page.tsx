@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/store';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { CityTypeahead } from '@/components/ui/typeahead';
+import { transactionApi, Transaction } from '@/lib/transactions';
 
 // Report Types
 type ReportType = 'outward' | 'inward' | 'combo' | 'amount-type';
@@ -51,13 +52,20 @@ export default function ReportsPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
   const [activeReport, setActiveReport] = useState<ReportType>('outward');
-  const [reportData, setReportData] = useState<ReportData[]>([]);
+  const [reportData, setReportData] = useState<Transaction[]>([]);
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [exporting, setExporting] = useState(false);
   const firstInputRef = useRef<HTMLInputElement>(null);
+  
+  // Date filter states from transaction page
+  const [filterByDate, setFilterByDate] = useState(false);
+  const [dateFilter, setDateFilter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [isSelectingRange, setIsSelectingRange] = useState(false);
 
   // Initialize filters with today's date (Indian time with 12:00 AM reset daily)
   const [filters, setFilters] = useState<ReportFilters>(() => {
@@ -78,73 +86,34 @@ export default function ReportsPage() {
   });
 
   
-  // Mock data generator
-  const generateMockData = (type: ReportType): ReportData[] => {
-    const mockData: ReportData[] = [];
-    const mockCities = ['Mumbai', 'Delhi', 'Bangalore', 'Chennai', 'Kolkata', 'Hyderabad', 'Pune', 'Ahmedabad'];
-    
-    switch (type) {
-      case 'outward':
-
-      case 'inward':
-
-        for (let i = 1; i <= 50; i++) {
-          mockData.push({
-            id: `TXN${String(i).padStart(6, '0')}`,
-            date: `2024-01-${String(i % 28 + 1).padStart(2, '0')}`,
-            time: `${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}`,
-            center: mockCities[Math.floor(Math.random() * mockCities.length)],
-            amount: Math.floor(Math.random() * 50000) + 1000,
-            amountType: Math.random() > 0.5 ? 'CASH' : 'ACCOUNT / CREDIT',
-            commission: Math.floor(Math.random() * 500) + 50,
-            status: Math.random() > 0.3 ? 'COMPLETED' : 'PENDING',
-          });
-        }
-        break;
-        
-      case 'combo':
-        for (let i = 1; i <= 30; i++) {
-          mockData.push({
-            id: `COM${String(i).padStart(6, '0')}`,
-            date: `2024-01-${String(i % 28 + 1).padStart(2, '0')}`,
-            totalAmount: Math.floor(Math.random() * 100000) + 5000,
-            totalCommission: Math.floor(Math.random() * 1000) + 100,
-            transactionCount: Math.floor(Math.random() * 10) + 1,
-          });
-        }
-        break;
-        
-      case 'amount-type':
-        ['CASH', 'ACCOUNT / CREDIT'].forEach(type => {
-          mockData.push({
-            amountType: type,
-            transactionCount: Math.floor(Math.random() * 200) + 50,
-            totalAmount: Math.floor(Math.random() * 1000000) + 100000,
-            totalCommission: Math.floor(Math.random() * 20000) + 2000,
-          });
-        });
-        break;
+  // Fetch real transaction data
+  const fetchTransactions = async () => {
+    setLoading(true);
+    try {
+      const response = await transactionApi.getTransactions({
+        type: activeReport.toUpperCase(),
+        search: searchTerm,
+        page: currentPage,
+        limit: 100
+      });
+      
+      setReportData(response.transactions);
+      
+      setReportData(response.transactions);
+      
+      // Calculate summary will be done in filteredData useEffect
+    } catch (error) {
+      console.error('Failed to fetch transactions:', error);
+      setReportData([]);
+      setSummary(null);
+    } finally {
+      setLoading(false);
     }
-    
-    return mockData;
   };
 
   // Generate report data
   const generateReport = () => {
-    setLoading(true);
-    setTimeout(() => {
-      const data = generateMockData(activeReport);
-      setReportData(data);
-      
-      // Calculate summary
-      const summary: ReportSummary = {
-        totalRecords: data.length,
-        totalAmount: data.reduce((sum, item) => sum + (item.amount || item.totalAmount || 0), 0),
-        totalCommission: data.reduce((sum, item) => sum + (item.commission || item.totalCommission || 0), 0),
-      };
-      setSummary(summary);
-      setLoading(false);
-    }, 1000);
+    fetchTransactions();
   };
 
   // Export functionality
@@ -153,8 +122,42 @@ export default function ReportsPage() {
     setTimeout(() => {
       // Create CSV content for Excel export
       if (format === 'excel') {
-        const headers = Object.keys(reportData[0] || {}).join(',');
-        const rows = reportData.map(item => Object.values(item).join(',')).join('\n');
+        const headers = getColumns().join(',');
+        const rows = filteredData.map((transaction, index) => {
+          return getColumns().map(column => {
+            switch (column) {
+              case 'TOKEN':
+                return transaction.tokenNo?.toString() || (index + 1).toString();
+              case 'DATE':
+                return formatDate(transaction.date);
+              case 'TIME':
+                // Format time to show only HH:MM
+                if (transaction.time) {
+                  const timeStr = transaction.time.includes('T') ? new Date(transaction.time).toTimeString().slice(0, 5) : transaction.time.slice(0, 5);
+                  return timeStr;
+                }
+                return '-';
+              case 'CENTER':
+                return transaction.center?.name || transaction.centerId || '-';
+              case 'AMOUNT':
+                // Combine amount + center commission
+                const totalAmount = transaction.amount + (transaction.centerCommission || 0);
+                return formatCurrency(totalAmount);
+              case 'AMOUNT TYPE':
+                return transaction.amountType || '-';
+              case 'OUR COMM':
+                return formatCurrency(transaction.bookingCommission || 0);
+              case 'RECEIVER NAME':
+                return transaction.receiverName || '-';
+              case 'SENDER NAME':
+                return transaction.senderName || '-';
+              case 'REMARKS':
+                return transaction.remark || '-';
+              default:
+                return '-';
+            }
+          }).join(',');
+        }).join('\n');
         const csvContent = `${headers}\n${rows}`;
         
         const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -306,16 +309,13 @@ export default function ReportsPage() {
             </tr>
           </thead>
           <tbody>
-            ${filteredData.map(item => `
+            ${filteredData.map((transaction, index) => `
               <tr>
                 ${columns.map(column => {
-                  const value = item[column.toLowerCase().replace(/\s+/g, '')] || item[column];
-                  let displayValue = value;
+                  let displayValue = renderCell(transaction, column, index);
                   
-                  if (column.includes('Amount') || column.includes('Commission')) {
-                    displayValue = formatCurrency(value as number);
-                  } else if (column === 'Status') {
-                    displayValue = `<span class="status-${value?.toString().toLowerCase()}">${value}</span>`;
+                  if (column.includes('Amount') || column.includes('COMM')) {
+                    displayValue = typeof displayValue === 'string' ? displayValue : formatCurrency(displayValue as number);
                   }
                   
                   return `<td>${displayValue}</td>`;
@@ -363,54 +363,87 @@ export default function ReportsPage() {
     setSearchTerm('');
   };
 
-  // Filter data based on search and filters
-  const filteredData = reportData.filter(item => {
+  // Filter data based on search and filters (matching transaction page logic)
+  const filteredData = reportData.filter(transaction => {
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = searchTerm === '' || 
-      Object.values(item).some(value => 
-        value?.toString().toLowerCase().includes(searchLower)
-      );
+      transaction.receiverName?.toLowerCase().includes(searchLower) ||
+      transaction.senderName?.toLowerCase().includes(searchLower) ||
+      transaction.transactionId?.toLowerCase().includes(searchLower) ||
+      transaction.centerId?.toLowerCase().includes(searchLower) ||
+      transaction.receiverNumber?.toLowerCase().includes(searchLower) ||
+      transaction.senderNumber?.toLowerCase().includes(searchLower);
     
-    // Apply date filters (simplified for mock data)
-    const matchesDateRange = true; // In real implementation, this would check actual dates
+    // Apply date filters (matching transaction page logic)
+    const transactionDateString = new Date(transaction.date).toISOString().split('T')[0];
+    const today = new Date();
+    const todayString = today.getFullYear() + '-' + 
+      String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+      String(today.getDate()).padStart(2, '0');
     
-    return matchesSearch && matchesDateRange;
+    const matchesDate = !filterByDate ? 
+      transactionDateString === todayString : 
+      (isSelectingRange && startDate && endDate ? 
+        transactionDateString >= startDate && transactionDateString <= endDate :
+        dateFilter && transactionDateString === dateFilter);
+    
+    // Apply center filter
+    const matchesCenter = !filters.center || 
+      transaction.center?.name?.toLowerCase().includes(filters.center.toLowerCase()) ||
+      transaction.centerId?.toLowerCase().includes(filters.center.toLowerCase());
+    
+    // Apply amount type filter
+    const matchesAmountType = !filters.amountType || 
+      transaction.amountType === filters.amountType;
+    
+    return matchesSearch && matchesDate && matchesCenter && matchesAmountType;
   });
 
-  // Get columns based on report type
+  // Get columns based on report type (for outward transactions)
   const getColumns = () => {
-    switch (activeReport) {
-      case 'outward':
-      case 'inward':
-        return ['ID', 'Date', 'Time', 'Center', 'Amount', 'Type', 'Commission', 'Status'];
-      case 'combo':
-        return ['ID', 'Date', 'Total Amount', 'Total Commission', 'Transaction Count'];
-      case 'amount-type':
-        return ['Amount Type', 'Transaction Count', 'Total Amount', 'Total Commission'];
-      default:
-        return [];
+    if (activeReport === 'outward') {
+      return ['TOKEN', 'DATE', 'TIME', 'CENTER', 'AMOUNT', 'AMOUNT TYPE', 'OUR COMM', 'RECEIVER NAME', 'SENDER NAME', 'REMARKS'];
     }
+    return ['ID', 'Date', 'Time', 'Center', 'Amount', 'Type', 'Commission', 'Status'];
   };
 
-  // Get render cell function
-  const renderCell = (item: ReportData, column: string) => {
-    const value = item[column.toLowerCase().replace(/\s+/g, '')] || item[column];
-    
-    if (column === 'Amount' || column === 'Total Amount' || column === 'Commission' || column === 'Total Commission') {
-      return formatCurrency(value as number);
+  // Get render cell function (for outward transactions)
+  const renderCell = (transaction: Transaction, column: string, index: number) => {
+    switch (column) {
+      case 'TOKEN':
+        return transaction.tokenNo?.toString() || (index + 1).toString();
+      case 'DATE':
+        return formatDate(transaction.date);
+      case 'TIME':
+        // Format time to show only HH:MM format
+        if (transaction.time) {
+          const timeStr = transaction.time.includes('T') ? new Date(transaction.time).toTimeString().slice(0, 5) : transaction.time.slice(0, 5);
+          return timeStr;
+        }
+        return '-';
+      case 'CENTER':
+        return transaction.center?.name || transaction.centerId || '-';
+      case 'AMOUNT':
+        // Combine amount + center commission
+        const totalAmount = transaction.amount + (transaction.centerCommission || 0);
+        return formatCurrency(totalAmount);
+      case 'AMOUNT TYPE':
+        return transaction.amountType || '-';
+      case 'OUR COMM':
+        return formatCurrency(transaction.bookingCommission || 0);
+      case 'RECEIVER NAME':
+        return transaction.receiverName || '-';
+      case 'SENDER NAME':
+        return transaction.senderName || '-';
+      case 'REMARKS':
+        return transaction.remark || '-';
+      default:
+        const value = transaction[column as keyof Transaction];
+        if (typeof value === 'string' || typeof value === 'number') {
+          return value.toString();
+        }
+        return '-';
     }
-    
-    if (column === 'Status') {
-      return (
-        <span className={`px-2 py-1 text-xs rounded-full ${
-          value === 'COMPLETED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-        }`}>
-          {value}
-        </span>
-      );
-    }
-    
-    return value;
   };
 
   useEffect(() => {
@@ -438,6 +471,18 @@ export default function ReportsPage() {
     generateReport();
   }, [activeReport]);
 
+  // Calculate summary based on filtered data
+  useEffect(() => {
+    if (reportData.length > 0) {
+      const summary: ReportSummary = {
+        totalRecords: filteredData.length,
+        totalAmount: filteredData.reduce((sum, item) => sum + (item.amount || 0) + (item.centerCommission || 0), 0),
+        totalCommission: filteredData.reduce((sum, item) => sum + (item.bookingCommission || 0), 0),
+      };
+      setSummary(summary);
+    }
+  }, [reportData, searchTerm, filterByDate, dateFilter, startDate, endDate, isSelectingRange, filters.center, filters.amountType]);
+
   if (!isAuthenticated) {
     return null;
   }
@@ -457,29 +502,106 @@ export default function ReportsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               
-              {/* Date Range Filters - Common for all reports */}
-              <div>
-                <Label htmlFor="dateFrom" className="text-sm font-medium text-gray-900">From Date</Label>
-                <Input
-                  id="dateFrom"
-                  type="date"
-                  value={filters.dateFrom}
-                  onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
-                  className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900"
-                />
-              </div>
               
-              <div>
-                <Label htmlFor="dateTo" className="text-sm font-medium text-gray-900">To Date</Label>
-                <Input
-                  id="dateTo"
-                  type="date"
-                  value={filters.dateTo}
-                  onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
-                  className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900"
+              {/* Date Filter */}
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="filterByDate"
+                  checked={filterByDate}
+                  onChange={(e) => {
+                    setFilterByDate(e.target.checked);
+                    if (e.target.checked) {
+                      // Reset states when enabling filter
+                      const today = new Date();
+                      const currentDate = today.getFullYear() + '-' + 
+                        String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                        String(today.getDate()).padStart(2, '0');
+                      setDateFilter(currentDate);
+                      setStartDate('');
+                      setEndDate('');
+                      setIsSelectingRange(false);
+                    } else {
+                      // Reset all date states when disabling filter
+                      setDateFilter('');
+                      setStartDate('');
+                      setEndDate('');
+                      setIsSelectingRange(false);
+                    }
+                  }}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
+                <Label htmlFor="filterByDate" className="text-sm font-medium text-gray-700">
+                  By Date
+                </Label>
+                {filterByDate && (
+                  <div className="flex flex-col space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStartDate('');
+                          setEndDate('');
+                          setDateFilter('');
+                          setIsSelectingRange(false);
+                        }}
+                        className={`px-3 py-1 text-xs rounded ${
+                          !isSelectingRange && !dateFilter 
+                            ? 'bg-blue-500 text-white' 
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        Single Date
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStartDate('');
+                          setEndDate('');
+                          setDateFilter('');
+                          setIsSelectingRange(true);
+                        }}
+                        className={`px-3 py-1 text-xs rounded ${
+                          isSelectingRange 
+                            ? 'bg-blue-500 text-white' 
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        Date Range
+                      </button>
+                    </div>
+                    {!isSelectingRange ? (
+                      <Input
+                        type="date"
+                        value={dateFilter}
+                        onChange={(e) => {
+                          setDateFilter(e.target.value);
+                        }}
+                        className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
+                      />
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <Input
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          placeholder="Start date"
+                          className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
+                        />
+                        <span className="text-gray-500 text-sm">to</span>
+                        <Input
+                          type="date"
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          placeholder="End date"
+                          className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Center Filter - For Outward/Inward reports */}
@@ -490,7 +612,7 @@ export default function ReportsPage() {
                     id="center"
                     label="Center"
                     value={filters.center}
-                    onChange={(value) => setFilters({ ...filters, center: value })}
+                    onChange={(value, city) => setFilters({ ...filters, center: city?.name || value })}
                     placeholder="Select center or search city..."
                     className="mt-1"
                   />
@@ -505,7 +627,7 @@ export default function ReportsPage() {
                     id="amountType"
                     value={filters.amountType}
                     onChange={(e) => setFilters({ ...filters, amountType: e.target.value })}
-                    className="w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-sm mt-1"
+                    className="w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-black text-sm mt-1"
                   >
                     <option value="">All Types</option>
                     <option value="CASH">CASH</option>
@@ -577,13 +699,7 @@ export default function ReportsPage() {
                   <div className="text-sm font-medium text-gray-600">Total Commission</div>
                   <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.totalCommission)}</div>
                 </div>
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <div className="text-sm font-medium text-gray-600">Average Amount</div>
-                  <div className="text-2xl font-bold text-gray-900 mt-1">
-                    {summary.totalRecords > 0 ? formatCurrency(summary.totalAmount / summary.totalRecords) : '₹0.00'}
-                  </div>
-                </div>
-              </div>
+                              </div>
             </CardContent>
           </Card>
         )}
@@ -601,12 +717,13 @@ export default function ReportsPage() {
                 </CardDescription>
               </div>
               
+              {/* Search Input */}
               <div className="hidden sm:block">
                 <Input
-                  placeholder="Search report data..."
+                  placeholder="Search transactions..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="bg-white w-48 lg:w-64 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm placeholder-gray-600"
+                  className="bg-white w-48 lg:w-64 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
                 />
               </div>
             </div>
@@ -637,14 +754,14 @@ export default function ReportsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {filteredData.map((item, rowIndex) => (
+                    {filteredData.map((transaction, rowIndex) => (
                       <tr key={rowIndex} className="hover:bg-gray-50">
                         {getColumns().map((column, colIndex) => (
                           <td
                             key={colIndex}
                             className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200 last:border-r-0"
                           >
-                            {renderCell(item, column)}
+                            {renderCell(transaction, column, rowIndex)}
                           </td>
                         ))}
                       </tr>

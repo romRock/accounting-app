@@ -91,10 +91,11 @@ export default function ReportsPage() {
     setLoading(true);
     try {
       const response = await transactionApi.getTransactions({
-        type: activeReport.toUpperCase(),
+        type: 'OUTWARD',
         search: searchTerm,
         page: currentPage,
-        limit: 100
+        limit: 100,
+        ...(activeReport === 'amount-type' && filters.amountType && filters.amountType.trim() && { amountType: filters.amountType })
       });
       
       setReportData(response.transactions);
@@ -140,13 +141,13 @@ export default function ReportsPage() {
               case 'CENTER':
                 return transaction.center?.name || transaction.centerId || '-';
               case 'AMOUNT':
-                // Combine amount + center commission
+                // Combine amount + center commission (without currency symbol)
                 const totalAmount = transaction.amount + (transaction.centerCommission || 0);
-                return formatCurrency(totalAmount);
+                return totalAmount.toString();
               case 'AMOUNT TYPE':
                 return transaction.amountType || '-';
               case 'OUR COMM':
-                return formatCurrency(transaction.bookingCommission || 0);
+                return (transaction.bookingCommission || 0).toString();
               case 'RECEIVER NAME':
                 return transaction.receiverName || '-';
               case 'SENDER NAME':
@@ -393,8 +394,9 @@ export default function ReportsPage() {
       transaction.centerId?.toLowerCase().includes(filters.center.toLowerCase());
     
     // Apply amount type filter
-    const matchesAmountType = !filters.amountType || 
-      transaction.amountType === filters.amountType;
+    const matchesAmountType = !filters.amountType || filters.amountType.trim() === '' || 
+      transaction.amountType === filters.amountType ||
+      (filters.amountType === 'CREDIT' && (transaction.amountType === 'CREDIT' || transaction.amountType === 'ACCOUNT / CREDIT'));
     
     return matchesSearch && matchesDate && matchesCenter && matchesAmountType;
   });
@@ -404,10 +406,13 @@ export default function ReportsPage() {
     if (activeReport === 'outward') {
       return ['TOKEN', 'DATE', 'TIME', 'CENTER', 'AMOUNT', 'AMOUNT TYPE', 'OUR COMM', 'RECEIVER NAME', 'SENDER NAME', 'REMARKS'];
     }
+    if (activeReport === 'amount-type') {
+      return ['TOKEN', 'DATE', 'TIME', 'CENTER', 'AMOUNT', 'AMOUNT TYPE', 'OUR COMM', 'RECEIVER NAME', 'SENDER NAME', 'REMARKS'];
+    }
     return ['ID', 'Date', 'Time', 'Center', 'Amount', 'Type', 'Commission', 'Status'];
   };
 
-  // Get render cell function (for outward transactions)
+  // Get render cell function (for outward and amount-type transactions)
   const renderCell = (transaction: Transaction, column: string, index: number) => {
     switch (column) {
       case 'TOKEN':
@@ -631,7 +636,7 @@ export default function ReportsPage() {
                   >
                     <option value="">All Types</option>
                     <option value="CASH">CASH</option>
-                    <option value="ACCOUNT / CREDIT">ACCOUNT / CREDIT</option>
+                    <option value="CREDIT">CREDIT</option>
                   </select>
                 </div>
               )}

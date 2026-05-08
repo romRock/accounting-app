@@ -30,6 +30,7 @@ const transactionSchema = z.object({
   autoCommission: z.boolean(),
   bookingCommission: z.number().optional(),
   centerCommission: z.number().optional(),
+  cuttingCommission: z.number().optional(), // For inward transactions
   receiverName: z.string().min(1, 'Receiver name is required'),
   receiverNumber: z.string().optional(),
   senderName: z.string().min(1, 'Sender name is required'),
@@ -61,6 +62,9 @@ interface ClientData {
 
 export default function TransactionsPage() {
   const router = useRouter();
+  
+  // Tab state for switching between outward and inward
+  const [activeTab, setActiveTab] = useState<'outward' | 'inward'>('outward');
   const { user, isAuthenticated } = useAuthStore();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [centers, setCenters] = useState<Center[]>([]);
@@ -70,7 +74,6 @@ export default function TransactionsPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'outward' | 'inward'>('outward');
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
   const cityTypeaheadRef = useRef<any>(null);
@@ -149,10 +152,12 @@ export default function TransactionsPage() {
   const amount = watch('amount');
 
   // Fetch next transaction IDs from backend
-  const fetchNextIds = async (date: string) => {
+  const fetchNextIds = async (date: string, transactionType?: string) => {
     try {
       const { accessToken } = useAuthStore.getState();
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/transactions/next-ids?date=${date}&type=${activeTab.toUpperCase()}`, {
+      const type = transactionType || activeTab.toUpperCase();
+      console.log('Fetching next IDs with:', { date, type, activeTab });
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/transactions/next-ids?date=${date}&type=${type}`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
@@ -175,13 +180,12 @@ export default function TransactionsPage() {
     if (!editingTransaction) {
       // Get current date in local timezone (Indian time)
       const today = new Date();
-      const currentDate = today.getFullYear() + '-' + 
-        String(today.getMonth() + 1).padStart(2, '0') + '-' + 
-        String(today.getDate()).padStart(2, '0');
+      const currentDate = today.toLocaleDateString('en-CA'); // Fix timezone issue
+      
       // Set current date in form
       setValue('date', currentDate);
       // Fetch next IDs
-      fetchNextIds(currentDate).then(({ nextTransactionId, nextTokenNo }) => {
+      fetchNextIds(currentDate, activeTab.toUpperCase()).then(({ nextTransactionId, nextTokenNo }) => {
         setValue('transactionId', nextTransactionId);
         setValue('tokenNo', nextTokenNo);
       });
@@ -192,25 +196,39 @@ export default function TransactionsPage() {
 
   // Auto-calculate commission using simple 0.01% rule
   useEffect(() => {
-    console.log('Commission effect triggered:', { autoCommission, amount });
+    console.log('Commission effect triggered:', { autoCommission, amount, activeTab });
     if (autoCommission && amount > 0) {
-      const commission = Math.round(amount * 0.001); // 0.01% commission
-      const bookingCommission = Math.round(commission * 0.33); // 33% our commission
-      const centerCommission = Math.round(commission * 0.67); // 67% center commission
-      
-      console.log('Setting commission values:', { commission, bookingCommission, centerCommission });
-      
-      setValue('commission', commission);
-      setValue('bookingCommission', bookingCommission);
-      setValue('centerCommission', centerCommission);
+      if (activeTab === 'outward') {
+        const commission = Math.round(amount * 0.001); // 0.01% commission
+        const bookingCommission = Math.round(commission * 0.33); // 33% our commission
+        const centerCommission = Math.round(commission * 0.67); // 67% center commission
+        
+        console.log('Setting outward commission values:', { commission, bookingCommission, centerCommission });
+        
+        setValue('commission', commission);
+        setValue('bookingCommission', bookingCommission);
+        setValue('centerCommission', centerCommission);
+      } else {
+        // Inward - 35% of total commission (1% of amount)
+        const totalCommission = Math.round(amount * 0.001); // 1% total commission
+        const cuttingCommission = Math.round(totalCommission * 0.35); // 35% of total commission
+        
+        console.log('Setting inward cutting commission:', { totalCommission, cuttingCommission });
+        
+        setValue('cuttingCommission', cuttingCommission);
+      }
     } else if (amount === 0) {
       // Reset commissions when amount is 0
       console.log('Resetting commission values to 0');
-      setValue('commission', 0);
-      setValue('bookingCommission', 0);
-      setValue('centerCommission', 0);
+      if (activeTab === 'outward') {
+        setValue('commission', 0);
+        setValue('bookingCommission', 0);
+        setValue('centerCommission', 0);
+      } else {
+        setValue('cuttingCommission', 0);
+      }
     }
-  }, [amount, autoCommission, setValue]);
+  }, [amount, autoCommission, setValue, activeTab]);
 
   // Calculate total commission as sum of booking and center when manual mode
   useEffect(() => {
@@ -294,9 +312,13 @@ export default function TransactionsPage() {
         
         // Set commission values from backend response
         if (createdTransaction.commission !== undefined) {
-          setValue('commission', createdTransaction.commission);
-          setValue('bookingCommission', createdTransaction.bookingCommission || 0);
-          setValue('centerCommission', createdTransaction.centerCommission || 0);
+          if (activeTab === 'outward') {
+            setValue('commission', createdTransaction.commission);
+            setValue('bookingCommission', createdTransaction.bookingCommission || 0);
+            setValue('centerCommission', createdTransaction.centerCommission || 0);
+          } else {
+            setValue('cuttingCommission', createdTransaction.bookingCommission || 0);
+          }
         }
       }
 
@@ -306,7 +328,7 @@ export default function TransactionsPage() {
       const currentDate = today.getFullYear() + '-' + 
         String(today.getMonth() + 1).padStart(2, '0') + '-' + 
         String(today.getDate()).padStart(2, '0');
-      fetchNextIds(currentDate).then(({ nextTransactionId, nextTokenNo }) => {
+      fetchNextIds(currentDate, activeTab.toUpperCase()).then(({ nextTransactionId, nextTokenNo }) => {
         setValue('transactionId', nextTransactionId);
         setValue('tokenNo', nextTokenNo);
       });
@@ -328,7 +350,7 @@ export default function TransactionsPage() {
     // Get current date in local timezone (Indian time)
     const today = new Date();
     const currentDate = today.toLocaleDateString('en-CA'); // Fix timezone issue
-    fetchNextIds(currentDate).then(({ nextTransactionId, nextTokenNo }) => {
+    fetchNextIds(currentDate, activeTab.toUpperCase()).then(({ nextTransactionId, nextTokenNo }) => {
       setValue('transactionId', nextTransactionId);
       setValue('tokenNo', nextTokenNo);
     });
@@ -487,7 +509,7 @@ export default function TransactionsPage() {
               {editingTransaction ? 'Edit Transaction' : `${activeTab === 'outward' ? 'Outward' : 'Inward'} Booking`}
             </CardTitle>
             <CardDescription className="text-gray-600">
-              Enter transaction details below
+              Enter {activeTab === 'outward' ? 'outward' : 'inward'} transaction details below
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -602,6 +624,7 @@ export default function TransactionsPage() {
                     </select>
                   </div>
                   
+                  {activeTab === 'outward' ? (
                   <div>
                     <Label htmlFor="commission" className="text-sm font-medium text-gray-700">Commission</Label>
                     <Input
@@ -616,6 +639,22 @@ export default function TransactionsPage() {
                       }`}
                     />
                   </div>
+                ) : (
+                  <div>
+                    <Label htmlFor="cuttingCommission" className="text-sm font-medium text-gray-700">Cutting Commission</Label>
+                    <Input
+                      id="cuttingCommission"
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={watch('cuttingCommission') || 0}
+                      readOnly={autoCommission}
+                      className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-lg placeholder:text-gray-600 ${
+                        autoCommission ? 'bg-gray-100 text-gray-500' : 'bg-white text-black'
+                      }`}
+                    />
+                  </div>
+                )}
                   
                   <div className="flex items-center space-x-2 pt-6">
                     <input
@@ -631,31 +670,33 @@ export default function TransactionsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <div>
-                    <Label className="text-sm font-medium text-gray-700">Booking Commission</Label>
-                    <Input
-                      value={watch('bookingCommission') || 0}
-                      onChange={(e) => setValue('bookingCommission', Number(e.target.value))}
-                      readOnly={autoCommission}
-                      className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-medium text-sm ${
-                        autoCommission ? 'bg-gray-50 text-green-600' : 'bg-white text-black'
-                      }`}
-                    />
+                {activeTab === 'outward' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700">Booking Commission</Label>
+                      <Input
+                        value={watch('bookingCommission') || 0}
+                        onChange={(e) => setValue('bookingCommission', Number(e.target.value))}
+                        readOnly={autoCommission}
+                        className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-medium text-sm ${
+                          autoCommission ? 'bg-gray-50 text-green-600' : 'bg-white text-black'
+                        }`}
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700">Center Commission</Label>
+                      <Input
+                        value={watch('centerCommission') || 0}
+                        onChange={(e) => setValue('centerCommission', Number(e.target.value))}
+                        readOnly={autoCommission}
+                        className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-medium text-sm ${
+                          autoCommission ? 'bg-gray-50 text-green-600' : 'bg-white text-black'
+                        }`}
+                      />
+                    </div>
                   </div>
-                  
-                  <div>
-                    <Label className="text-sm font-medium text-gray-700">Center Commission</Label>
-                    <Input
-                      value={watch('centerCommission') || 0}
-                      onChange={(e) => setValue('centerCommission', Number(e.target.value))}
-                      readOnly={autoCommission}
-                      className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-medium text-sm ${
-                        autoCommission ? 'bg-gray-50 text-green-600' : 'bg-white text-black'
-                      }`}
-                    />
-                  </div>
-                </div>
+                ) : null}
               </div>
 
               {/* Section 2: Contact Information */}
@@ -913,8 +954,14 @@ export default function TransactionsPage() {
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Center</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Type</th>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Booking Comm</th>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Center Comm</th>
+                          {activeTab === 'outward' ? (
+                            <>
+                              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Booking Comm</th>
+                              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Center Comm</th>
+                            </>
+                          ) : (
+                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cutting Comm</th>
+                          )}
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver Name</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender Name</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remark</th>
@@ -946,12 +993,20 @@ export default function TransactionsPage() {
                             <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
                               {transaction.amountType}
                             </td>
+                            {activeTab === 'outward' ? (
+                            <>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
+                                {formatCurrency(transaction.bookingCommission || 0)}
+                              </td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
+                                {formatCurrency(transaction.centerCommission || 0)}
+                              </td>
+                            </>
+                          ) : (
                             <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
                               {formatCurrency(transaction.bookingCommission || 0)}
                             </td>
-                            <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
-                              {formatCurrency(transaction.centerCommission || 0)}
-                            </td>
+                          )}
                             <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
                               {transaction.receiverName}
                             </td>
@@ -1009,8 +1064,14 @@ export default function TransactionsPage() {
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Center</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Type</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Booking Comm</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Center Comm</th>
+                          {activeTab === 'outward' ? (
+                            <>
+                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Booking Comm</th>
+                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Center Comm</th>
+                            </>
+                          ) : (
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cutting Comm</th>
+                          )}
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver Name</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender Name</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remark</th>
@@ -1042,12 +1103,20 @@ export default function TransactionsPage() {
                             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                               {transaction.amountType}
                             </td>
+                            {activeTab === 'outward' ? (
+                            <>
+                              <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                                {formatCurrency(transaction.bookingCommission || 0)}
+                              </td>
+                              <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                                {formatCurrency(transaction.centerCommission || 0)}
+                              </td>
+                            </>
+                          ) : (
                             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                               {formatCurrency(transaction.bookingCommission || 0)}
                             </td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
-                              {formatCurrency(transaction.centerCommission || 0)}
-                            </td>
+                          )}
                             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                               {transaction.receiverName}
                             </td>

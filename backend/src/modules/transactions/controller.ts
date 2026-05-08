@@ -71,8 +71,8 @@ export const createTransaction = async (req: Request, res: Response) => {
     // Generate unique transaction ID based on type (book_001 for outward, cut_001 for inward)
     const transactionId = await generateTransactionIdByType(type);
     
-    // Generate token number (daily reset)
-    const tokenNo = await generateTokenNumber(date);
+    // Generate token number (daily reset, separate for outward/inward)
+    const tokenNo = await generateTokenNumberByType(date, type);
 
     // Calculate commission if auto is enabled
     let calculatedCommission = commission || 0;
@@ -504,6 +504,8 @@ export const deleteTransaction = async (req: Request, res: Response) => {
 export const getNextTransactionIds = async (req: Request, res: Response) => {
   try {
     const { date, type } = req.query;
+    console.log('=== GET NEXT TRANSACTION IDS DEBUG ===');
+    console.log('Query params:', { date, type });
     
     // Generate next transaction ID for the specific type (outward/inward)
     const nextTransactionId = await generateTransactionIdByType(type as string || 'OUTWARD');
@@ -511,11 +513,14 @@ export const getNextTransactionIds = async (req: Request, res: Response) => {
     // Generate next token number for the given date and type
     const nextTokenNo = await generateTokenNumberByType(date as string || new Date().toISOString().split('T')[0], type as string || 'OUTWARD');
 
+    console.log('Generated IDs:', { nextTransactionId, nextTokenNo });
+
     res.json({
       nextTransactionId,
       nextTokenNo,
     });
   } catch (error) {
+    console.error('Error in getNextTransactionIds:', error);
     throw error;
   }
 };
@@ -654,47 +659,46 @@ async function generateTransactionIdByType(type: string): Promise<string> {
   }
 }
 
-// Helper function to generate token number (daily reset at 12:00 AM IST)
-async function generateTokenNumber(date: string): Promise<number> {
-  try {
-    const targetDate = new Date(date);
-    // Set time to start of day in IST (UTC+5:30)
-    targetDate.setHours(0, 0, 0, 0);
-    const nextDay = new Date(targetDate);
-    nextDay.setDate(nextDay.getDate() + 1);
-
-    // Get the last token number for the given date
-    const lastTransaction = await prisma.transaction.findFirst({
-      where: {
-        date: {
-          gte: targetDate,
-          lt: nextDay,
-        },
-      },
-      orderBy: { tokenNo: 'desc' },
-      select: { tokenNo: true },
-    });
-
-    return lastTransaction ? lastTransaction.tokenNo + 1 : 1;
-  } catch (error) {
-    // If there's an error, start from 1
-    return 1;
-  }
-}
 
 // Helper function to generate token number by type (separate for outward/inward, daily reset at 12:00 AM IST)
 async function generateTokenNumberByType(date: string, type: string): Promise<number> {
   try {
+    console.log('=== GENERATE TOKEN NUMBER BY TYPE DEBUG ===');
+    console.log('Input params:', { date, type });
+    
     const targetDate = new Date(date);
     // Set time to start of day in IST (UTC+5:30)
     targetDate.setHours(0, 0, 0, 0);
     const nextDay = new Date(targetDate);
     nextDay.setDate(nextDay.getDate() + 1);
 
+    console.log('Date range:', { targetDate, nextDay });
+
+    // First, let's see all transactions for this date and type
+    const allTransactions = await prisma.transaction.findMany({
+      where: {
+        date: {
+          gte: targetDate,
+          lt: nextDay,
+        },
+      },
+      select: { 
+        id: true,
+        transactionId: true,
+        tokenNo: true,
+        type: true,
+        date: true
+      },
+      orderBy: { tokenNo: 'asc' }
+    });
+
+    console.log('All transactions for date:', allTransactions);
+
     // Get the last token number for the given date and type
+    console.log('Querying for type:', type);
     const lastTransaction = await prisma.transaction.findFirst({
       where: {
-        type: type as TransactionType,
+        type: type, // Direct string comparison
         date: {
           gte: targetDate,
           lt: nextDay,
@@ -704,8 +708,14 @@ async function generateTokenNumberByType(date: string, type: string): Promise<nu
       select: { tokenNo: true },
     });
 
-    return lastTransaction ? lastTransaction.tokenNo + 1 : 1;
+    console.log('Last transaction found for type', type, ':', lastTransaction);
+
+    const nextTokenNo = lastTransaction ? lastTransaction.tokenNo + 1 : 1;
+    console.log('Next token number:', nextTokenNo);
+
+    return nextTokenNo;
   } catch (error) {
+    console.error('Error in generateTokenNumberByType:', error);
     // If there's an error, start from 1
     return 1;
   }

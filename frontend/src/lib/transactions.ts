@@ -15,6 +15,7 @@ export interface Transaction {
   commission: number;
   bookingCommission: number;
   centerCommission: number;
+  cuttingCommission?: number; // For inward transactions
   autoCommission: boolean;
   receiverName: string;
   receiverNumber?: string;

@@ -7,8 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ================== AUTH ==================
-
 model User {
   id                   String        @id @default(cuid())
   email                String        @unique
@@ -25,7 +23,6 @@ model User {
   branchId             String?
   createdAuditLogs     AuditLog[]
   createdLedgerEntries LedgerEntry[] @relation("LedgerCreator")
-  createdTransactions  Transaction[] @relation("TransactionCreator")
   userSessions         UserSession[]
   branch               Branch?       @relation(fields: [branchId], references: [id])
   role                 Role          @relation(fields: [roleId], references: [id])
@@ -42,7 +39,7 @@ model Role {
   id          String   @id @default(cuid())
   name        String   @unique
   description String?
-  permissions Json     // Store RBAC permissions as JSON
+  permissions Json
   isActive    Boolean  @default(true)
   isDeleted   Boolean  @default(false)
   createdAt   DateTime @default(now())
@@ -72,20 +69,17 @@ model UserSession {
   @@map("user_sessions")
 }
 
-// ================== MASTER ==================
-
 model City {
-  id               String        @id @default(cuid())
-  name             String
-  code             String        @unique
-  state            String?
-  address          String?       // Auto-generated: name + state
-  number           String?       // Contact number or null
-  isActive         Boolean       @default(true)
-  isDeleted        Boolean       @default(false)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  transactions     Transaction[] @relation("TransactionCenter")
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  state     String?
+  address   String?
+  number    String?
+  isActive  Boolean  @default(true)
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([code])
   @@index([name])
@@ -93,20 +87,18 @@ model City {
 }
 
 model Party {
-  id                   String        @id @default(cuid())
-  name                 String
-  phone                String?
-  email                String?
-  address              String?
-  city                 String?       // Client city - separate from cities table
-  panNumber            String?
-  gstNumber            String?
-  isActive             Boolean       @default(true)
-  isDeleted            Boolean       @default(false)
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
-  receivedTransactions Transaction[] @relation("ReceiverTransactions")
-  sentTransactions     Transaction[] @relation("SenderTransactions")
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  city      String?
+  panNumber String?
+  gstNumber String?
+  isActive  Boolean  @default(true)
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([name])
   @@index([city])
@@ -127,7 +119,6 @@ model Branch {
   updatedAt     DateTime       @updatedAt
   balanceSheets BalanceSheet[]
   ledgerEntries LedgerEntry[]
-  transactions  Transaction[]
   users         User[]
 
   @@index([code])
@@ -135,60 +126,45 @@ model Branch {
   @@map("branches")
 }
 
-// ================== TRANSACTIONS ==================
-
 model Transaction {
-  id                   String        @id @default(cuid())
-  transactionId        String        @unique // PM2_001, PM2_002...
-  tokenNo             Int           // Daily token number
-  date                 DateTime      // Transaction date
-  time                 DateTime      // Transaction time
-  centerId             String        // City/center reference
-  amount               Int           // Full amount only (no decimals)
-  amountType           String        // CASH or CREDIT
-  commission           Int           // Total commission
-  bookingCommission    Int           // 35% of commission
-  centerCommission     Int           // 65% of commission
-  autoCommission       Boolean       @default(true)
-  receiverName         String        // Receiver name (can be free text)
-  receiverNumber       String?       // Optional receiver number
-  senderName           String        // Sender name (can be free text)
-  senderNumber         String?       // Optional sender number
-  receiverClientId     String?       // If receiver is from client list
-  senderClientId       String?       // If sender is from client list
-  remark               String?       // Optional remark
-  status               Boolean       @default(true) // Active/Inactive
-  statusTime           DateTime      // Status timestamp
-  type                 String        // OUTWARD or INWARD
-  isActive             Boolean       @default(true)
-  isDeleted            Boolean       @default(false)
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
-  branchId             String?
-  createdBy            String
-  ledgerEntries        LedgerEntry[]
-  branch               Branch?       @relation(fields: [branchId], references: [id])
-  creator              User          @relation("TransactionCreator", fields: [createdBy], references: [id])
-  center               City          @relation("TransactionCenter", fields: [centerId], references: [id])
-  receiverClient       Party?        @relation("ReceiverTransactions", fields: [receiverClientId], references: [id])
-  senderClient         Party?        @relation("SenderTransactions", fields: [senderClientId], references: [id])
+  id                String   @id @default(cuid())
+  transactionId     String   @unique
+  tokenNo           Int?
+  date              DateTime
+  time              DateTime
+  centerId          String
+  amount            Int
+  amountType        String
+  commission        Int      @default(0)
+  bookingCommission Int      @default(0)
+  centerCommission  Int      @default(0)
+  autoCommission    Boolean  @default(true)
+  receiverName      String
+  receiverNumber    String?
+  senderName        String
+  senderNumber      String?
+  receiverClientId  String?
+  senderClientId    String?
+  remark            String?
+  status            Boolean  @default(true)
+  statusTime        DateTime
+  type              String   @default("OUTWARD")
+  isActive          Boolean  @default(true)
+  isDeleted         Boolean  @default(false)
+  branchId          String
+  createdBy         String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@index([transactionId])
   @@index([date])
-  @@index([tokenNo])
   @@index([centerId])
-  @@index([receiverClientId])
-  @@index([senderClientId])
-  @@index([type])
-  @@index([status])
-  @@index([branchId])
   @@index([createdBy])
-  @@index([createdAt])
   @@map("Transaction")
 }
 
 model LedgerEntry {
-  id            String       @id @default(cuid())
+  id            String   @id @default(cuid())
   date          DateTime
   accountId     String
   accountType   String
@@ -196,16 +172,15 @@ model LedgerEntry {
   debitAmount   Float?
   creditAmount  Float?
   balance       Float
-  isActive      Boolean      @default(true)
-  isDeleted     Boolean      @default(false)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  isActive      Boolean  @default(true)
+  isDeleted     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
   transactionId String?
   branchId      String?
   createdBy     String
-  branch        Branch?      @relation(fields: [branchId], references: [id])
-  creator       User         @relation("LedgerCreator", fields: [createdBy], references: [id])
-  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  branch        Branch?  @relation(fields: [branchId], references: [id])
+  creator       User     @relation("LedgerCreator", fields: [createdBy], references: [id])
 
   @@index([date])
   @@index([accountId])
@@ -236,8 +211,6 @@ model CommissionRate {
   @@index([createdAt])
   @@map("commission_rates")
 }
-
-// ================== REPORTING ==================
 
 model BalanceSheet {
   id               String   @id @default(cuid())

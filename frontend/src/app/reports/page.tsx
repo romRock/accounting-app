@@ -91,7 +91,7 @@ export default function ReportsPage() {
     setLoading(true);
     try {
       const response = await transactionApi.getTransactions({
-        type: 'OUTWARD',
+        type: activeReport === 'inward' ? 'INWARD' : 'OUTWARD',
         search: searchTerm,
         page: currentPage,
         limit: 100,
@@ -401,10 +401,13 @@ export default function ReportsPage() {
     return matchesSearch && matchesDate && matchesCenter && matchesAmountType;
   });
 
-  // Get columns based on report type (for outward transactions)
+  // Get columns based on report type (for outward and inward transactions)
   const getColumns = () => {
     if (activeReport === 'outward') {
       return ['TOKEN', 'DATE', 'TIME', 'CENTER', 'AMOUNT', 'AMOUNT TYPE', 'OUR COMM', 'RECEIVER NAME', 'SENDER NAME', 'REMARKS'];
+    }
+    if (activeReport === 'inward') {
+      return ['TOKEN', 'DATE', 'TIME', 'CENTER', 'AMOUNT', 'AMOUNT TYPE', 'CUTTING COMM', 'SENDER NAME', 'RECEIVER NAME', 'REMARKS'];
     }
     if (activeReport === 'amount-type') {
       return ['TOKEN', 'DATE', 'TIME', 'CENTER', 'AMOUNT', 'AMOUNT TYPE', 'OUR COMM', 'RECEIVER NAME', 'SENDER NAME', 'REMARKS'];
@@ -412,7 +415,7 @@ export default function ReportsPage() {
     return ['ID', 'Date', 'Time', 'Center', 'Amount', 'Type', 'Commission', 'Status'];
   };
 
-  // Get render cell function (for outward and amount-type transactions)
+  // Get render cell function (for outward, inward and amount-type transactions)
   const renderCell = (transaction: Transaction, column: string, index: number) => {
     switch (column) {
       case 'TOKEN':
@@ -435,6 +438,8 @@ export default function ReportsPage() {
       case 'AMOUNT TYPE':
         return transaction.amountType || '-';
       case 'OUR COMM':
+        return formatCurrency(transaction.bookingCommission || 0);
+      case 'CUTTING COMM':
         return formatCurrency(transaction.bookingCommission || 0);
       case 'RECEIVER NAME':
         return transaction.receiverName || '-';

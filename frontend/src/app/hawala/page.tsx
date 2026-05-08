@@ -19,9 +19,6 @@ interface HawalaEntry {
   partyA: string;
   partyB: string;
   amount: number;
-  commission: number;
-  commissionMode: 'auto' | 'manual';
-  status: 'pending' | 'completed';
   remark: string;
   createdAt: string;
   updatedAt: string;
@@ -55,9 +52,6 @@ const mockHawalaEntries: HawalaEntry[] = [
     partyA: 'ABC Trading',
     partyB: 'XYZ Corporation',
     amount: 50000,
-    commission: 500,
-    commissionMode: 'auto',
-    status: 'completed',
     remark: 'Monthly settlement',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -70,9 +64,6 @@ const mockHawalaEntries: HawalaEntry[] = [
     partyA: 'Global Exports',
     partyB: 'Local Business',
     amount: 25000,
-    commission: 250,
-    commissionMode: 'manual',
-    status: 'pending',
     remark: 'Pending verification',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -86,7 +77,6 @@ export default function HawalaPage() {
   const [selectedEntry, setSelectedEntry] = useState<HawalaEntry | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Form state
@@ -97,9 +87,6 @@ export default function HawalaPage() {
     partyA: '',
     partyB: '',
     amount: '',
-    commission: '',
-    commissionMode: 'auto' as 'auto' | 'manual',
-    status: 'pending' as 'pending' | 'completed',
     remark: '',
   });
 
@@ -127,11 +114,10 @@ export default function HawalaPage() {
         entry.transactionId.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesDate = dateFilter === '' || entry.date === dateFilter;
-      const matchesStatus = statusFilter === 'all' || entry.status === statusFilter;
 
-      return matchesSearch && matchesDate && matchesStatus;
+      return matchesSearch && matchesDate;
     });
-  }, [hawalaEntries, searchTerm, dateFilter, statusFilter]);
+  }, [hawalaEntries, searchTerm, dateFilter]);
 
   // Generate ledger effect
   const generateLedgerEffect = (entry: HawalaEntry): LedgerEffect[] => {
@@ -161,17 +147,17 @@ export default function HawalaPage() {
     });
 
     // Commission entry (if applicable)
-    if (entry.commission > 0) {
-      effects.push({
-        id: `commission_${entry.id}`,
-        hawalaId: entry.id,
-        party: 'System',
-        type: 'income',
-        amount: entry.commission,
-        description: `Commission income - ${entry.transactionId}`,
-        createdAt: timestamp,
-      });
-    }
+    // if (entry.commission > 0) {
+    //   effects.push({
+    //     id: `commission_${entry.id}`,
+    //     hawalaId: entry.id,
+    //     party: 'System',
+    //     type: 'income',
+    //     amount: entry.commission,
+    //     description: `Commission income - ${entry.transactionId}`,
+    //     createdAt: timestamp,
+    //   });
+    // }
 
     return effects;
   };
@@ -194,11 +180,11 @@ export default function HawalaPage() {
       return false;
     }
 
-    const commission = parseFloat(formData.commission);
-    if (formData.commission && (isNaN(commission) || commission < 0)) {
-      alert('Commission must be a positive number');
-      return false;
-    }
+    // const commission = parseFloat(formData.commission);
+    // if (formData.commission && (isNaN(commission) || commission < 0)) {
+    //   alert('Commission must be a positive number');
+    //   return false;
+    // }
 
     return true;
   };
@@ -215,9 +201,6 @@ export default function HawalaPage() {
       partyA: formData.partyA,
       partyB: formData.partyB,
       amount: parseFloat(formData.amount),
-      commission: parseFloat(formData.commission) || 0,
-      commissionMode: formData.commissionMode,
-      status: formData.status,
       remark: formData.remark,
       createdAt: editingId ? 
         hawalaEntries.find(e => e.id === editingId)?.createdAt || new Date().toISOString() :
@@ -256,9 +239,6 @@ export default function HawalaPage() {
       partyA: '',
       partyB: '',
       amount: '',
-      commission: '',
-      commissionMode: 'auto',
-      status: 'pending',
       remark: '',
     });
     setEditingId(null);
@@ -285,9 +265,6 @@ export default function HawalaPage() {
       partyA: entry.partyA,
       partyB: entry.partyB,
       amount: entry.amount.toString(),
-      commission: entry.commission.toString(),
-      commissionMode: entry.commissionMode,
-      status: entry.status,
       remark: entry.remark,
     });
   };
@@ -396,51 +373,6 @@ export default function HawalaPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="commission">Commission (Optional)</Label>
-                <Input
-                  id="commission"
-                  type="number"
-                  value={formData.commission}
-                  onChange={(e) => setFormData(prev => ({ ...prev, commission: e.target.value }))}
-                  className="bg-white border-gray-300 rounded-md font-bold text-black text-lg placeholder:text-gray-600"
-                  placeholder="0.00"
-                />
-              </div>
-              <div>
-                <Label htmlFor="commissionMode">Commission Mode</Label>
-                <Select
-                  value={formData.commissionMode}
-                  onValueChange={(value: 'auto' | 'manual') => setFormData(prev => ({ ...prev, commissionMode: value }))}
-                >
-                  <SelectTrigger className="bg-white border-gray-300 text-black">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="auto">Auto</SelectItem>
-                    <SelectItem value="manual">Manual</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Row 4: Status, Remark */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="status">Status</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(value: 'pending' | 'completed') => setFormData(prev => ({ ...prev, status: value }))}
-                >
-                  <SelectTrigger className="bg-white border-gray-300 text-black">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
                 <Label htmlFor="remark">Remark</Label>
                 <Input
                   id="remark"
@@ -503,21 +435,6 @@ export default function HawalaPage() {
                   className="bg-white border-gray-300 text-black placeholder:text-gray-600"
                 />
               </div>
-              <div>
-                <Select
-                  value={statusFilter}
-                  onValueChange={(value: 'all' | 'pending' | 'completed') => setStatusFilter(value)}
-                >
-                  <SelectTrigger className="bg-white border-gray-300 text-black">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -549,12 +466,6 @@ export default function HawalaPage() {
                     </th>
                     <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                       Amount
-                    </th>
-                    <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                      Commission
-                    </th>
-                    <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                      Status
                     </th>
                     <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                       Remark
@@ -594,18 +505,6 @@ export default function HawalaPage() {
                         </td>
                         <td className="border border-gray-200 px-4 py-3 text-sm font-medium text-gray-900">
                           {formatCurrency(entry.amount)}
-                        </td>
-                        <td className="border border-gray-200 px-4 py-3 text-sm text-gray-600">
-                          {formatCurrency(entry.commission)}
-                        </td>
-                        <td className="border border-gray-200 px-4 py-3 text-sm">
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            entry.status === 'completed' 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {entry.status}
-                          </span>
                         </td>
                         <td className="border border-gray-200 px-4 py-3 text-sm text-gray-600">
                           {entry.remark || '-'}

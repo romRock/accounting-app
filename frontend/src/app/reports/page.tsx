@@ -746,7 +746,7 @@ export default function ReportsPage() {
               </div>
             ) : filteredData.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-500">No data found. Try adjusting your filters.</p>
+                <p className="text-gray-500">No data found. Please try adjusting your filters.</p>
               </div>
             ) : (
               <div className="overflow-x-auto">

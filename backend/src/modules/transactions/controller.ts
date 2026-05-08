@@ -112,7 +112,7 @@ export const createTransaction = async (req: Request, res: Response) => {
         status: true,
         statusTime: new Date(),
         type: type as TransactionType,
-        branchId,
+        branchId: branchId,
         createdBy: userId!,
       },
       include: {
@@ -716,7 +716,7 @@ async function generateTokenNumberByType(date: string, type: string): Promise<nu
 
     console.log('Last transaction found for type', type, ':', lastTransaction);
 
-    const nextTokenNo = lastTransaction ? lastTransaction.tokenNo + 1 : 1;
+    const nextTokenNo = lastTransaction?.tokenNo ? lastTransaction.tokenNo + 1 : 1;
     console.log('Next token number:', nextTokenNo);
 
     return nextTokenNo;

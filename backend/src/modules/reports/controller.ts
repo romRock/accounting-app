@@ -246,9 +246,29 @@ export const getUserLedgerReport = async (req: Request, res: Response) => {
         include: {
           transaction: {
             include: {
-              center: true,
-              receiverClient: true,
-              senderClient: true,
+              center: {
+                select: {
+                  id: true,
+                  name: true,
+                  code: true,
+                },
+              },
+              receiverClient: {
+                select: {
+                  id: true,
+                  name: true,
+                  phone: true,
+                  city: true,
+                },
+              },
+              senderClient: {
+                select: {
+                  id: true,
+                  name: true,
+                  phone: true,
+                  city: true,
+                },
+              },
             },
           },
         },

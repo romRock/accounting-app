@@ -306,7 +306,13 @@ export const getTransactionById = async (req: Request, res: Response) => {
     const transaction = await prisma.transaction.findFirst({
       where,
       include: {
-        center: true,
+        center: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
         receiverClient: {
           select: {
             id: true,

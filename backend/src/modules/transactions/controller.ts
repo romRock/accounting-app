@@ -112,35 +112,8 @@ export const createTransaction = async (req: Request, res: Response) => {
         status: true,
         statusTime: new Date(),
         type: type as TransactionType,
-        branchId: branchId,
+        branchId: branchId as string,
         createdBy: userId!,
-      },
-      include: {
-        center: true,
-        receiverClient: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            city: true,
-          },
-        },
-        senderClient: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            city: true,
-          },
-        },
-        creator: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
       },
     });
 
@@ -234,39 +207,6 @@ export const getTransactions = async (req: Request, res: Response) => {
     // Get transactions with pagination
     const transactions = await prisma.transaction.findMany({
       where,
-      include: {
-        center: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-          },
-        },
-        receiverClient: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            city: true,
-          },
-        },
-        senderClient: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            city: true,
-          },
-        },
-        creator: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-      },
       orderBy: { date: 'desc' },
       skip: (Number(page) - 1) * Number(limit),
       take: Number(limit),
@@ -305,40 +245,6 @@ export const getTransactionById = async (req: Request, res: Response) => {
 
     const transaction = await prisma.transaction.findFirst({
       where,
-      include: {
-        center: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-          },
-        },
-        receiverClient: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            city: true,
-          },
-        },
-        senderClient: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            city: true,
-          },
-        },
-        creator: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-        ledgerEntries: true,
-      },
     });
 
     if (!transaction) {
@@ -412,33 +318,6 @@ export const updateTransaction = async (req: Request, res: Response) => {
         remark: remark || null,
         status: status !== undefined ? status : undefined,
         type: type as TransactionType,
-      },
-      include: {
-        center: true,
-        receiverClient: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            city: true,
-          },
-        },
-        senderClient: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            city: true,
-          },
-        },
-        creator: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
       },
     });
 

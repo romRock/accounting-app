@@ -50,18 +50,6 @@ export const getInwardReport = async (req: Request, res: Response) => {
     const [transactions, total] = await Promise.all([
       prisma.transaction.findMany({
         where,
-        include: {
-          center: true,
-          receiverClient: true,
-          senderClient: true,
-          creator: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-            },
-          },
-        },
         orderBy: { date: 'desc' },
         skip: (Number(page) - 1) * Number(limit),
         take: Number(limit),
@@ -140,18 +128,6 @@ export const getOutwardReport = async (req: Request, res: Response) => {
     const [transactions, total] = await Promise.all([
       prisma.transaction.findMany({
         where,
-        include: {
-          center: true,
-          receiverClient: true,
-          senderClient: true,
-          creator: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-            },
-          },
-        },
         orderBy: { date: 'desc' },
         skip: (Number(page) - 1) * Number(limit),
         take: Number(limit),
@@ -231,11 +207,6 @@ export const getUserLedgerReport = async (req: Request, res: Response) => {
           ...where,
           createdBy: userId as string,
         },
-        include: {
-          center: true,
-          receiverClient: true,
-          senderClient: true,
-        },
         orderBy: { date: 'desc' },
       }),
       prisma.ledgerEntry.findMany({
@@ -243,35 +214,7 @@ export const getUserLedgerReport = async (req: Request, res: Response) => {
           ...where,
           createdBy: userId as string,
         },
-        include: {
-          transaction: {
-            include: {
-              center: {
-                select: {
-                  id: true,
-                  name: true,
-                  code: true,
-                },
-              },
-              receiverClient: {
-                select: {
-                  id: true,
-                  name: true,
-                  phone: true,
-                  city: true,
-                },
-              },
-              senderClient: {
-                select: {
-                  id: true,
-                  name: true,
-                  phone: true,
-                  city: true,
-                },
-              },
-            },
-          },
-        },
+        include: {},
         orderBy: { date: 'desc' },
       }),
     ]);

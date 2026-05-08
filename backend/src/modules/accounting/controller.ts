@@ -46,35 +46,6 @@ export const createLedgerEntry = async (req: Request, res: Response) => {
         branchId,
         createdBy: userId!,
       },
-      include: {
-        transaction: {
-          include: {
-            center: {
-              select: {
-                id: true,
-                name: true,
-                code: true,
-              },
-            },
-            receiverClient: {
-              select: {
-                id: true,
-                name: true,
-                phone: true,
-                city: true,
-              },
-            },
-            senderClient: {
-              select: {
-                id: true,
-                name: true,
-                phone: true,
-                city: true,
-              },
-            },
-          },
-        },
-      },
     });
 
     res.status(201).json({
@@ -135,19 +106,11 @@ export const getLedgerEntries = async (req: Request, res: Response) => {
     const ledgerEntries = await prisma.ledgerEntry.findMany({
       where,
       include: {
-        transaction: {
-          include: {
-            center: true,
-            receiverClient: true,
-            senderClient: true,
-          },
-        },
         creator: {
           select: {
             id: true,
             firstName: true,
             lastName: true,
-            email: true,
           },
         },
       },
@@ -190,19 +153,11 @@ export const getLedgerEntryById = async (req: Request, res: Response) => {
     const ledgerEntry = await prisma.ledgerEntry.findFirst({
       where,
       include: {
-        transaction: {
-          include: {
-            center: true,
-            receiverClient: true,
-            senderClient: true,
-          },
-        },
         creator: {
           select: {
             id: true,
             firstName: true,
             lastName: true,
-            email: true,
           },
         },
       },
@@ -255,35 +210,6 @@ export const updateLedgerEntry = async (req: Request, res: Response) => {
         description,
         debitAmount: debitAmount ? Number(debitAmount) : undefined,
         creditAmount: creditAmount ? Number(creditAmount) : undefined,
-      },
-      include: {
-        transaction: {
-          include: {
-            center: {
-              select: {
-                id: true,
-                name: true,
-                code: true,
-              },
-            },
-            receiverClient: {
-              select: {
-                id: true,
-                name: true,
-                phone: true,
-                city: true,
-              },
-            },
-            senderClient: {
-              select: {
-                id: true,
-                name: true,
-                phone: true,
-                city: true,
-              },
-            },
-          },
-        },
       },
     });
 

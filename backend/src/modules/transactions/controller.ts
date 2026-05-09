@@ -112,6 +112,7 @@ export const createTransaction = async (req: Request, res: Response) => {
         status: true,
         statusTime: new Date(),
         type: type as TransactionType,
+        branchId: null, // Provide null value for optional branchId
         createdBy: userId!,
       },
     });
@@ -208,8 +209,21 @@ export const getTransactions = async (req: Request, res: Response) => {
       take: Number(limit),
     });
 
+    // Get center details for all transactions
+    const centerIds = [...new Set(transactions.map((t: any) => t.centerId).filter((id: any): id is string => id !== null))];
+    const centers = await (prisma as any).city.findMany({
+      where: { id: { in: centerIds } },
+      select: { id: true, name: true, code: true }
+    });
+
+    // Attach center details to transactions
+    const transactionsWithCenters = transactions.map((transaction: any) => ({
+      ...transaction,
+      center: centers.find((c: any) => c.id === transaction.centerId) || { id: transaction.centerId, name: 'Unknown', code: 'Unknown' }
+    }));
+
     res.json({
-      transactions,
+      transactions: transactionsWithCenters,
       pagination: {
         page: Number(page),
         limit: Number(limit),

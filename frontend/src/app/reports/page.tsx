@@ -45,6 +45,8 @@ interface ReportSummary {
   totalRecords: number;
   totalAmount: number;
   totalCommission: number;
+  outwardTotal?: number;
+  inwardTotal?: number;
   [key: string]: any;
 }
 
@@ -90,17 +92,49 @@ export default function ReportsPage() {
   const fetchTransactions = async () => {
     setLoading(true);
     try {
-      const response = await transactionApi.getTransactions({
-        type: activeReport === 'inward' ? 'INWARD' : 'OUTWARD',
-        search: searchTerm,
-        page: currentPage,
-        limit: 100,
-        ...(activeReport === 'amount-type' && filters.amountType && filters.amountType.trim() && { amountType: filters.amountType })
-      });
+      let response;
       
-      setReportData(response.transactions);
-      
-      setReportData(response.transactions);
+      if (activeReport === 'combo') {
+        // Fetch both inward and outward transactions for combo report
+        const [inwardResponse, outwardResponse] = await Promise.all([
+          transactionApi.getTransactions({
+            type: 'INWARD',
+            page: currentPage,
+            limit: 100,
+          }),
+          transactionApi.getTransactions({
+            type: 'OUTWARD',
+            page: currentPage,
+            limit: 100,
+          })
+        ]);
+        
+        // Combine both transaction types and sort by time
+        const allTransactions = [...inwardResponse.transactions, ...outwardResponse.transactions]
+          .sort((a, b) => {
+            // Sort by date first, then by time
+            const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime();
+            if (dateCompare !== 0) return dateCompare;
+            
+            // If same date, sort by time
+            const timeA = a.time ? new Date(a.time).getTime() : 0;
+            const timeB = b.time ? new Date(b.time).getTime() : 0;
+            return timeA - timeB;
+          });
+        
+        setReportData(allTransactions);
+      } else {
+        // Fetch regular transaction data for other reports
+        response = await transactionApi.getTransactions({
+          type: activeReport === 'inward' ? 'INWARD' : 'OUTWARD',
+          search: searchTerm,
+          page: currentPage,
+          limit: 100,
+          ...(activeReport === 'amount-type' && filters.amountType && filters.amountType.trim() && { amountType: filters.amountType })
+        });
+        
+        setReportData(response.transactions);
+      }
       
       // Calculate summary will be done in filteredData useEffect
     } catch (error) {
@@ -140,14 +174,40 @@ export default function ReportsPage() {
                 return '-';
               case 'CENTER':
                 return transaction.center?.name || transaction.centerId || '-';
+              case 'OUTWARD AMOUNT':
+                // Show amount only for outward transactions, empty for inward
+                if (transaction.type === 'OUTWARD') {
+                  const totalAmount = transaction.amount + (transaction.centerCommission || 0);
+                  return totalAmount.toString();
+                }
+                return '';
+              case 'INWARD AMOUNT':
+                // Show amount only for inward transactions, empty for outward
+                if (transaction.type === 'INWARD') {
+                  return transaction.amount.toString();
+                }
+                return '';
               case 'AMOUNT':
-                // Combine amount + center commission (without currency symbol)
+                // For inward reports, show only amount without center commission
+                if (activeReport === 'inward') {
+                  return transaction.amount.toString();
+                }
+                // For outward and amount-type reports, show amount + center commission
                 const totalAmount = transaction.amount + (transaction.centerCommission || 0);
                 return totalAmount.toString();
               case 'AMOUNT TYPE':
                 return transaction.amountType || '-';
               case 'OUR COMM':
                 return (transaction.bookingCommission || 0).toString();
+              case 'CUTTING COMM':
+                // For inward reports, show cutting commission
+                if (activeReport === 'inward') {
+                  return (transaction.bookingCommission || 0).toString();
+                }
+                // For outward and amount-type reports, show our commission
+                return (transaction.bookingCommission || 0).toString();
+              case 'TRANSACTION TYPE':
+                return transaction.type || 'OUTWARD';
               case 'RECEIVER NAME':
                 return transaction.receiverName || '-';
               case 'SENDER NAME':
@@ -366,6 +426,25 @@ export default function ReportsPage() {
 
   // Filter data based on search and filters (matching transaction page logic)
   const filteredData = reportData.filter(transaction => {
+    // For combo report, only filter by date, no search/filter by customer names
+    if (activeReport === 'combo') {
+      // Apply date filters (matching transaction page logic)
+      const transactionDateString = new Date(transaction.date).toISOString().split('T')[0];
+      const today = new Date();
+      const todayString = today.getFullYear() + '-' + 
+        String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+        String(today.getDate()).padStart(2, '0');
+      
+      const matchesDate = !filterByDate ? 
+        transactionDateString === todayString : 
+        (isSelectingRange && startDate && endDate ? 
+          transactionDateString >= startDate && transactionDateString <= endDate :
+          dateFilter && transactionDateString === dateFilter);
+      
+      return matchesDate;
+    }
+    
+    // For other reports, use existing filtering logic
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = searchTerm === '' || 
       transaction.receiverName?.toLowerCase().includes(searchLower) ||
@@ -403,6 +482,9 @@ export default function ReportsPage() {
 
   // Get columns based on report type (for outward and inward transactions)
   const getColumns = () => {
+    if (activeReport === 'combo') {
+      return ['TRANSACTION TYPE', 'TOKEN', 'DATE', 'TIME', 'CENTER', 'OUTWARD AMOUNT', 'INWARD AMOUNT'];
+    }
     if (activeReport === 'outward') {
       return ['TOKEN', 'DATE', 'TIME', 'CENTER', 'AMOUNT', 'AMOUNT TYPE', 'OUR COMM', 'RECEIVER NAME', 'SENDER NAME', 'REMARKS'];
     }
@@ -418,6 +500,9 @@ export default function ReportsPage() {
   // Get render cell function (for outward, inward and amount-type transactions)
   const renderCell = (transaction: Transaction, column: string, index: number) => {
     switch (column) {
+      case 'TRANSACTION TYPE':
+        const transactionType = transaction.type || 'OUTWARD';
+        return transactionType;
       case 'TOKEN':
         return transaction.tokenNo?.toString() || (index + 1).toString();
       case 'DATE':
@@ -431,12 +516,31 @@ export default function ReportsPage() {
         return '-';
       case 'CENTER':
         return transaction.center?.name || transaction.centerId || '-';
+      case 'OUTWARD AMOUNT':
+        // Show amount only for outward transactions, empty for inward
+        if (transaction.type === 'OUTWARD') {
+          const totalAmount = transaction.amount + (transaction.centerCommission || 0);
+          return formatCurrency(totalAmount);
+        }
+        return '-';
+      case 'INWARD AMOUNT':
+        // Show amount only for inward transactions, empty for outward
+        if (transaction.type === 'INWARD') {
+          return formatCurrency(transaction.amount);
+        }
+        return '-';
       case 'AMOUNT':
-        // Combine amount + center commission
+        // For inward reports, show only amount without center commission
+        if (activeReport === 'inward') {
+          return transaction.amount.toString();
+        }
+        // For outward and amount-type reports, show amount + center commission
         const totalAmount = transaction.amount + (transaction.centerCommission || 0);
         return formatCurrency(totalAmount);
       case 'AMOUNT TYPE':
         return transaction.amountType || '-';
+      case 'COMMISSION':
+        return formatCurrency(transaction.commission || 0);
       case 'OUR COMM':
         return formatCurrency(transaction.bookingCommission || 0);
       case 'CUTTING COMM':
@@ -484,14 +588,36 @@ export default function ReportsPage() {
   // Calculate summary based on filtered data
   useEffect(() => {
     if (reportData.length > 0) {
-      const summary: ReportSummary = {
-        totalRecords: filteredData.length,
-        totalAmount: filteredData.reduce((sum, item) => sum + (item.amount || 0) + (item.centerCommission || 0), 0),
-        totalCommission: filteredData.reduce((sum, item) => sum + (item.bookingCommission || 0), 0),
-      };
+      let summary: ReportSummary;
+      
+      if (activeReport === 'combo') {
+        // Calculate separate totals for outward and inward amounts
+        const outwardTotal = filteredData
+          .filter(item => item.type === 'OUTWARD')
+          .reduce((sum, item) => sum + (item.amount || 0) + (item.centerCommission || 0), 0);
+        
+        const inwardTotal = filteredData
+          .filter(item => item.type === 'INWARD')
+          .reduce((sum, item) => sum + (item.amount || 0), 0);
+
+        summary = {
+          totalRecords: filteredData.length,
+          totalAmount: outwardTotal + inwardTotal,
+          totalCommission: 0,
+          outwardTotal,
+          inwardTotal,
+        };
+      } else {
+        summary = {
+          totalRecords: filteredData.length,
+          totalAmount: filteredData.reduce((sum, item) => sum + (item.amount || 0) + (item.centerCommission || 0), 0),
+          totalCommission: filteredData.reduce((sum, item) => sum + (item.bookingCommission || 0), 0),
+        };
+      }
+      
       setSummary(summary);
     }
-  }, [reportData, searchTerm, filterByDate, dateFilter, startDate, endDate, isSelectingRange, filters.center, filters.amountType]);
+  }, [reportData, searchTerm, filterByDate, dateFilter, startDate, endDate, isSelectingRange, filters.center, filters.amountType, activeReport]);
 
   if (!isAuthenticated) {
     return null;
@@ -645,8 +771,8 @@ export default function ReportsPage() {
                   </select>
                 </div>
               )}
-
-                          </div>
+              
+            </div>
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 space-y-2 sm:space-y-0 mt-6">
@@ -701,14 +827,29 @@ export default function ReportsPage() {
                   <div className="text-sm font-medium text-gray-600">Total Records</div>
                   <div className="text-2xl font-bold text-gray-900 mt-1">{summary.totalRecords}</div>
                 </div>
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <div className="text-sm font-medium text-gray-600">Total Amount</div>
-                  <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.totalAmount)}</div>
-                </div>
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <div className="text-sm font-medium text-gray-600">Total Commission</div>
-                  <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.totalCommission)}</div>
-                </div>
+                {activeReport === 'combo' ? (
+                  <>
+                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                      <div className="text-sm font-medium text-gray-600">Outward Total</div>
+                      <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.outwardTotal || 0)}</div>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                      <div className="text-sm font-medium text-gray-600">Inward Total</div>
+                      <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.inwardTotal || 0)}</div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                      <div className="text-sm font-medium text-gray-600">Total Amount</div>
+                      <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.totalAmount)}</div>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                      <div className="text-sm font-medium text-gray-600">Total Commission</div>
+                      <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.totalCommission)}</div>
+                    </div>
+                  </>
+                )}
                               </div>
             </CardContent>
           </Card>
@@ -727,15 +868,17 @@ export default function ReportsPage() {
                 </CardDescription>
               </div>
               
-              {/* Search Input */}
-              <div className="hidden sm:block">
-                <Input
-                  placeholder="Search transactions..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="bg-white w-48 lg:w-64 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
-                />
-              </div>
+              {/* Search Input - Hidden for combo report */}
+              {activeReport !== 'combo' && (
+                <div className="hidden sm:block">
+                  <Input
+                    placeholder="Search transactions..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="bg-white w-48 lg:w-64 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                  />
+                </div>
+              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -766,14 +909,27 @@ export default function ReportsPage() {
                   <tbody className="divide-y divide-gray-200">
                     {filteredData.map((transaction, rowIndex) => (
                       <tr key={rowIndex} className="hover:bg-gray-50">
-                        {getColumns().map((column, colIndex) => (
-                          <td
-                            key={colIndex}
-                            className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200 last:border-r-0"
-                          >
-                            {renderCell(transaction, column, rowIndex)}
-                          </td>
-                        ))}
+                        {getColumns().map((column, colIndex) => {
+                          const cellValue = renderCell(transaction, column, rowIndex);
+                          return (
+                            <td
+                              key={colIndex}
+                              className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200 last:border-r-0"
+                            >
+                              {column === 'TRANSACTION TYPE' && activeReport === 'combo' ? (
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                  cellValue === 'OUTWARD' 
+                                    ? 'bg-green-100 text-green-800' 
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {cellValue}
+                                </span>
+                              ) : (
+                                cellValue
+                              )}
+                            </td>
+                          );
+                        })}
                       </tr>
                     ))}
                   </tbody>

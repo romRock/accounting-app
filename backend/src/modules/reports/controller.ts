@@ -2,13 +2,13 @@ import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { createError } from '../../middlewares/errorHandler';
 
+const prisma = new PrismaClient();
+
 // Define TransactionType enum locally since Prisma exports are not available
 const TransactionType = {
   INWARD: 'INWARD',
   OUTWARD: 'OUTWARD',
 } as const;
-
-const prisma = new PrismaClient();
 
 export const getInwardReport = async (req: Request, res: Response) => {
   try {
@@ -56,6 +56,19 @@ export const getInwardReport = async (req: Request, res: Response) => {
       prisma.transaction.count({ where }),
     ]);
 
+    // Get center details for all transactions
+    const centerIds = [...new Set(transactions.map((t: any) => t.centerId).filter((id: any): id is string => id !== null))];
+    const centers = await (prisma as any).city.findMany({
+      where: { id: { in: centerIds } },
+      select: { id: true, name: true, code: true }
+    });
+
+    // Attach center details to transactions
+    const transactionsWithCenters = transactions.map((transaction: any) => ({
+      ...transaction,
+      center: centers.find((c: any) => c.id === transaction.centerId) || { id: transaction.centerId, name: 'Unknown', code: 'Unknown' }
+    }));
+
     // Calculate summary
     const summary = await prisma.transaction.aggregate({
       where,
@@ -69,7 +82,7 @@ export const getInwardReport = async (req: Request, res: Response) => {
     });
 
     res.json({
-      transactions,
+      transactions: transactionsWithCenters,
       summary: {
         totalTransactions: summary._count.id || 0,
         totalAmount: summary._sum.amount || 0,
@@ -133,6 +146,19 @@ export const getOutwardReport = async (req: Request, res: Response) => {
       prisma.transaction.count({ where }),
     ]);
 
+    // Get center details for all transactions
+    const centerIds = [...new Set(transactions.map((t: any) => t.centerId).filter((id: any): id is string => id !== null))];
+    const centers = await (prisma as any).city.findMany({
+      where: { id: { in: centerIds } },
+      select: { id: true, name: true, code: true }
+    });
+
+    // Attach center details to transactions
+    const transactionsWithCenters = transactions.map((transaction: any) => ({
+      ...transaction,
+      center: centers.find((c: any) => c.id === transaction.centerId) || { id: transaction.centerId, name: 'Unknown', code: 'Unknown' }
+    }));
+
     // Calculate summary
     const summary = await prisma.transaction.aggregate({
       where,
@@ -146,7 +172,7 @@ export const getOutwardReport = async (req: Request, res: Response) => {
     });
 
     res.json({
-      transactions,
+      transactions: transactionsWithCenters,
       summary: {
         totalTransactions: summary._count.id || 0,
         totalAmount: summary._sum.amount || 0,
@@ -216,6 +242,19 @@ export const getUserLedgerReport = async (req: Request, res: Response) => {
       }),
     ]);
 
+    // Get center details for all transactions
+    const centerIds = [...new Set(transactions.map((t: any) => t.centerId).filter((id: any): id is string => id !== null))];
+    const centers = await (prisma as any).city.findMany({
+      where: { id: { in: centerIds } },
+      select: { id: true, name: true, code: true }
+    });
+
+    // Attach center details to transactions
+    const transactionsWithCenters = transactions.map((transaction: any) => ({
+      ...transaction,
+      center: centers.find((c: any) => c.id === transaction.centerId) || { id: transaction.centerId, name: 'Unknown', code: 'Unknown' }
+    }));
+
     // Calculate summary
     const transactionSummary = await prisma.transaction.aggregate({
       where: {
@@ -246,7 +285,7 @@ export const getUserLedgerReport = async (req: Request, res: Response) => {
     });
 
     res.json({
-      transactions,
+      transactions: transactionsWithCenters,
       ledgerEntries,
       summary: {
         transactions: {
@@ -254,7 +293,7 @@ export const getUserLedgerReport = async (req: Request, res: Response) => {
           totalAmount: transactionSummary._sum.amount || 0,
           totalCommission: transactionSummary._sum.commission || 0,
         },
-        ledger: {
+        ledgerEntries: {
           totalEntries: ledgerSummary._count.id || 0,
           totalDebits: ledgerSummary._sum.debitAmount || 0,
           totalCredits: ledgerSummary._sum.creditAmount || 0,

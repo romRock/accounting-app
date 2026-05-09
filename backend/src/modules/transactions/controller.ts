@@ -112,7 +112,6 @@ export const createTransaction = async (req: Request, res: Response) => {
         status: true,
         statusTime: new Date(),
         type: type as TransactionType,
-        branchId: branchId as string,
         createdBy: userId!,
       },
     });
@@ -174,10 +173,7 @@ export const getTransactions = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    // Apply role-based filtering only if user is authenticated
-    if (req.user && userRole !== 'Super Admin' && userRole !== 'Admin') {
-      where.branchId = userBranchId;
-    }
+    // No branch-based filtering needed - using centers only
 
     if (type) where.type = type as TransactionType;
     if (status !== undefined) where.status = status === 'true';
@@ -238,10 +234,7 @@ export const getTransactionById = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    // Apply role-based filtering
-    if (userRole !== 'Super Admin' && userRole !== 'Admin') {
-      where.branchId = userBranchId;
-    }
+    // No branch-based filtering needed - using centers only
 
     const transaction = await prisma.transaction.findFirst({
       where,
@@ -421,10 +414,7 @@ export const getTransactionStats = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    // Apply role-based filtering
-    if (userRole !== 'Super Admin' && userRole !== 'Admin') {
-      where.branchId = userBranchId;
-    }
+    // No branch-based filtering needed - using centers only
 
     if (dateFrom || dateTo) {
       where.date = {};

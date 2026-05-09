@@ -23,7 +23,6 @@ export const getInwardReport = async (req: Request, res: Response) => {
     } = req.query;
 
     const userRole = req.user?.role.name;
-    const userBranchId = req.user?.branchId;
 
     const where: any = {
       type: TransactionType.INWARD,
@@ -33,7 +32,7 @@ export const getInwardReport = async (req: Request, res: Response) => {
 
     // Apply role-based filtering
     if (userRole !== 'Super Admin' && userRole !== 'Admin') {
-      where.branchId = userBranchId;
+      // No branch-based filtering - using centers only
     }
 
     if (dateFrom || dateTo) {
@@ -101,7 +100,6 @@ export const getOutwardReport = async (req: Request, res: Response) => {
     } = req.query;
 
     const userRole = req.user?.role.name;
-    const userBranchId = req.user?.branchId;
 
     const where: any = {
       type: TransactionType.OUTWARD,
@@ -111,7 +109,7 @@ export const getOutwardReport = async (req: Request, res: Response) => {
 
     // Apply role-based filtering
     if (userRole !== 'Super Admin' && userRole !== 'Admin') {
-      where.branchId = userBranchId;
+      // No branch-based filtering - using centers only
     }
 
     if (dateFrom || dateTo) {
@@ -177,7 +175,6 @@ export const getUserLedgerReport = async (req: Request, res: Response) => {
     } = req.query;
 
     const userRole = req.user?.role.name;
-    const userBranchId = req.user?.branchId;
 
     const where: any = {
       isActive: true,
@@ -186,7 +183,7 @@ export const getUserLedgerReport = async (req: Request, res: Response) => {
 
     // Apply role-based filtering
     if (userRole !== 'Super Admin' && userRole !== 'Admin') {
-      where.branchId = userBranchId;
+      // No branch-based filtering - using centers only
     }
 
     if (dateFrom || dateTo) {
@@ -287,8 +284,6 @@ export const getBranchPerformanceReport = async (req: Request, res: Response) =>
     // Apply role-based filtering
     if (userRole !== 'Super Admin' && userRole !== 'Admin') {
       where.branchId = req.user?.branchId;
-    } else if (branchId) {
-      where.branchId = branchId as string;
     }
 
     if (dateFrom || dateTo) {
@@ -303,7 +298,6 @@ export const getBranchPerformanceReport = async (req: Request, res: Response) =>
       where,
       _sum: {
         amount: true,
-        commission: true,
       },
       _count: {
         id: true,
@@ -329,19 +323,19 @@ export const getBranchPerformanceReport = async (req: Request, res: Response) =>
         branchCode: branch?.code || 'Unknown',
         totalTransactions: perf._count.id || 0,
         totalAmount: perf._sum.amount || 0,
-        totalCommission: perf._sum.commission || 0,
       };
     });
 
-    // Calculate overall totals
-    const overallTotals = performanceReport.reduce(
-      (acc: any, curr: any) => ({
-        totalTransactions: acc.totalTransactions + curr.totalTransactions,
-        totalAmount: Number(acc.totalAmount) + Number(curr.totalAmount),
-        totalCommission: Number(acc.totalCommission) + Number(curr.totalCommission),
-      }),
-      { totalTransactions: 0, totalAmount: 0, totalCommission: 0 }
-    );
+    const overallTotals = await prisma.transaction.aggregate({
+      where,
+      _sum: {
+        amount: true,
+        commission: true,
+      },
+      _count: {
+        id: true,
+      },
+    });
 
     res.json({
       branchPerformance: performanceReport,
@@ -361,7 +355,6 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
     } = req.query;
 
     const userRole = req.user?.role.name;
-    const userBranchId = req.user?.branchId;
 
     const where: any = {
       isActive: true,
@@ -370,7 +363,7 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
 
     // Apply role-based filtering
     if (userRole !== 'Super Admin' && userRole !== 'Admin') {
-      where.branchId = userBranchId;
+      // No branch-based filtering - using centers only
     }
 
     if (dateFrom || dateTo) {

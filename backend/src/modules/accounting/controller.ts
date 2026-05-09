@@ -17,7 +17,6 @@ export const createLedgerEntry = async (req: Request, res: Response) => {
     } = req.body;
 
     const userId = req.user?.id;
-    const branchId = req.user?.branchId;
 
     // Calculate running balance
     const lastEntry = await prisma.ledgerEntry.findFirst({
@@ -43,7 +42,6 @@ export const createLedgerEntry = async (req: Request, res: Response) => {
         creditAmount: creditAmount ? Number(creditAmount) : null,
         balance: newBalance,
         transactionId,
-        branchId,
         createdBy: userId!,
       },
     });
@@ -80,7 +78,7 @@ export const getLedgerEntries = async (req: Request, res: Response) => {
 
     // Apply role-based filtering
     if (userRole !== 'Super Admin' && userRole !== 'Admin') {
-      where.branchId = userBranchId;
+      // No branch-based filtering - using centers only
     }
 
     if (accountId) where.accountId = accountId as string;
@@ -147,7 +145,7 @@ export const getLedgerEntryById = async (req: Request, res: Response) => {
 
     // Apply role-based filtering
     if (userRole !== 'Super Admin' && userRole !== 'Admin') {
-      where.branchId = userBranchId;
+      // No branch-based filtering - using centers only
     }
 
     const ledgerEntry = await prisma.ledgerEntry.findFirst({
@@ -295,7 +293,7 @@ export const getAccountBalance = async (req: Request, res: Response) => {
 
     // Apply role-based filtering
     if (userRole !== 'Super Admin' && userRole !== 'Admin') {
-      where.branchId = userBranchId;
+      // No branch-based filtering - using centers only
     }
 
     if (accountId) where.accountId = accountId as string;
@@ -349,7 +347,7 @@ export const getTrialBalance = async (req: Request, res: Response) => {
 
     // Apply role-based filtering
     if (userRole !== 'Super Admin' && userRole !== 'Admin') {
-      where.branchId = userBranchId;
+      // No branch-based filtering - using centers only
     }
 
     if (dateFrom || dateTo) {

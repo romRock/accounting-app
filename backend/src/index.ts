@@ -88,6 +88,53 @@ async function initializeDatabase() {
       console.log('✅ Admin user already exists');
     }
     
+    // Check and create Hawala table if needed
+    console.log('🔍 Checking Hawala table...');
+    try {
+      await prisma.hawala.findFirst();
+      console.log('✅ Hawala table already exists');
+    } catch (error: any) {
+      if (error.message?.includes('does not exist')) {
+        console.log('🗄️ Creating Hawala table...');
+        
+        // Create Hawala table using raw SQL
+        await prisma.$executeRaw`
+          CREATE TABLE "Hawala" (
+            "id" TEXT NOT NULL,
+            "transactionId" TEXT NOT NULL,
+            "tokenNo" INTEGER,
+            "date" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "time" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "partyA" TEXT NOT NULL,
+            "partyB" TEXT NOT NULL,
+            "amount" INTEGER NOT NULL,
+            "remark" TEXT,
+            "status" BOOLEAN NOT NULL DEFAULT true,
+            "statusTime" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "isActive" BOOLEAN NOT NULL DEFAULT true,
+            "isDeleted" BOOLEAN NOT NULL DEFAULT false,
+            "branchId" TEXT,
+            "createdBy" TEXT NOT NULL,
+            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMP(3) NOT NULL,
+            CONSTRAINT "Hawala_pkey" PRIMARY KEY ("id"),
+            CONSTRAINT "Hawala_transactionId_key" UNIQUE ("transactionId")
+          );
+        `;
+        
+        // Create indexes
+        await prisma.$executeRaw`CREATE INDEX "Hawala_transactionId_idx" ON "Hawala"("transactionId");`;
+        await prisma.$executeRaw`CREATE INDEX "Hawala_date_idx" ON "Hawala"("date");`;
+        await prisma.$executeRaw`CREATE INDEX "Hawala_partyA_idx" ON "Hawala"("partyA");`;
+        await prisma.$executeRaw`CREATE INDEX "Hawala_partyB_idx" ON "Hawala"("partyB");`;
+        await prisma.$executeRaw`CREATE INDEX "Hawala_createdBy_idx" ON "Hawala"("createdBy");`;
+        
+        console.log('✅ Hawala table created successfully');
+      } else {
+        console.log('❌ Error checking Hawala table:', error.message);
+      }
+    }
+    
     console.log('🚀 Database initialization complete');
     
   } catch (error: any) {

@@ -138,6 +138,9 @@ export const createHawala = async (req: Request, res: Response) => {
 // Get all hawala entries
 export const getHawalaEntries = async (req: Request, res: Response) => {
   try {
+    console.log('🔍 HAWALA API DEBUG: getHawalaEntries called');
+    console.log('🔍 HAWALA API DEBUG: Query params:', req.query);
+    
     const { page = 1, limit = 100, search, dateFrom, dateTo, partyA, partyB } = req.query;
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -147,6 +150,8 @@ export const getHawalaEntries = async (req: Request, res: Response) => {
       isActive: true,
       isDeleted: false
     };
+
+    console.log('🔍 HAWALA API DEBUG: About to query hawala table...');
 
     // Add search filter
     if (search) {
@@ -183,6 +188,9 @@ export const getHawalaEntries = async (req: Request, res: Response) => {
       prisma.hawala.count({ where })
     ]);
 
+    console.log('🔍 HAWALA API DEBUG: Query successful, found entries:', hawalaEntries.length);
+    console.log('🔍 HAWALA API DEBUG: Total count:', total);
+
     res.status(200).json({
       success: true,
       message: 'Hawala entries retrieved successfully',
@@ -195,7 +203,12 @@ export const getHawalaEntries = async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Error getting hawala entries:', error);
+    console.error('❌ HAWALA API DEBUG: Error getting hawala entries:', error);
+    console.error('❌ HAWALA API DEBUG: Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      code: (error as any).code,
+      meta: (error as any).meta
+    });
     res.status(500).json({
       success: false,
       message: 'Failed to retrieve hawala entries',

@@ -4,21 +4,21 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Input } from './input';
 import { Label } from './label';
 
-interface Client {
+export interface Client {
   id: string;
   name: string;
-  mobileNumber: string;
-  city: string;
+  mobileNumber?: string;
+  city?: string;
   notes?: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface ClientTypeaheadProps {
   id: string;
   label: string;
   value: string;
-  onChange: (value: string, client?: Client) => void;
+  onChange: (value: string, client?: Client | undefined) => void;
   placeholder?: string;
   disabled?: boolean;
   className?: string;
@@ -105,12 +105,14 @@ export function ClientTypeahead({
   };
 
   // Handle client selection
-  const handleClientSelect = (client: Client) => {
-    setSearchTerm(client.name);
-    onChange(client.name, client);
-    setIsOpen(false);
-    setSelectedIndex(-1);
-    inputRef.current?.blur();
+  const handleClientSelect = (client: Client | undefined) => {
+    if (client) {
+      setSearchTerm(client.name);
+      onChange(client.name, client);
+      setIsOpen(false);
+      setSelectedIndex(-1);
+      inputRef.current?.blur();
+    }
   };
 
   // Handle keyboard navigation

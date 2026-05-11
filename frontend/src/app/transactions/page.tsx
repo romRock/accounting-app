@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CityTypeahead } from '@/components/ui/typeahead';
-import { ClientTypeahead } from '@/components/ui/client-typeahead';
+import { ClientTypeahead, Client } from '@/components/ui/client-typeahead';
 import { useAuthStore } from '@/store/index';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { transactionApi, Transaction } from '@/lib/transactions';
@@ -53,11 +53,11 @@ interface Center {
 interface ClientData {
   id: string;
   name: string;
-  mobileNumber: string;
-  city: string;
+  mobileNumber?: string;
+  city?: string;
   notes?: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export default function TransactionsPage() {
@@ -709,7 +709,7 @@ export default function TransactionsPage() {
                       id="receiverName"
                       label="Receiver Name"
                       value={watch('receiverName') || ''}
-                      onChange={(value: string, client?: ClientData) => {
+                      onChange={(value: string, client?: Client) => {
                         console.log('ReceiverTypeahead onChange - value:', value, 'client:', client);
                         setValue('receiverName', value);
                         if (client && client.mobileNumber) {
@@ -738,7 +738,7 @@ export default function TransactionsPage() {
                       id="senderName"
                       label="Sender Name"
                       value={watch('senderName') || ''}
-                      onChange={(value: string, client?: ClientData) => {
+                      onChange={(value: string, client?: Client) => {
                         console.log('SenderTypeahead onChange - value:', value, 'client:', client);
                         setValue('senderName', value);
                         if (client && client.mobileNumber) {

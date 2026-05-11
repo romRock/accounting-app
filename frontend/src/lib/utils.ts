@@ -34,6 +34,16 @@ export function formatDateTime(date: string | Date): string {
   }).format(d);
 }
 
+export function formatTime(time: string | Date): string {
+  const d = typeof time === 'string' ? new Date(time) : time;
+  return new Intl.DateTimeFormat('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Kolkata'
+  }).format(d);
+}
+
 export function generateId(): string {
   return Math.random().toString(36).substr(2, 9);
 }

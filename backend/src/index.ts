@@ -11,6 +11,7 @@ import transactionRoutes from './modules/transactions/routes';
 import accountingRoutes from './modules/accounting/routes';
 import reportsRoutes from './modules/reports/routes';
 import masterRoutes from './modules/master/routes';
+import hawalaRoutes from './modules/hawala/routes';
 import { authenticateToken, requireRole } from './modules/auth/middleware';
 import { requireAdmin } from './middlewares/rbac';
 import { errorHandler } from './middlewares/errorHandler';
@@ -1588,6 +1589,7 @@ app.get('/api/clients', async (req, res) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api/hawala', hawalaRoutes);
 app.use('/api/accounting', authenticateToken, accountingRoutes);
 app.use('/api/reports', authenticateToken, reportsRoutes);
 app.use('/api/master', authenticateToken, masterRoutes);

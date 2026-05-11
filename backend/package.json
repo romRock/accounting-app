@@ -17,6 +17,7 @@
     "db:seed:cities:production": "tsx scripts/seed-cities-production.ts",
     "db:seed:clients:production": "tsx scripts/seed-clients-production.ts",
     "db:seed:roles:production": "tsx scripts/seed-roles-production.ts",
+    "db:setup:hawala:production": "tsx scripts/setup-hawala-production.ts",
     "db:seed:transactions": "tsx prisma/seeds/transactions.seed.ts",
     "db:seed:transactions:production": "tsx scripts/seed-transactions-production.ts",
     "db:clear:transactions:production": "tsx scripts/clear-transactions-production.ts",

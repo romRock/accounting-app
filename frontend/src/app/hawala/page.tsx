@@ -518,7 +518,6 @@ export default function HawalaPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="partyA">Party A (Debit Party / Sender)</Label>
                 <ClientTypeahead
                   id="partyA"
                   label="Party A (Debit Party / Sender)"
@@ -534,7 +533,6 @@ export default function HawalaPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="partyB">Party B (Credit Party / Receiver)</Label>
                 <ClientTypeahead
                   id="partyB"
                   label="Party B (Credit Party / Receiver)"

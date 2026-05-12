@@ -458,9 +458,7 @@ export default function HawalaPage() {
 
         {/* Entry Form */}
         <Card className="shadow-sm border-gray-200 bg-gray-100 mx-4 sm:mx-6 lg:mx-8">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold text-gray-900">Entry Form</CardTitle>
-          </CardHeader>
+          <CardHeader></CardHeader>
           <CardContent className="space-y-4">
             {/* Row 1: Transaction ID, Token No, Date, Time */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

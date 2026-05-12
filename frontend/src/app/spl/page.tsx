@@ -7,186 +7,322 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
+
+// Function to format time in Indian time format
+const formatTime = (timeString: string) => {
+  try {
+    const date = new Date(timeString);
+    // Convert to Indian time (UTC+5:30)
+    const indianTime = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    
+    // Format as HH:MM AM/PM
+    // Get hours and minutes in 24-hour format
+    const hours = indianTime.getHours();
+    const minutes = indianTime.getMinutes();
+    
+    // Convert to 12-hour format without AM/PM
+    const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+    
+    // Format as HH:MM
+    return `${displayHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  } catch (error) {
+    return timeString; // Fallback to original string if formatting fails
+  }
+};
+import { ClientTypeahead } from '@/components/ui/client-typeahead';
+import {
+  getSpecialEntries,
+  getSpecialEntryById,
+  createSpecialEntry,
+  updateSpecialEntry,
+  deleteSpecialEntry,
+  SpecialEntry,
+  SpecialEntryCreateRequest
+} from '@/lib/specialEntry';
 
 // Types
 interface SPLEntry {
   id: string;
+  transactionId: string;
+  tokenNo: number;
   date: string;
   time: string;
   partyA: string;
+  amountA: number;
   partyB: string;
-  amount: number;
-  commission: number;
-  commissionType: 'auto' | 'manual';
+  amountB: number;
+  partyC: string;
+  amountC: number;
   remark: string;
-  status: 'pending' | 'completed';
 }
 
-// Mock data
-const mockClients = [
-  { id: '1', name: 'Client A' },
-  { id: '2', name: 'Client B' },
-  { id: '3', name: 'Client C' },
-  { id: '4', name: 'Client D' },
-];
-
-const mockSPLEntries: SPLEntry[] = [
-  {
-    id: 'SPL001',
-    date: '2024-01-15',
-    time: '10:30',
-    partyA: 'Client A',
-    partyB: 'Client B',
-    amount: 50000,
-    commission: 500,
-    commissionType: 'auto',
-    remark: 'Monthly payment',
-    status: 'completed'
-  },
-  {
-    id: 'SPL002',
-    date: '2024-01-16',
-    time: '14:20',
-    partyA: 'Client C',
-    partyB: 'Client D',
-    amount: 75000,
-    commission: 750,
-    commissionType: 'manual',
-    remark: 'Emergency transfer',
-    status: 'pending'
-  }
-];
-
 export default function SPLPage() {
-  const [splEntries, setSPLEntries] = useState<SPLEntry[]>(mockSPLEntries);
-  const [selectedEntry, setSelectedEntry] = useState<SPLEntry | null>(null);
+  const [splEntries, setSPLEntries] = useState<SpecialEntry[]>([]);
+  const [selectedEntry, setSelectedEntry] = useState<SpecialEntry | null>(null);
   const [formData, setFormData] = useState({
-    id: '',
+    transactionId: '',
+    tokenNo: 0,
     date: new Date().toISOString().split('T')[0],
     time: new Date().toTimeString().slice(0, 5),
     partyA: '',
+    amountA: '',
     partyB: '',
-    amount: '',
-    commission: '',
-    commissionType: 'auto' as 'auto' | 'manual',
-    remark: '',
-    status: 'pending' as 'pending' | 'completed'
+    amountB: '',
+    partyC: '',
+    amountC: '',
+    remark: ''
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
 
-  // Generate transaction ID
+  // Real-time time update
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date();
+      const indianTime = now.toLocaleTimeString('en-IN', { hour12: false });
+      setFormData(prev => ({
+        ...prev,
+        time: indianTime
+      }));
+    }, 1000); // Update every second
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Fetch special entries on component mount
+  useEffect(() => {
+    const fetchSpecialEntries = async () => {
+      try {
+        const response = await getSpecialEntries({
+          page: 1,
+          limit: 100,
+          search: searchTerm || undefined,
+          status: statusFilter === 'all' ? undefined : statusFilter
+        });
+        
+        if (response.success && response.data) {
+          setSPLEntries(response.data);
+        } else {
+          console.error('Failed to fetch special entries:', response.message);
+        }
+      } catch (error) {
+        console.error('Error fetching special entries:', error);
+      }
+    };
+
+    fetchSpecialEntries();
+  }, [searchTerm, statusFilter]);
+
+  // Generate transaction ID based on latest SPL entries
   const generateTransactionId = () => {
-    const count = splEntries.length + 1;
-    return `SPL${String(count).padStart(3, '0')}`;
+    if (splEntries.length === 0) {
+      return 'SPL001';
+    }
+
+    const lastEntry = splEntries.reduce((latest, entry) => {
+      const entryNum = parseInt(entry.transactionId.replace('SPL', ''));
+      const latestNum = parseInt(latest.transactionId.replace('SPL', ''));
+      return entryNum > latestNum ? entry : latest;
+    });
+
+    const lastNumber = parseInt(lastEntry.transactionId.replace('SPL', ''));
+    const nextNumber = lastNumber + 1;
+    return `SPL${String(nextNumber).padStart(3, '0')}`;
+  };
+
+  // Generate token number based on highest existing token number
+  const generateTokenNo = () => {
+    // Find highest existing token number
+    const highestTokenNo = splEntries.reduce((highest, entry) => {
+      const tokenNo = entry.tokenNo || 0;
+      return tokenNo > highest ? tokenNo : highest;
+    }, 0);
+
+    return (highestTokenNo + 1).toString();
   };
 
   // Clear form
   const clearForm = () => {
     setFormData({
-      id: '',
+      transactionId: '',
+      tokenNo: 0,
       date: new Date().toISOString().split('T')[0],
       time: new Date().toTimeString().slice(0, 5),
       partyA: '',
+      amountA: '',
       partyB: '',
-      amount: '',
-      commission: '',
-      commissionType: 'auto',
-      remark: '',
-      status: 'pending'
+      amountB: '',
+      partyC: '',
+      amountC: '',
+      remark: ''
     });
     setSelectedEntry(null);
   };
 
   // Save entry
-  const saveEntry = () => {
-    if (!formData.partyA || !formData.partyB || !formData.amount) {
-      alert('Please fill all required fields');
+  const saveEntry = async () => {
+    console.log('🔍 SPL DEBUG: Current formData:', formData);
+    
+    // Calculate amountC = amountA - amountB
+    const calculatedAmountC = parseFloat(formData.amountA || '0') - parseFloat(formData.amountB || '0');
+    console.log('🔍 SPL DEBUG: Calculated amountC:', calculatedAmountC);
+
+    // Check for required fields
+    const requiredFields = {
+      partyA: formData.partyA,
+      partyB: formData.partyB,
+      partyC: formData.partyC,
+      amountA: formData.amountA,
+      amountB: formData.amountB,
+      date: formData.date,
+      time: formData.time
+    };
+    
+    console.log('🔍 SPL DEBUG: Required fields check:', requiredFields);
+    
+    const missingFields = Object.entries(requiredFields)
+      .filter(([key, value]) => !value || value.toString().trim() === '')
+      .map(([key]) => key);
+    
+    if (missingFields.length > 0) {
+      console.log('🔍 SPL DEBUG: Missing fields:', missingFields);
       return;
     }
 
     if (formData.partyA === formData.partyB) {
-      alert('Party A and Party B cannot be the same');
+      console.log('🔍 SPL DEBUG: Party A and Party B are the same:', formData.partyA);
       return;
     }
 
-    const entry: SPLEntry = {
-      id: formData.id || generateTransactionId(),
+    const payload = {
+      transactionId: formData.transactionId || generateTransactionId(),
+      tokenNo: formData.tokenNo || parseInt(generateTokenNo()),
       date: formData.date,
       time: formData.time,
       partyA: formData.partyA,
+      amountA: parseFloat(formData.amountA),
       partyB: formData.partyB,
-      amount: parseFloat(formData.amount),
-      commission: parseFloat(formData.commission || '0'),
-      commissionType: formData.commissionType,
-      remark: formData.remark,
-      status: formData.status
+      amountB: parseFloat(formData.amountB),
+      partyC: formData.partyC,
+      amountC: calculatedAmountC,
+      remark: formData.remark
     };
+    
+    console.log('🔍 SPL DEBUG: API Payload:', payload);
 
-    if (selectedEntry) {
-      // Update existing entry
-      setSPLEntries(prev => prev.map(e => e.id === selectedEntry.id ? entry : e));
-    } else {
-      // Add new entry
-      setSPLEntries(prev => [...prev, entry]);
+    try {
+      if (selectedEntry) {
+        // Update existing entry
+        const updatedEntry = await updateSpecialEntry(selectedEntry.id, {
+          transactionId: formData.transactionId || generateTransactionId(),
+          tokenNo: formData.tokenNo || parseInt(generateTokenNo()),
+          date: formData.date,
+          time: formData.time,
+          partyA: formData.partyA,
+          amountA: parseFloat(formData.amountA),
+          partyB: formData.partyB,
+          amountB: parseFloat(formData.amountB),
+          partyC: formData.partyC,
+          amountC: calculatedAmountC,
+          remark: formData.remark
+        });
+        
+        // Refresh table data after update
+        setSPLEntries(prev => prev.map(entry => 
+          entry.id === selectedEntry.id ? updatedEntry : entry
+        ));
+      } else {
+        // Add new entry
+        const newEntry = await createSpecialEntry(payload);
+        setSPLEntries(prev => [...prev, newEntry]);
+      }
+
+      clearForm();
+      if (selectedEntry) {
+        showUpdateToast('Special entry updated successfully');
+      } else {
+        showSuccessToast('Special entry created successfully');
+      }
+    } catch (error) {
+      showErrorToast(`Error: ${(error as Error).message}`);
     }
-
-    clearForm();
   };
 
   // Delete entry
-  const deleteEntry = () => {
+  const deleteEntry = async () => {
     if (selectedEntry) {
-      setSPLEntries(prev => prev.filter(e => e.id !== selectedEntry.id));
-      clearForm();
+      try {
+        await deleteSpecialEntry(selectedEntry.id);
+        setSPLEntries(prev => prev.filter(e => e.id !== selectedEntry.id));
+        clearForm();
+        showDeleteToast('Special entry deleted successfully');
+      } catch (error: any) {
+        console.log(`Error: ${(error as Error).message}`);
+      }
     }
   };
 
   // Edit entry
-  const editEntry = (entry: SPLEntry) => {
-    setSelectedEntry(entry);
+  const editEntry = (entry: SpecialEntry) => {
+    // Format date for input field (YYYY-MM-DD format)
+    const formattedDate = entry.date ? new Date(entry.date).toISOString().split('T')[0] : '';
+    
     setFormData({
-      id: entry.id,
-      date: entry.date,
+      transactionId: entry.transactionId,
+      tokenNo: entry.tokenNo || 0,
+      date: formattedDate,
       time: entry.time,
       partyA: entry.partyA,
+      amountA: entry.amountA?.toString() || '',
       partyB: entry.partyB,
-      amount: entry.amount.toString(),
-      commission: entry.commission.toString(),
-      commissionType: entry.commissionType,
-      remark: entry.remark,
-      status: entry.status
+      amountB: entry.amountB?.toString() || '',
+      partyC: entry.partyC || '',
+      amountC: entry.amountC?.toString() || '',
+      remark: entry.remark || ''
     });
+    setSelectedEntry(entry);
   };
 
-  // Filter entries
-  const filteredEntries = splEntries.filter(entry => {
-    const matchesSearch = entry.partyA.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         entry.partyB.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         entry.remark.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || entry.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // Filter and sort entries
+  const filteredEntries = splEntries
+    .filter(entry => {
+      const matchesSearch = entry.partyA.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           entry.partyB.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           entry.partyC.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (entry.remark && entry.remark.toLowerCase().includes(searchTerm.toLowerCase()));
+
+      return matchesSearch;
+    })
+    .sort((a, b) => (a.tokenNo || 0) - (b.tokenNo || 0)); // Sort by tokenNo in ascending order
 
   return (
+    <>
     <div className="bg-white min-h-screen w-full">
       <div className="pt-16 space-y-4 sm:space-y-6 p-6">
         
         
         {/* SPL Entry Form */}
         <Card className="shadow-sm border-gray-200 bg-gray-100">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold text-gray-900">SPL Entry Form</CardTitle>
-            <CardDescription>Create new special entry transactions</CardDescription>
-          </CardHeader>
+          <CardHeader></CardHeader>
           <CardContent className="p-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {/* Row 1 */}
               <div>
                 <Label htmlFor="transactionId" className="text-sm font-medium text-gray-700">Transaction ID</Label>
                 <Input
                   id="transactionId"
-                  value={formData.id || generateTransactionId()}
+                  value={formData.transactionId || generateTransactionId()}
+                  readOnly
+                  className="bg-white border-gray-300 text-gray-600 mt-1 placeholder:text-gray-600"
+                />
+              </div>
+              <div>
+                <Label htmlFor="tokenNo" className="text-sm font-medium text-gray-700">Token No</Label>
+                <Input
+                  id="tokenNo"
+                  type="number"
+                  value={formData.tokenNo || generateTokenNo()}
                   readOnly
                   className="bg-white border-gray-300 text-gray-600 mt-1 placeholder:text-gray-600"
                 />
@@ -211,85 +347,104 @@ export default function SPLPage() {
                   className="bg-white border-gray-300 mt-1 text-black placeholder:text-gray-600"
                 />
               </div>
+              
 
               {/* Row 2 */}
               <div>
-                <Label htmlFor="partyA" className="text-sm font-medium text-gray-700">Party A (Sender / Debit)</Label>
-                <Select value={formData.partyA} onValueChange={(value) => setFormData(prev => ({ ...prev, partyA: value }))}>
-                  <SelectTrigger className="bg-white border-gray-300 mt-1">
-                    <SelectValue placeholder="Select Party A" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {mockClients.map(client => (
-                      <SelectItem key={client.id} value={client.name}>{client.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="partyB" className="text-sm font-medium text-gray-700">Party B (Receiver / Credit)</Label>
-                <Select value={formData.partyB} onValueChange={(value) => setFormData(prev => ({ ...prev, partyB: value }))}>
-                  <SelectTrigger className="bg-white border-gray-300 mt-1">
-                    <SelectValue placeholder="Select Party B" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {mockClients.map(client => (
-                      <SelectItem key={client.id} value={client.name}>{client.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="amount" className="text-sm font-medium text-gray-700">Amount *</Label>
+                <Label htmlFor="amountA" className="text-sm font-medium text-red-700">Amount A (UDHAR) *</Label>
                 <Input
-                  id="amount"
+                  id="amountA"
                   type="number"
-                  value={formData.amount}
-                  onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
-                  className="bg-white border-gray-300 mt-1 font-bold text-black text-lg placeholder:text-gray-600"
-                  placeholder="0.00"
-                />
-              </div>
-
-              {/* Row 3 */}
-              <div>
-                <Label htmlFor="commission" className="text-sm font-medium text-gray-700">Commission</Label>
-                <Input
-                  id="commission"
-                  type="number"
-                  value={formData.commission}
-                  onChange={(e) => setFormData(prev => ({ ...prev, commission: e.target.value }))}
-                  className="bg-white border-gray-300 mt-1 font-bold text-black text-lg placeholder:text-gray-600"
+                  value={formData.amountA}
+                  onChange={(e) => setFormData(prev => ({ ...prev, amountA: e.target.value }))}
+                  className="bg-white border-gray-300 mt-1 font-bold text-red-700 text-lg placeholder:text-red-700"
                   placeholder="0.00"
                 />
               </div>
               <div>
-                <Label htmlFor="commissionType" className="text-sm font-medium text-gray-700">Commission Type</Label>
-                <Select value={formData.commissionType} onValueChange={(value: 'auto' | 'manual') => setFormData(prev => ({ ...prev, commissionType: value }))}>
-                  <SelectTrigger className="bg-white border-gray-300 mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="auto">Auto</SelectItem>
-                    <SelectItem value="manual">Manual</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="partyA" className="text-sm font-medium text-red-700">Party A ( UDHAR PARTY )</Label>
+                <div className="relative" style={{ zIndex: 101 }}>
+                <ClientTypeahead
+                  id="partyA"
+                  label=""
+                  placeholder="Select Party A (UDHAR PARTY)"
+                  value={formData.partyA}
+                  onChange={(client) => {
+                    console.log('Party A selected:', client);
+                    const partyAValue = client || '';
+                    console.log('Setting partyA to:', partyAValue);
+                    setFormData(prev => ({ ...prev, partyA: partyAValue }));
+                  }}
+                  className="mt-1 bg-white border-gray-300 text-sm font-medium text-red-700 placeholder:text-red-500"
+                />
+                </div>
               </div>
               <div>
-                <Label htmlFor="status" className="text-sm font-medium text-gray-700">Status</Label>
-                <Select value={formData.status} onValueChange={(value: 'pending' | 'completed') => setFormData(prev => ({ ...prev, status: value }))}>
-                  <SelectTrigger className="bg-white border-gray-300 mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="amountB" className="text-sm font-medium text-green-700">Amount B (JAMA) *</Label>
+                <Input
+                  id="amountB"
+                  type="number"
+                  value={formData.amountB}
+                  onChange={(e) => setFormData(prev => ({ ...prev, amountB: e.target.value }))}
+                  className="bg-white border-gray-300 mt-1 font-bold text-green-700 text-lg placeholder:text-green-700"
+                  placeholder="0.00"
+                />
               </div>
-
-              {/* Row 4 */}
-              <div className="md:col-span-2">
+              <div>
+                <Label htmlFor="partyB" className="text-sm font-medium text-green-700">Party B ( JAMA PARTY )</Label>
+                <ClientTypeahead
+                  id="partyB"
+                  label=""
+                  placeholder="Select Party B (JAMA PARTY)"
+                  value={formData.partyB}
+                  onChange={(client) => {
+                    console.log('Party B selected:', client);
+                    const partyBValue = client || '';
+                    console.log('Setting partyB to:', partyBValue);
+                    setFormData(prev => ({ ...prev, partyB: partyBValue }));
+                  }}
+                  className="mt-1 bg-white border-gray-300 text-sm font-medium text-green-700 placeholder:text-green-500"
+                />
+              </div>
+              <div>
+                <Label htmlFor="amountC" className="text-sm font-medium text-green-700">Amount C (A - B) *</Label>
+                <Input
+                  id="amountC"
+                  type="number"
+                  value={parseFloat(formData.amountA || '0') - parseFloat(formData.amountB || '0')}
+                  readOnly
+                  className={`bg-white border-gray-300 mt-1 font-bold text-lg placeholder:text-gray-500 ${
+                    (parseFloat(formData.amountA || '0') - parseFloat(formData.amountB || '0')) >= 0 
+                      ? 'text-green-700' 
+                      : 'text-red-700'
+                  }`}
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <Label htmlFor="partyC" className="text-sm font-medium text-green-700">Party C ( +/- PARTY )</Label>
+                <div className="relative" style={{ zIndex: 99 }}>
+                <ClientTypeahead
+                  id="partyC"
+                  label=""
+                  placeholder="Select Party C (+/- PARTY)"
+                  value={formData.partyC}
+                  onChange={(client) => {
+                    console.log('Party C selected:', client);
+                    const partyCValue = client || '';
+                    console.log('Setting partyC to:', partyCValue);
+                    setFormData(prev => ({ ...prev, partyC: partyCValue }));
+                  }}
+                  className={`bg-white border-gray-300 mt-1 text-sm font-medium placeholder:text-gray-500 ${
+                    (parseFloat(formData.amountA || '0') - parseFloat(formData.amountB || '0')) >= 0 
+                      ? 'text-green-700' 
+                      : 'text-red-700'
+                  }`}
+                />
+                </div>
+              </div>
+              
+              <div className='md:col-span-2'>
                 <Label htmlFor="remark" className="text-sm font-medium text-gray-700">Remark</Label>
                 <Input
                   id="remark"
@@ -299,50 +454,29 @@ export default function SPLPage() {
                   placeholder="Enter remark"
                 />
               </div>
+
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3 mt-6">
-              <Button onClick={clearForm} variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-50">
+            <div className="flex justify-end gap-3 mt-6">
+              <Button onClick={clearForm} variant="outline" className="bg-red-600 hover:bg-red-700 text-white border-red-600 w-full sm:w-auto">
+                {/* <RefreshCw className="w-4 h-4 mr-2" />  */}
+                {/* need to use same icon as hawala page */}
                 Clear
               </Button>
-              <Button onClick={deleteEntry} variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" disabled={!selectedEntry}>
+              <Button onClick={deleteEntry} variant="outline" className="bg-orange-600 hover:bg-orange-700 text-white border-orange-600 w-full sm:w-auto" disabled={!selectedEntry}>
+                {/* need to use same icon as hawala page */}
                 Delete
               </Button>
-              <Button onClick={saveEntry} className="bg-green-600 hover:bg-green-700">
+              <Button onClick={saveEntry} className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto">
+                {/* <Save className="w-4 h-4 mr-2" /> */}
+                {/* need to use same icon as hawala page */}
                 {selectedEntry ? 'Update' : 'Save'}
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Filter Bar */}
-        <Card className="shadow-sm border-gray-200 bg-gray-100">
-          <CardContent className="p-4">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1">
-                <Input
-                  placeholder="Search by party or remark..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="bg-white border-gray-300 placeholder:text-gray-600 text-black"
-                />
-              </div>
-              <div className="w-full sm:w-48">
-                <Select value={statusFilter} onValueChange={(value: 'all' | 'pending' | 'completed') => setStatusFilter(value)}>
-                  <SelectTrigger className="bg-white border-gray-300">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* SPL Table */}
         <Card className="shadow-sm border-gray-200 bg-gray-100">
@@ -355,14 +489,15 @@ export default function SPLPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-blue-50 border-b border-blue-200">
-                    <th className="px-4 py-3 text-left font-medium text-blue-900">Transaction ID</th>
+                    <th className="px-4 py-3 text-left font-medium text-blue-900">Token No</th>
                     <th className="px-4 py-3 text-left font-medium text-blue-900">Date</th>
                     <th className="px-4 py-3 text-left font-medium text-blue-900">Time</th>
-                    <th className="px-4 py-3 text-left font-medium text-blue-900">Party A (Debit)</th>
-                    <th className="px-4 py-3 text-left font-medium text-blue-900">Party B (Credit)</th>
-                    <th className="px-4 py-3 text-right font-medium text-blue-900">Amount</th>
-                    <th className="px-4 py-3 text-right font-medium text-blue-900">Commission</th>
-                    <th className="px-4 py-3 text-left font-medium text-blue-900">Status</th>
+                    <th className="px-4 py-3 text-right font-medium text-blue-900">Amount A</th>
+                    <th className="px-4 py-3 text-left font-medium text-blue-900">Party A (Udhar)</th>
+                    <th className="px-4 py-3 text-right font-medium text-blue-900">Amount B</th>
+                    <th className="px-4 py-3 text-left font-medium text-blue-900">Party B (Jama)</th>
+                    <th className="px-4 py-3 text-right font-medium text-blue-900">Amount C</th>
+                    <th className="px-4 py-3 text-left font-medium text-blue-900">Party C (Jama/Udhar)</th>
                     <th className="px-4 py-3 text-left font-medium text-blue-900">Remark</th>
                   </tr>
                 </thead>
@@ -375,23 +510,16 @@ export default function SPLPage() {
                       } ${selectedEntry?.id === entry.id ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
                       onClick={() => editEntry(entry)}
                     >
-                      <td className="px-4 py-3 font-medium">{entry.id}</td>
-                      <td className="px-4 py-3">{formatDate(entry.date)}</td>
-                      <td className="px-4 py-3">{entry.time}</td>
-                      <td className="px-4 py-3">{entry.partyA}</td>
-                      <td className="px-4 py-3">{entry.partyB}</td>
-                      <td className="px-4 py-3 text-right">{formatCurrency(entry.amount)}</td>
-                      <td className="px-4 py-3 text-right">{formatCurrency(entry.commission)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          entry.status === 'completed' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {entry.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">{entry.remark}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{entry.tokenNo}</td>
+                      <td className="px-4 py-3 text-gray-900">{formatDate(entry.date)}</td>
+                      <td className="px-4 py-3 text-gray-900">{formatTime(entry.time)}</td>
+                      <td className="px-4 py-3 text-gray-900">{formatCurrency(entry.amountA || 0)}</td>
+                      <td className="px-4 py-3 text-gray-900">{entry.partyA}</td>
+                      <td className="px-4 py-3 text-right text-gray-900">{formatCurrency(entry.amountB || 0)}</td>
+                      <td className="px-4 py-3 text-gray-900">{entry.partyB}</td>
+                      <td className="px-4 py-3 text-right text-gray-900">{formatCurrency(entry.amountC || 0)}</td>
+                      <td className="px-4 py-3 text-gray-900">{entry.partyC}</td>
+                      <td className="px-4 py-3 text-gray-900">{entry.remark || ''}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -399,8 +527,9 @@ export default function SPLPage() {
             </div>
           </CardContent>
         </Card>
-
       </div>
-    </div>
-  );
+      </div>
+      <Toaster />
+    </>
+);
 }

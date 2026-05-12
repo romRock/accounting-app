@@ -35,6 +35,37 @@ model User {
   @@map("users")
 }
 
+model SpecialEntry {
+  id              String   @id @default(cuid())
+  transactionId   String   @unique
+  tokenNo         Int?
+  date            DateTime
+  time            DateTime
+  partyA          String
+  amountA         Int
+  partyB          String
+  amountB         Int
+  partyC          String?
+  amountC         Int?
+  remark          String?
+  status          String   // 'pending' | 'completed'
+  statusTime      DateTime @default(now())
+  isActive        Boolean  @default(true)
+  isDeleted       Boolean  @default(false)
+  branchId        String?
+  createdBy       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([transactionId])
+  @@index([date])
+  @@index([partyA])
+  @@index([partyB])
+  @@index([partyC])
+  @@index([createdBy])
+  @@map("SpecialEntry")
+}
+
 model Role {
   id          String   @id @default(cuid())
   name        String   @unique
@@ -164,23 +195,23 @@ model Transaction {
 }
 
 model Hawala {
-  id              String   @id @default(cuid())
-  transactionId   String   @unique
-  tokenNo         Int?
-  date            DateTime
-  time            DateTime
-  partyA          String
-  partyB          String
-  amount          Int
-  remark          String?
-  status          Boolean  @default(true)
-  statusTime      DateTime
-  isActive        Boolean  @default(true)
-  isDeleted       Boolean  @default(false)
-  branchId        String?
-  createdBy       String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id            String   @id @default(cuid())
+  transactionId String   @unique
+  tokenNo       Int?
+  date          DateTime @default(now())
+  time          DateTime @default(now())
+  partyA        String
+  partyB        String
+  amount        Int
+  remark        String?
+  status        Boolean  @default(true)
+  statusTime    DateTime @default(now())
+  isActive      Boolean  @default(true)
+  isDeleted     Boolean  @default(false)
+  branchId      String?
+  createdBy     String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([transactionId])
   @@index([date])

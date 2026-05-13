@@ -1639,7 +1639,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/hawala', hawalaRoutes);
 app.use('/api/specialEntry', specialEntryRoutes);
-app.use('/api/accounting', authenticateToken, accountingRoutes);
+app.use('/api/accounting', accountingRoutes);
 app.use('/api/reports', authenticateToken, reportsRoutes);
 app.use('/api/master', authenticateToken, masterRoutes);
 

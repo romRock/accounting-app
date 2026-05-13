@@ -12,7 +12,7 @@ import { CityTypeahead } from '@/components/ui/typeahead';
 import { transactionApi, Transaction } from '@/lib/transactions';
 
 // Report Types
-type ReportType = 'outward' | 'inward' | 'combo' | 'amount-type';
+type ReportType = 'outward' | 'inward' | 'combo' | 'amount-type' | 'transaction' | 'customer' | 'transaction-refund';
 
 interface ReportFilters {
   dateFrom: string;
@@ -123,6 +123,17 @@ export default function ReportsPage() {
           });
         
         setReportData(allTransactions);
+      } else if (activeReport === 'transaction' || activeReport === 'customer' || activeReport === 'transaction-refund') {
+        // For new accounting reports, use existing transaction data as placeholder
+        // TODO: Replace with actual accounting API calls when implemented
+        response = await transactionApi.getTransactions({
+          type: 'OUTWARD', // Get all transactions for now
+          search: searchTerm,
+          page: currentPage,
+          limit: 100,
+        });
+        
+        setReportData(response.transactions);
       } else {
         // Fetch regular transaction data for other reports
         response = await transactionApi.getTransactions({
@@ -494,6 +505,16 @@ export default function ReportsPage() {
     if (activeReport === 'amount-type') {
       return ['TOKEN', 'DATE', 'TIME', 'CENTER', 'AMOUNT', 'AMOUNT TYPE', 'OUR COMM', 'RECEIVER NAME', 'SENDER NAME', 'REMARKS'];
     }
+    // New accounting reports - placeholder columns for now
+    if (activeReport === 'transaction') {
+      return ['TRANSACTION ID', 'DATE', 'TYPE', 'CATEGORY', 'AMOUNT', 'STATUS', 'REMARKS'];
+    }
+    if (activeReport === 'customer') {
+      return ['CUSTOMER NAME', 'MOBILE NUMBER', 'TOTAL TRANSACTIONS', 'TOTAL AMOUNT', 'LAST TRANSACTION DATE'];
+    }
+    if (activeReport === 'transaction-refund') {
+      return ['TRANSACTION ID', 'DATE', 'ORIGINAL AMOUNT', 'REFUND AMOUNT', 'REFUND REASON', 'STATUS'];
+    }
     return ['ID', 'Date', 'Time', 'Center', 'Amount', 'Type', 'Commission', 'Status'];
   };
 
@@ -551,6 +572,34 @@ export default function ReportsPage() {
         return transaction.senderName || '-';
       case 'REMARKS':
         return transaction.remark || '-';
+      // New accounting reports - placeholder data for now
+      case 'TRANSACTION ID':
+        return transaction.transactionId || `ACC${index + 1}`;
+      case 'TYPE':
+        if (activeReport === 'transaction') {
+          return transaction.amountType || 'INCOME';
+        }
+        return transaction.type || 'OUTWARD';
+      case 'CATEGORY':
+        return transaction.amountType || 'General';
+      case 'STATUS':
+        return transaction.status ? 'Completed' : 'Pending';
+      case 'CUSTOMER NAME':
+        return transaction.receiverName || transaction.senderName || 'N/A';
+      case 'MOBILE NUMBER':
+        return transaction.receiverNumber || transaction.senderNumber || 'N/A';
+      case 'TOTAL TRANSACTIONS':
+        return Math.floor(Math.random() * 10) + 1; // Placeholder
+      case 'TOTAL AMOUNT':
+        return formatCurrency(transaction.amount || 0);
+      case 'LAST TRANSACTION DATE':
+        return formatDate(transaction.date);
+      case 'ORIGINAL AMOUNT':
+        return formatCurrency(transaction.amount || 0);
+      case 'REFUND AMOUNT':
+        return formatCurrency(Math.floor((transaction.amount || 0) * 0.1)); // Placeholder 10% refund
+      case 'REFUND REASON':
+        return 'Customer Request'; // Placeholder
       default:
         const value = transaction[column as keyof Transaction];
         if (typeof value === 'string' || typeof value === 'number') {
@@ -607,7 +656,26 @@ export default function ReportsPage() {
           outwardTotal,
           inwardTotal,
         };
+      } else if (activeReport === 'customer') {
+        // For customer report, calculate unique customers
+        const uniqueCustomers = new Set(
+          filteredData.map(item => item.receiverName || item.senderName).filter(Boolean)
+        );
+        
+        summary = {
+          totalRecords: uniqueCustomers.size,
+          totalAmount: filteredData.reduce((sum, item) => sum + (item.amount || 0), 0),
+          totalCommission: filteredData.reduce((sum, item) => sum + (item.bookingCommission || 0), 0),
+        };
+      } else if (activeReport === 'transaction-refund') {
+        // For transaction refund report, calculate refund amounts (placeholder)
+        summary = {
+          totalRecords: filteredData.length,
+          totalAmount: filteredData.reduce((sum, item) => sum + (item.amount || 0), 0),
+          totalCommission: filteredData.reduce((sum, item) => sum + Math.floor((item.amount || 0) * 0.1), 0), // 10% refund placeholder
+        };
       } else {
+        // For transaction report and other reports
         summary = {
           totalRecords: filteredData.length,
           totalAmount: filteredData.reduce((sum, item) => sum + (item.amount || 0) + (item.centerCommission || 0), 0),

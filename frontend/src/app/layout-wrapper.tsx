@@ -640,21 +640,6 @@ export default function LayoutWrapper({
                   >
                     Category
                   </button>
-                  <button
-                    onClick={() => {
-                      setActiveAccountingTab('reports');
-                      // Dispatch event for accounting page
-                      const event = new CustomEvent('setAccountingTab', { detail: 'reports' });
-                      window.dispatchEvent(event);
-                    }}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
-                      activeAccountingTab === 'reports'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                    }`}
-                  >
-                    Reports
-                  </button>
                 </div>
               )}
               
@@ -708,6 +693,9 @@ export default function LayoutWrapper({
                           { id: 'inward', name: 'Inward Report', permission: 'report_2' },
                           { id: 'combo', name: 'Combo Report', permission: 'report_3' },
                           { id: 'amount-type', name: 'Amount Type Report', permission: 'report_4' },
+                          { id: 'transaction', name: 'Transaction Report', permission: 'report_5' },
+                          { id: 'customer', name: 'Customer Report', permission: 'report_6' },
+                          { id: 'refund', name: 'Transaction Refund Report', permission: 'report_7' },
                         ].filter((report) => {
                           // Check if user has permission for this specific report
                           return hasPermission('reports', report.permission);

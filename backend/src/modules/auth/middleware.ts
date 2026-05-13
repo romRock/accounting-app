@@ -211,6 +211,16 @@ export const requirePermission = (permission: string) => {
     const [module, action] = permission.split('.');
     const hasPermission = parsedPermissions[module] && parsedPermissions[module][action];
     
+    // Special handling for general module permissions like 'accounting', 'transactions', etc.
+    // If user has general access to a module, they should have access to all operations
+    const generalModuleAccess = parsedPermissions[module];
+    if (generalModuleAccess === true || generalModuleAccess === 'all') {
+      console.log('User has general access to module:', module);
+      console.log('Permission check passed');
+      next();
+      return;
+    }
+    
     console.log('Module:', module);
     console.log('Action:', action);
     console.log('Has permission:', hasPermission);

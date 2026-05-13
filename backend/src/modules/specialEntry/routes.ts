@@ -6,23 +6,26 @@ import {
   updateSpecialEntry,
   deleteSpecialEntry
 } from './controller';
-import { authenticateToken, requirePermission } from '../auth/middleware';
+import { authenticateToken } from '../auth/middleware';
 
 const router = Router();
 
+// Apply authentication to all routes
+router.use(authenticateToken);
+
 // Create special entry - Only require authentication, no specific permission needed
-router.post('/', authenticateToken, createSpecialEntry);
+router.post('/', createSpecialEntry);
 
 // Get all special entries - Public route like transactions API
 router.get('/', getSpecialEntries);
 
 // Get single special entry
-router.get('/:id', authenticateToken, requirePermission('transactions.read'), getSpecialEntryById);
+router.get('/:id', getSpecialEntryById);
 
 // Update special entry - Only require authentication, no specific permission needed
-router.put('/:id', authenticateToken, updateSpecialEntry);
+router.put('/:id', updateSpecialEntry);
 
 // Delete special entry - Only require authentication, no specific permission needed
-router.delete('/:id', authenticateToken, deleteSpecialEntry);
+router.delete('/:id', deleteSpecialEntry);
 
 export default router;

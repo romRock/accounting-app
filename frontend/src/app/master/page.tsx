@@ -1390,6 +1390,60 @@ export default function MasterPage() {
                           />
                           <span className="text-sm text-gray-900">Amount Type Report</span>
                         </label>
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={roleForm.permissions?.reports?.report_5 || false}
+                            onChange={(e) => setRoleForm({
+                              ...roleForm,
+                              permissions: {
+                                ...roleForm.permissions!,
+                                reports: {
+                                  ...roleForm.permissions?.reports!,
+                                  report_5: e.target.checked
+                                }
+                              }
+                            })}
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+                          />
+                          <span className="text-sm text-gray-900">Transaction Report</span>
+                        </label>
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={roleForm.permissions?.reports?.report_6 || false}
+                            onChange={(e) => setRoleForm({
+                              ...roleForm,
+                              permissions: {
+                                ...roleForm.permissions!,
+                                reports: {
+                                  ...roleForm.permissions?.reports!,
+                                  report_6: e.target.checked
+                                }
+                              }
+                            })}
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+                          />
+                          <span className="text-sm text-gray-900">Customer Report</span>
+                        </label>
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={roleForm.permissions?.reports?.report_7 || false}
+                            onChange={(e) => setRoleForm({
+                              ...roleForm,
+                              permissions: {
+                                ...roleForm.permissions!,
+                                reports: {
+                                  ...roleForm.permissions?.reports!,
+                                  report_7: e.target.checked
+                                }
+                              }
+                            })}
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+                          />
+                          <span className="text-sm text-gray-900">Transaction Refund Report</span>
+                        </label>
                       </div>
                     </div>
 

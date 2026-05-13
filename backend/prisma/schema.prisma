@@ -130,6 +130,8 @@ model Party {
   isDeleted Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  accountEntries AccountEntry[]
+  clientLedger   ClientLedger?
 
   @@index([name])
   @@index([city])
@@ -237,8 +239,10 @@ model LedgerEntry {
   transactionId String?
   branchId      String?
   createdBy     String
-  branch        Branch?  @relation(fields: [branchId], references: [id])
-  creator       User     @relation("LedgerCreator", fields: [createdBy], references: [id])
+  accountEntryId String?
+  branch        Branch?       @relation(fields: [branchId], references: [id])
+  creator       User          @relation("LedgerCreator", fields: [createdBy], references: [id])
+  accountEntry  AccountEntry? @relation(fields: [accountEntryId], references: [id])
 
   @@index([date])
   @@index([accountId])
@@ -247,6 +251,7 @@ model LedgerEntry {
   @@index([branchId])
   @@index([createdBy])
   @@index([createdAt])
+  @@index([accountEntryId])
   @@map("ledger_entries")
 }
 
@@ -289,6 +294,86 @@ model BalanceSheet {
   @@index([branchId])
   @@index([createdAt])
   @@map("balance_sheets")
+}
+
+model AccountCategory {
+  id            String   @id @default(cuid())
+  name          String
+  type          String   
+  description   String?
+  parentId      String?
+  gstApplicable Boolean  @default(false)
+  tdsApplicable Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  isDeleted     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  parent        AccountCategory? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children      AccountCategory[] @relation("CategoryHierarchy")
+  accountEntries AccountEntry[]
+
+  @@index([type])
+  @@index([parentId])
+  @@index([createdAt])
+  @@map("account_categories")
+}
+
+model AccountEntry {
+  id              String   @id @default(cuid())
+  entryId         String   @unique
+  date            DateTime
+  categoryId      String
+  amount          Float
+  description     String?
+  partyId         String?
+  paymentMethod   String?
+  referenceNo     String?
+  gstAmount       Float    @default(0)
+  tdsAmount       Float    @default(0)
+  totalAmount     Float
+  type            String
+  statusTime      DateTime @default(now())
+  isActive        Boolean  @default(true)
+  isDeleted       Boolean  @default(false)
+  branchId        String?
+  createdBy       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  category        AccountCategory @relation(fields: [categoryId], references: [id])
+  party           Party?           @relation(fields: [partyId], references: [id])
+  ledgerEntries   LedgerEntry[]
+
+  @@index([entryId])
+  @@index([date])
+  @@index([categoryId])
+  @@index([partyId])
+  @@index([type])
+  @@index([branchId])
+  @@index([createdBy])
+  @@index([createdAt])
+  @@map("account_entries")
+}
+
+model ClientLedger {
+  id              String   @id @default(cuid())
+  clientId        String   @unique
+  openingBalance  Float    @default(0)
+  currentBalance  Float    @default(0)
+  lastTransactionDate DateTime?
+  balanceType     String   @default("DEBIT")
+  financialYear   String
+  isActive        Boolean  @default(true)
+  isDeleted       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  createdBy       String
+  client          Party    @relation(fields: [clientId], references: [id])
+
+  @@index([clientId])
+  @@index([balanceType])
+  @@index([financialYear])
+  @@index([createdAt])
+  @@map("client_ledgers")
 }
 
 model AuditLog {

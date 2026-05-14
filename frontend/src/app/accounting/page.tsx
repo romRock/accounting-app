@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,10 +37,12 @@ export default function AccountingPage() {
   const [transactions, setTransactions] = useState<AccountingEntry[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedTransaction, setSelectedTransaction] = useState<AccountingEntry | null>(null);
-  const [searchTerm] = useState('');
-  const [byDate] = useState(false);
-  const [fromDate] = useState(new Date().toISOString().split('T')[0]);
-  const [toDate] = useState(new Date().toISOString().split('T')[0]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterByDate, setFilterByDate] = useState(false);
+  const [isSelectingRange, setIsSelectingRange] = useState(false);
+  const [dateFilter, setDateFilter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [categoryForm, setCategoryForm] = useState({ name: '', type: 'INCOME' as 'INCOME' | 'EXPENSE' });
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
 
@@ -49,16 +51,17 @@ export default function AccountingPage() {
     if (transactions.length === 0) {
       return 'TRN001';
     }
-    // Find the highest existing transaction number from transactionId field
+
+    // Find the highest existing transaction number from entryId or transactionId fields
     const transactionNumbers = transactions
-      .map(t => t.transactionId)
+      .map(t => t.entryId || t.transactionId)
       .filter((no): no is string => Boolean(no))
       .map(no => {
         const match = no.match(/TRN(\d+)/);
-        return match ? parseInt(match[1]) : 0;
+        return match ? parseInt(match[1], 10) : 0;
       })
       .filter(num => num > 0);
-    
+
     const highestNumber = Math.max(...transactionNumbers, 0);
     const nextNumber = highestNumber + 1;
     return `TRN${nextNumber.toString().padStart(3, '0')}`;
@@ -107,12 +110,27 @@ export default function AccountingPage() {
   const fetchAccountingEntries = async () => {
     try {
       const response = await accountingApi.getAccountEntries();
+      console.log('✅ Accounting entries fetched:', response.entries);
+      if (response.entries.length > 0) {
+        console.log('📝 First entry sample:', response.entries[0]);
+        console.log('🆔 First entry ID:', response.entries[0].entryId);
+      }
       setTransactions(response.entries);
       return response.entries;
     } catch (error) {
       console.error('Failed to fetch accounting entries:', error);
       setTransactions([]);
       return [];
+    }
+  };
+
+  const fetchNextTransactionId = async (): Promise<string> => {
+    try {
+      const response = await accountingApi.getNextTransactionId();
+      return response?.nextTransactionId || generateTransactionId();
+    } catch (error) {
+      console.error('Failed to fetch next transaction ID:', error);
+      return generateTransactionId();
     }
   };
 
@@ -165,7 +183,6 @@ export default function AccountingPage() {
   const filteredTransactions = useMemo(() => {
     let filtered = transactions;
 
-    // Search filter
     if (searchTerm) {
       filtered = filtered.filter(transaction =>
         (transaction.party?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -174,14 +191,24 @@ export default function AccountingPage() {
       );
     }
 
-    if (byDate && fromDate && toDate) {
-      filtered = filtered.filter(transaction =>
-        transaction.date >= fromDate && transaction.date <= toDate
-      );
+    if (filterByDate) {
+      filtered = filtered.filter(transaction => {
+        const transactionDate = transaction.date?.includes('T')
+          ? transaction.date.split('T')[0]
+          : transaction.date || '';
+
+        if (!isSelectingRange) {
+          return !dateFilter || transactionDate === dateFilter;
+        }
+
+        return startDate && endDate
+          ? transactionDate >= startDate && transactionDate <= endDate
+          : true;
+      });
     }
 
     return filtered;
-  }, [transactions, searchTerm, byDate, fromDate, toDate]);
+  }, [transactions, searchTerm, filterByDate, dateFilter, isSelectingRange, startDate, endDate]);
 
   // Save transaction
   const saveTransaction = async () => {
@@ -214,7 +241,7 @@ export default function AccountingPage() {
 
       // Refresh data
       await fetchAccountingEntries();
-      clearForm();
+      await clearForm();
     } catch (error) {
       console.error('Failed to save transaction:', error);
       alert('Failed to save transaction. Please try again.');
@@ -242,6 +269,14 @@ export default function AccountingPage() {
 
   // Update transaction
   const updateTransaction = (transaction: AccountingEntry) => {
+    console.log('📋 updateTransaction called with:', {
+      id: transaction.id,
+      entryId: transaction.entryId,
+      transactionId: transaction.transactionId,
+      type: transaction.type,
+      date: transaction.date,
+      party: transaction.party?.name,
+    });
     setSelectedTransaction(transaction);
     
     // Format time to HH:MM (Indian time format)
@@ -305,8 +340,11 @@ export default function AccountingPage() {
     // Determine amount type from type field or accountType
     const amountType = transaction.type ? transaction.type : (transaction.accountType === 'INCOME_ACCOUNT' ? 'INCOME' : 'EXPENSE');
 
+    const transactionNo = transaction.entryId || transaction.transactionId || '';
+    console.log('✏️ Setting transactionNo to:', transactionNo);
+
     setTransactionForm({
-      transactionNo: transaction.entryId || transaction.transactionId || '',
+      transactionNo,
       date: dateValue,
       time: timeValue,
       amount: transaction.amount || transaction.creditAmount || transaction.debitAmount || 0,
@@ -325,7 +363,7 @@ export default function AccountingPage() {
         await fetchAccountingEntries();
         if (selectedTransaction?.id === id) {
           setSelectedTransaction(null);
-          clearForm();
+          await clearForm();
         }
       } catch (error) {
         console.error('Failed to delete transaction:', error);
@@ -335,9 +373,10 @@ export default function AccountingPage() {
   };
 
   // Clear form
-  const clearForm = () => {
+  const clearForm = async () => {
+    const nextTransactionNo = await fetchNextTransactionId();
     setTransactionForm({
-      transactionNo: generateTransactionId(),
+      transactionNo: nextTransactionNo,
       date: new Date().toISOString().split('T')[0],
       time: new Date().toTimeString().split(' ')[0].substring(0, 5),
       amount: 0,
@@ -542,6 +581,108 @@ export default function AccountingPage() {
 
             {/* Data Table */}
             <Card className="shadow-sm border-gray-200 bg-gray-100">
+              <CardHeader className="pb-0">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-lg font-semibold text-gray-900">Accounting Entries</div>
+                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="filterByDate"
+                        checked={filterByDate}
+                        onChange={(e) => {
+                          setFilterByDate(e.target.checked);
+                          if (!e.target.checked) {
+                            setDateFilter('');
+                            setStartDate('');
+                            setEndDate('');
+                            setIsSelectingRange(false);
+                          }
+                        }}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <Label htmlFor="filterByDate" className="text-sm font-medium text-gray-700">
+                        By Date
+                      </Label>
+                    </div>
+
+                    {filterByDate && (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStartDate('');
+                              setEndDate('');
+                              setDateFilter('');
+                              setIsSelectingRange(false);
+                            }}
+                            className={`px-3 py-1 text-xs rounded ${!isSelectingRange && !dateFilter
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                          >
+                            Single Date
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStartDate('');
+                              setEndDate('');
+                              setDateFilter('');
+                              setIsSelectingRange(true);
+                            }}
+                            className={`px-3 py-1 text-xs rounded ${isSelectingRange
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                          >
+                            Date Range
+                          </button>
+                        </div>
+
+                        {!isSelectingRange ? (
+                          <Input
+                            type="date"
+                            value={dateFilter}
+                            onChange={(e) => setDateFilter(e.target.value)}
+                            className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                          />
+                        ) : (
+                          <div className="flex items-center space-x-2">
+                            <Input
+                              type="date"
+                              value={startDate}
+                              onChange={(e) => setStartDate(e.target.value)}
+                              placeholder="Start date"
+                              className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                            />
+                            <span className="text-gray-500 text-sm">to</span>
+                            <Input
+                              type="date"
+                              value={endDate}
+                              onChange={(e) => setEndDate(e.target.value)}
+                              placeholder="End date"
+                              className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-[260px] flex-1">
+                    <Input
+                      placeholder="Search accounting entries..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="bg-white w-full border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                    />
+                  </div>
+                  </div>
+
+                </div>
+              </CardHeader>
               <CardContent className="p-4">
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse">

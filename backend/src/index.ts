@@ -136,6 +136,41 @@ async function initializeDatabase() {
       }
     }
     
+    // Check accounting module tables
+    console.log('🔍 Checking Accounting module tables...');
+    
+    // Check AccountCategory table
+    try {
+      await prisma.accountCategory.findFirst();
+      console.log('✅ AccountCategory table exists');
+    } catch (error: any) {
+      console.log('❌ Error checking AccountCategory table:', error.message);
+    }
+    
+    // Check AccountEntry table
+    try {
+      await prisma.accountEntry.findFirst();
+      console.log('✅ AccountEntry table exists');
+    } catch (error: any) {
+      console.log('❌ Error checking AccountEntry table:', error.message);
+    }
+    
+    // Check ClientLedger table
+    try {
+      await prisma.clientLedger.findFirst();
+      console.log('✅ ClientLedger table exists');
+    } catch (error: any) {
+      console.log('❌ Error checking ClientLedger table:', error.message);
+    }
+    
+    // Check LedgerEntry table
+    try {
+      await prisma.ledgerEntry.findFirst();
+      console.log('✅ LedgerEntry table exists');
+    } catch (error: any) {
+      console.log('❌ Error checking LedgerEntry table:', error.message);
+    }
+    
     console.log('🚀 Database initialization complete');
     
   } catch (error: any) {

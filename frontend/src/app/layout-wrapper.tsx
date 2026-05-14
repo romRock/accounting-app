@@ -746,7 +746,7 @@ export default function LayoutWrapper({
         <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setSidebarOpen(false)} />
         <div className="fixed inset-y-0 left-0 w-full max-w-sm bg-white">
           <div className="flex items-center justify-center h-16 bg-white border-b border-gray-200">
-            <Image src="/images/logo-a.png" alt="Angadiya Logo" width={160} height={40} className="object-contain" priority />
+            <Image src="/images/logo.png" alt="Angadiya Logo" width={160} height={40} className="object-contain" priority />
           </div>
           
           <nav className="mt-8 px-4">

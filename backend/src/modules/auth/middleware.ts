@@ -209,7 +209,6 @@ export const requirePermission = (permission: string) => {
 
     // Check nested permission (e.g., transactions.create)
     const [module, action] = permission.split('.');
-    const hasPermission = parsedPermissions[module] && parsedPermissions[module][action];
     
     // Special handling for general module permissions like 'accounting', 'transactions', etc.
     // If user has general access to a module, they should have access to all operations
@@ -220,6 +219,9 @@ export const requirePermission = (permission: string) => {
       next();
       return;
     }
+    
+    // Check specific permission
+    const hasPermission = parsedPermissions[module] && parsedPermissions[module][action];
     
     console.log('Module:', module);
     console.log('Action:', action);

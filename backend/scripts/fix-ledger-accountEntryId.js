@@ -12,21 +12,7 @@ async function fixLedgerAccountEntryId() {
   try {
     console.log('🔧 Fixing ledger_entries.accountEntryId column...\n');
 
-    // Check if column exists
-    const columnCheck = await prisma.$queryRaw`
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'ledger_entries'
-        AND column_name = 'accountEntryId'
-    `;
-
-    if (columnCheck.length > 0) {
-      console.log('✅ accountEntryId column already exists in ledger_entries');
-      return;
-    }
-
-    console.log('🛠️ Adding accountEntryId column to ledger_entries...');
+    console.log('🛠️ Ensuring accountEntryId column exists in ledger_entries...');
     
     // Add the column
     await prisma.$executeRaw`ALTER TABLE "ledger_entries" ADD COLUMN IF NOT EXISTS "accountEntryId" TEXT;`;
@@ -36,10 +22,15 @@ async function fixLedgerAccountEntryId() {
     await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "ledger_entries_accountEntryId_idx" ON "ledger_entries"("accountEntryId");`;
     console.log('✅ Index created successfully');
 
-    // Add foreign key constraint
+    // Add foreign key constraint and remove unsafe transactionId constraint if it exists
     await prisma.$executeRaw`
       DO $$
       BEGIN
+        IF EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'ledger_entries_transactionId_fkey'
+        ) THEN
+          ALTER TABLE "ledger_entries" DROP CONSTRAINT "ledger_entries_transactionId_fkey";
+        END IF;
         IF NOT EXISTS (
           SELECT 1 FROM pg_constraint WHERE conname = 'ledger_entries_accountEntryId_fkey'
         ) THEN
@@ -51,6 +42,9 @@ async function fixLedgerAccountEntryId() {
       $$;
     `;
     console.log('✅ Foreign key constraint added successfully');
+
+    await prisma.ledgerEntry.findFirst();
+    console.log('✅ Prisma ledgerEntry query works successfully');
 
     console.log('\n✅ ledger_entries.accountEntryId column fix completed');
   } catch (error) {

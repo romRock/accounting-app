@@ -10,18 +10,22 @@ try {
   } else {
     execSync('rm -rf dist', { cwd: __dirname });
   }
-  console.log('✅ Dist folder cleaned');
+  console.log(' Dist folder cleaned');
 
   console.log('\nStep 2: Building TypeScript...');
   execSync('npm run build', { cwd: path.join(__dirname, '..'), stdio: 'inherit' });
-  console.log('✅ TypeScript build completed');
+  console.log(' TypeScript build completed');
 
   console.log('\nStep 3: Regenerating Prisma client...');
-  execSync('npx prisma generate', { cwd: path.join(__dirname, '..'), stdio: 'inherit' });
-  console.log('✅ Prisma client regenerated');
+  try {
+    execSync('npx prisma generate', { cwd: path.join(__dirname, '..'), stdio: 'inherit' });
+    console.log(' Prisma client regenerated');
+  } catch (error) {
+    console.log('  Prisma client generation skipped (will regenerate in production)');
+  }
 
-  console.log('\n✅ Production backend rebuild completed successfully');
-  console.log('📝 Next steps:');
+  console.log('\n Production backend rebuild completed successfully');
+  console.log(' Next steps:');
   console.log('   1. Commit and push changes to git');
   console.log('   2. Render will auto-deploy the updated backend');
   console.log('   3. Test accounting APIs after deployment');

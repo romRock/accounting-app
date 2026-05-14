@@ -389,13 +389,6 @@ async function initializeDatabase() {
                 FOREIGN KEY ("createdBy") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
             END IF;
             IF NOT EXISTS (
-              SELECT 1 FROM pg_constraint WHERE conname = 'ledger_entries_transactionId_fkey'
-            ) THEN
-              ALTER TABLE "ledger_entries"
-                ADD CONSTRAINT "ledger_entries_transactionId_fkey"
-                FOREIGN KEY ("transactionId") REFERENCES "transactions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-            END IF;
-            IF NOT EXISTS (
               SELECT 1 FROM pg_constraint WHERE conname = 'ledger_entries_accountEntryId_fkey'
             ) THEN
               ALTER TABLE "ledger_entries"
@@ -412,29 +405,32 @@ async function initializeDatabase() {
     } else {
       console.log('✅ LedgerEntry table exists');
 
-      const accountEntryIdColumnExists = await doesColumnExist('ledger_entries', 'accountEntryId');
-      if (!accountEntryIdColumnExists) {
-        console.log('🛠️ Adding missing ledger_entries.accountEntryId column...');
-        try {
-          await prisma.$executeRaw`ALTER TABLE "ledger_entries" ADD COLUMN IF NOT EXISTS "accountEntryId" TEXT;`;
-          await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "ledger_entries_accountEntryId_idx" ON "ledger_entries"("accountEntryId");`;
-          await prisma.$executeRaw`
-            DO $$
-            BEGIN
-              IF NOT EXISTS (
-                SELECT 1 FROM pg_constraint WHERE conname = 'ledger_entries_accountEntryId_fkey'
-              ) THEN
-                ALTER TABLE "ledger_entries"
-                  ADD CONSTRAINT "ledger_entries_accountEntryId_fkey"
-                  FOREIGN KEY ("accountEntryId") REFERENCES "account_entries"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-              END IF;
-            END;
-            $$;
-          `;
-          console.log('✅ ledger_entries.accountEntryId column added successfully');
-        } catch (alterError: any) {
-          console.log('❌ Failed to alter ledger_entries table:', alterError.message);
-        }
+      console.log('🛠️ Ensuring ledger_entries columns and constraints are production-ready...');
+      try {
+        await prisma.$executeRaw`ALTER TABLE "ledger_entries" ADD COLUMN IF NOT EXISTS "accountEntryId" TEXT;`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "ledger_entries_accountEntryId_idx" ON "ledger_entries"("accountEntryId");`;
+        await prisma.$executeRaw`
+          DO $$
+          BEGIN
+            IF EXISTS (
+              SELECT 1 FROM pg_constraint WHERE conname = 'ledger_entries_transactionId_fkey'
+            ) THEN
+              ALTER TABLE "ledger_entries" DROP CONSTRAINT "ledger_entries_transactionId_fkey";
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint WHERE conname = 'ledger_entries_accountEntryId_fkey'
+            ) THEN
+              ALTER TABLE "ledger_entries"
+                ADD CONSTRAINT "ledger_entries_accountEntryId_fkey"
+                FOREIGN KEY ("accountEntryId") REFERENCES "account_entries"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+            END IF;
+          END;
+          $$;
+        `;
+        await prisma.ledgerEntry.findFirst();
+        console.log('✅ LedgerEntry table is ready for accounting create/update');
+      } catch (alterError: any) {
+        console.log('❌ Failed to prepare ledger_entries table:', alterError.message);
       }
     }
     

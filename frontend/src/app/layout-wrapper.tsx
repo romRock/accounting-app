@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAuthStore } from '@/store';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { Button } from '@/components/ui/button';
@@ -208,13 +209,7 @@ export default function LayoutWrapper({
   }
 
   if (pathname === '/login') {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="max-w-md w-full space-y-8 p-8">
-          {children}
-        </div>
-      </div>
-    );
+    return <>{children}</>;
   }
 
   const allNavigation = [
@@ -344,29 +339,24 @@ export default function LayoutWrapper({
     <div className="min-h-screen bg-white flex">
       {/* Sidebar - 20% width on desktop */}
       <div className={`hidden lg:flex lg:w-1/5 bg-white border-r border-gray-200 flex-col h-screen fixed left-0 top-0`}>
-        <div className="flex items-center justify-center h-16 bg-white border-b border-gray-200 flex-shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">A</span>
-            </div>
-            <h2 className="text-xl font-bold text-gray-900">Angadiya</h2>
-          </div>
+        <div className="flex items-center justify-center h-20 bg-white border-b border-gray-200 flex-shrink-0 ">
+          <Image src="/images/logo.png" alt="Angadiya Logo" width={100} height={50} className="object-contain" priority />
         </div>
         
-        <nav className="flex-1 mt-8 px-4 overflow-hidden">
-          <div className="space-y-1">
+        <nav className="flex-1 pt-4 px-4 overflow-hidden relative bg-gradient-to-br from-gray-50 via-white to-gray-100 animate-gradient">
+          <div className="space-y-1 relative z-10">
             {navigation.map((item) => (
               <Link
                 key={item.name}
                 href={item.href}
                 className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
                   pathname === item.href
-                    ? 'bg-blue-50 text-blue-600 border border-blue-200'
-                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                    ? 'bg-blue-500 text-white border border-white'
+                    : 'text-gray-700 hover:bg-blue-500 hover:text-white'
                 }`}
               >
                 <span className={`mr-3 transition-transform duration-200 group-hover:scale-110 ${
-                  pathname === item.href ? 'text-blue-600' : 'text-gray-500 group-hover:text-gray-600'
+                  pathname === item.href ? 'text-white' : 'text-gray-500 group-hover:text-white'
                 }`}>
                   {item.icon}
                 </span>
@@ -756,12 +746,7 @@ export default function LayoutWrapper({
         <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setSidebarOpen(false)} />
         <div className="fixed inset-y-0 left-0 w-full max-w-sm bg-white">
           <div className="flex items-center justify-center h-16 bg-white border-b border-gray-200">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">A</span>
-              </div>
-              <h2 className="text-xl font-bold text-gray-900">Angadiya</h2>
-            </div>
+            <Image src="/images/logo-a.png" alt="Angadiya Logo" width={160} height={40} className="object-contain" priority />
           </div>
           
           <nav className="mt-8 px-4">

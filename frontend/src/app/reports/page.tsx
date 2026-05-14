@@ -10,6 +10,34 @@ import { useAuthStore } from '@/store';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { CityTypeahead } from '@/components/ui/typeahead';
 import { transactionApi, Transaction } from '@/lib/transactions';
+import { accountingApi, AccountingEntry } from '@/lib/accounting';
+import { getHawalaEntries, HawalaEntry } from '@/lib/hawala';
+import { getSpecialEntries, SpecialEntry } from '@/lib/specialEntry';
+
+// Unified row used only by Transaction Report (report #5)
+type TxnReportModule = 'transaction' | 'accounting' | 'hawala' | 'special';
+interface TxnReportRow {
+  key: string;
+  module: TxnReportModule;
+  moduleLabel: string;
+  date: string;        // ISO date
+  time: string;        // HH:MM
+  sortTs: number;      // timestamp for sorting ascending
+  trnId: string;
+  token: string;
+  type: string;        // OUTWARD/INWARD/INCOME/EXPENSE/HAWALA/SPL
+  center: string;
+  amountType: string;  // CASH/CREDIT (transactions only)
+  partyA: string;
+  partyB: string;
+  partyC: string;
+  category: string;
+  amount: string;
+  amountA: string;
+  amountB: string;
+  amountC: string;
+  remark: string;
+}
 
 // Report Types
 type ReportType = 'outward' | 'inward' | 'combo' | 'amount-type' | 'transaction' | 'customer' | 'transaction-refund';
@@ -61,7 +89,16 @@ export default function ReportsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [exporting, setExporting] = useState(false);
   const firstInputRef = useRef<HTMLInputElement>(null);
-  
+
+  // ----- Transaction Report (#5) dedicated state -----
+  const [txnReportRows, setTxnReportRows] = useState<TxnReportRow[]>([]);
+  const [txnModuleFilter, setTxnModuleFilter] = useState<Record<TxnReportModule, boolean>>({
+    transaction: true,
+    accounting: true,
+    hawala: true,
+    special: true,
+  });
+
   // Date filter states from transaction page
   const [filterByDate, setFilterByDate] = useState(false);
   const [dateFilter, setDateFilter] = useState('');
@@ -123,11 +160,14 @@ export default function ReportsPage() {
           });
         
         setReportData(allTransactions);
-      } else if (activeReport === 'transaction' || activeReport === 'customer' || activeReport === 'transaction-refund') {
-        // For new accounting reports, use existing transaction data as placeholder
-        // TODO: Replace with actual accounting API calls when implemented
+      } else if (activeReport === 'transaction') {
+        // Transaction Report (#5): aggregate from 4 modules (today only)
+        await fetchTransactionReport();
+        setReportData([]); // unified table renders from txnReportRows
+      } else if (activeReport === 'customer' || activeReport === 'transaction-refund') {
+        // Placeholder for remaining reports (unchanged - to be implemented later)
         response = await transactionApi.getTransactions({
-          type: 'OUTWARD', // Get all transactions for now
+          type: 'OUTWARD',
           search: searchTerm,
           page: currentPage,
           limit: 100,
@@ -157,9 +197,273 @@ export default function ReportsPage() {
     }
   };
 
+  // Helpers for Transaction Report (#5)
+  const todayLocalString = () => {
+    const t = new Date();
+    return (
+      t.getFullYear() +
+      '-' +
+      String(t.getMonth() + 1).padStart(2, '0') +
+      '-' +
+      String(t.getDate()).padStart(2, '0')
+    );
+  };
+
+  const isToday = (dateStr?: string) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return false;
+    const local =
+      d.getFullYear() +
+      '-' +
+      String(d.getMonth() + 1).padStart(2, '0') +
+      '-' +
+      String(d.getDate()).padStart(2, '0');
+    return local === todayLocalString();
+  };
+
+  const extractTimeAndTs = (dateStr?: string, timeStr?: string) => {
+    // Returns HH:MM display and timestamp for sorting
+    let ts = 0;
+    let hhmm = '';
+    const baseDate = dateStr ? new Date(dateStr) : null;
+    if (timeStr) {
+      const t = new Date(timeStr);
+      if (!isNaN(t.getTime())) {
+        ts = t.getTime();
+        hhmm = t.toTimeString().slice(0, 5);
+      } else if (typeof timeStr === 'string' && timeStr.length >= 5) {
+        hhmm = timeStr.slice(0, 5);
+        if (baseDate && !isNaN(baseDate.getTime())) ts = baseDate.getTime();
+      }
+    }
+    if (!ts && baseDate && !isNaN(baseDate.getTime())) ts = baseDate.getTime();
+    return { hhmm, ts };
+  };
+
+  // Fetch all 4 modules' GET APIs for today and build unified rows
+  const fetchTransactionReport = async () => {
+    try {
+      const today = todayLocalString();
+
+      const [txnRes, accRes, hawalaRes, splRes] = await Promise.allSettled([
+        // Transactions: get both INWARD and OUTWARD, exclude CASH later
+        Promise.all([
+          transactionApi.getTransactions({ type: 'OUTWARD', page: 1, limit: 500 }),
+          transactionApi.getTransactions({ type: 'INWARD', page: 1, limit: 500 }),
+        ]),
+        accountingApi.getAccountEntries({
+          page: 1,
+          limit: 500,
+          dateFrom: today,
+          dateTo: today,
+        }),
+        getHawalaEntries({ page: 1, limit: 500, dateFrom: today, dateTo: today }),
+        getSpecialEntries({ page: 1, limit: 500, dateFrom: today, dateTo: today }),
+      ]);
+
+      const rows: TxnReportRow[] = [];
+
+      // Transactions (only credit-affecting, exclude CASH)
+      if (txnRes.status === 'fulfilled') {
+        const [outward, inward] = txnRes.value;
+        const all: Transaction[] = [...(outward.transactions || []), ...(inward.transactions || [])];
+        all.forEach((t) => {
+          if (!isToday(t.date)) return;
+          const at = (t.amountType || '').toUpperCase();
+          if (at === 'CASH') return; // exclude cash
+          const { hhmm, ts } = extractTimeAndTs(t.date, t.time);
+          const totalAmt = t.type === 'OUTWARD' ? (t.amount || 0) + (t.centerCommission || 0) : (t.amount || 0);
+          rows.push({
+            key: `txn-${t.id}`,
+            module: 'transaction',
+            moduleLabel: 'Transaction',
+            date: t.date,
+            time: hhmm,
+            sortTs: ts,
+            trnId: t.transactionId || '',
+            token: t.tokenNo != null ? String(t.tokenNo) : '',
+            type: t.type || '',
+            center: t.center?.name || t.centerId || '',
+            amountType: t.amountType || '',
+            partyA: t.receiverName || '',
+            partyB: t.senderName || '',
+            partyC: '',
+            category: '',
+            amount: String(totalAmt),
+            amountA: '',
+            amountB: '',
+            amountC: '',
+            remark: t.remark || '',
+          });
+        });
+      }
+
+      // Accounting entries (all - they all affect client/business ledger)
+      if (accRes.status === 'fulfilled') {
+        const entries: AccountingEntry[] = accRes.value.entries || [];
+        entries.forEach((e) => {
+          const dateField = e.date;
+          if (!isToday(dateField)) return;
+          const { hhmm, ts } = extractTimeAndTs(dateField, e.statusTime || e.time);
+          rows.push({
+            key: `acc-${e.id}`,
+            module: 'accounting',
+            moduleLabel: 'Accounting',
+            date: dateField,
+            time: hhmm,
+            sortTs: ts,
+            trnId: e.entryId || e.transactionId || '',
+            token: '',
+            type: e.type || '',
+            center: '',
+            amountType: '',
+            partyA: e.party?.name || '',
+            partyB: '',
+            partyC: '',
+            category: e.category?.name || '',
+            amount: String(e.totalAmount ?? e.amount ?? 0),
+            amountA: '',
+            amountB: '',
+            amountC: '',
+            remark: e.description || '',
+          });
+        });
+      }
+
+      // Hawala (all entries affect 2 parties)
+      if (hawalaRes.status === 'fulfilled') {
+        const list: HawalaEntry[] = hawalaRes.value.data || [];
+        list.forEach((h) => {
+          if (!isToday(h.date)) return;
+          const { hhmm, ts } = extractTimeAndTs(h.date, h.time);
+          rows.push({
+            key: `hwl-${h.id}`,
+            module: 'hawala',
+            moduleLabel: 'Hawala',
+            date: h.date,
+            time: hhmm,
+            sortTs: ts,
+            trnId: h.transactionId || '',
+            token: h.tokenNo != null ? String(h.tokenNo) : '',
+            type: 'HAWALA',
+            center: '',
+            amountType: '',
+            partyA: h.partyA || '',
+            partyB: h.partyB || '',
+            partyC: '',
+            category: '',
+            amount: String(h.amount || 0),
+            amountA: '',
+            amountB: '',
+            amountC: '',
+            remark: h.remark || '',
+          });
+        });
+      }
+
+      // Special Entry (3-party entries always affect clients)
+      if (splRes.status === 'fulfilled') {
+        const list: SpecialEntry[] = splRes.value.data || [];
+        list.forEach((s) => {
+          if (!isToday(s.date)) return;
+          const { hhmm, ts } = extractTimeAndTs(s.date, s.time);
+          rows.push({
+            key: `spl-${s.id}`,
+            module: 'special',
+            moduleLabel: 'Special Entry',
+            date: s.date,
+            time: hhmm,
+            sortTs: ts,
+            trnId: s.transactionId || '',
+            token: s.tokenNo != null ? String(s.tokenNo) : '',
+            type: 'SPL',
+            center: '',
+            amountType: '',
+            partyA: s.partyA || '',
+            partyB: s.partyB || '',
+            partyC: s.partyC || '',
+            category: '',
+            amount: '',
+            amountA: String(s.amountA || 0),
+            amountB: String(s.amountB || 0),
+            amountC: String(s.amountC || 0),
+            remark: s.remark || '',
+          });
+        });
+      }
+
+      // Sort ascending by time (earliest first)
+      rows.sort((a, b) => a.sortTs - b.sortTs);
+      setTxnReportRows(rows);
+    } catch (err) {
+      console.error('Failed to fetch transaction report:', err);
+      setTxnReportRows([]);
+    }
+  };
+
   // Generate report data
   const generateReport = () => {
     fetchTransactions();
+  };
+
+  // Filtered rows for Transaction Report (module filter + search)
+  const txnReportFilteredRows = txnReportRows.filter((r) => {
+    if (!txnModuleFilter[r.module]) return false;
+    if (!searchTerm) return true;
+    const s = searchTerm.toLowerCase();
+    return (
+      r.trnId.toLowerCase().includes(s) ||
+      r.token.toLowerCase().includes(s) ||
+      r.partyA.toLowerCase().includes(s) ||
+      r.partyB.toLowerCase().includes(s) ||
+      r.partyC.toLowerCase().includes(s) ||
+      r.category.toLowerCase().includes(s) ||
+      r.center.toLowerCase().includes(s) ||
+      r.remark.toLowerCase().includes(s)
+    );
+  });
+
+  const TXN_REPORT_COLUMNS = [
+    'TIME',
+    'MODULE',
+    'TRN ID',
+    'TOKEN',
+    'TYPE',
+    'CENTER',
+    'AMOUNT TYPE',
+    'PARTY A',
+    'AMOUNT A',
+    'PARTY B',
+    'AMOUNT B',
+    'PARTY C',
+    'AMOUNT C',
+    'CATEGORY',
+    'AMOUNT',
+    'REMARK',
+  ];
+
+  const renderTxnReportCell = (row: TxnReportRow, column: string) => {
+    const num = (v: string) => (v === '' ? '' : formatCurrency(Number(v) || 0));
+    switch (column) {
+      case 'TIME': return row.time || '';
+      case 'MODULE': return row.moduleLabel;
+      case 'TRN ID': return row.trnId || '';
+      case 'TOKEN': return row.token || '';
+      case 'TYPE': return row.type || '';
+      case 'CENTER': return row.center || '';
+      case 'AMOUNT TYPE': return row.amountType || '';
+      case 'PARTY A': return row.partyA || '';
+      case 'AMOUNT A': return num(row.amountA);
+      case 'PARTY B': return row.partyB || '';
+      case 'AMOUNT B': return num(row.amountB);
+      case 'PARTY C': return row.partyC || '';
+      case 'AMOUNT C': return num(row.amountC);
+      case 'CATEGORY': return row.category || '';
+      case 'AMOUNT': return num(row.amount);
+      case 'REMARK': return row.remark || '';
+      default: return '';
+    }
   };
 
   // Export functionality
@@ -636,6 +940,20 @@ export default function ReportsPage() {
 
   // Calculate summary based on filtered data
   useEffect(() => {
+    if (activeReport === 'transaction') {
+      const totalAmt = txnReportFilteredRows.reduce((sum, r) => {
+        if (r.module === 'special') {
+          return sum + (Number(r.amountA) || 0) + (Number(r.amountB) || 0) + (Number(r.amountC) || 0);
+        }
+        return sum + (Number(r.amount) || 0);
+      }, 0);
+      setSummary({
+        totalRecords: txnReportFilteredRows.length,
+        totalAmount: totalAmt,
+        totalCommission: 0,
+      });
+      return;
+    }
     if (reportData.length > 0) {
       let summary: ReportSummary;
       
@@ -685,7 +1003,7 @@ export default function ReportsPage() {
       
       setSummary(summary);
     }
-  }, [reportData, searchTerm, filterByDate, dateFilter, startDate, endDate, isSelectingRange, filters.center, filters.amountType, activeReport]);
+  }, [reportData, searchTerm, filterByDate, dateFilter, startDate, endDate, isSelectingRange, filters.center, filters.amountType, activeReport, txnReportRows, txnModuleFilter]);
 
   if (!isAuthenticated) {
     return null;
@@ -823,6 +1141,33 @@ export default function ReportsPage() {
                 </div>
               )}
 
+              {/* Module Filter - Only for Transaction Report (#5) */}
+              {activeReport === 'transaction' && (
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <Label className="text-sm font-medium text-gray-700">Modules</Label>
+                  <div className="flex flex-wrap items-center gap-3 mt-2">
+                    {([
+                      { id: 'transaction', name: 'Transaction' },
+                      { id: 'accounting', name: 'Accounting' },
+                      { id: 'hawala', name: 'Hawala' },
+                      { id: 'special', name: 'Special Entry' },
+                    ] as { id: TxnReportModule; name: string }[]).map((m) => (
+                      <label key={m.id} className="flex items-center space-x-2 text-sm text-gray-800">
+                        <input
+                          type="checkbox"
+                          checked={txnModuleFilter[m.id]}
+                          onChange={(e) =>
+                            setTxnModuleFilter((prev) => ({ ...prev, [m.id]: e.target.checked }))
+                          }
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <span>{m.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Amount Type Filter - Only for Amount Type Report */}
               {activeReport === 'amount-type' && (
                 <div>
@@ -924,6 +1269,92 @@ export default function ReportsPage() {
         )}
 
         {/* Report Data Table */}
+        {activeReport === 'transaction' ? (
+          <Card className="shadow-sm border-gray-200 bg-gray-100">
+            <CardHeader className="pb-4">
+              <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+                <div>
+                  <CardTitle className="text-xl font-semibold text-gray-900">
+                    Transaction Report Data
+                  </CardTitle>
+                  <CardDescription className="text-gray-600">
+                    {txnReportFilteredRows.length} records found (today, sorted by time)
+                  </CardDescription>
+                </div>
+                <div className="hidden sm:block">
+                  <Input
+                    placeholder="Search by..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="bg-white w-48 lg:w-72 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                  />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="ml-2 text-gray-600">Loading report data...</span>
+                </div>
+              ) : txnReportFilteredRows.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">No data found for today. Toggle modules or check back later.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full bg-white border border-gray-200 rounded-lg">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        {TXN_REPORT_COLUMNS.map((column, index) => (
+                          <th
+                            key={index}
+                            className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 last:border-r-0 whitespace-nowrap"
+                          >
+                            {column}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {txnReportFilteredRows.map((row) => (
+                        <tr key={row.key} className="hover:bg-gray-50">
+                          {TXN_REPORT_COLUMNS.map((column, colIndex) => {
+                            const cellValue = renderTxnReportCell(row, column);
+                            return (
+                              <td
+                                key={colIndex}
+                                className="px-3 py-3 text-sm text-gray-900 border-r border-gray-200 last:border-r-0 whitespace-nowrap"
+                              >
+                                {column === 'MODULE' ? (
+                                  <span
+                                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                      row.module === 'transaction'
+                                        ? 'bg-blue-100 text-blue-800'
+                                        : row.module === 'accounting'
+                                        ? 'bg-purple-100 text-purple-800'
+                                        : row.module === 'hawala'
+                                        ? 'bg-amber-100 text-amber-800'
+                                        : 'bg-emerald-100 text-emerald-800'
+                                    }`}
+                                  >
+                                    {cellValue}
+                                  </span>
+                                ) : (
+                                  cellValue || ''
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
         <Card className="shadow-sm border-gray-200 bg-gray-100">
           <CardHeader className="pb-4">
             <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
@@ -1006,6 +1437,7 @@ export default function ReportsPage() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
     </div>
   );

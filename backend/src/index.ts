@@ -144,7 +144,45 @@ async function initializeDatabase() {
       await prisma.accountCategory.findFirst();
       console.log('✅ AccountCategory table exists');
     } catch (error: any) {
-      console.log('❌ Error checking AccountCategory table:', error.message);
+      const message = (error?.message || '').toLowerCase();
+      if (message.includes('does not exist')) {
+        console.log('🗄️ Creating account_categories table...');
+        await prisma.$executeRaw`
+          CREATE TABLE IF NOT EXISTS "account_categories" (
+            "id" TEXT NOT NULL,
+            "name" TEXT NOT NULL,
+            "type" TEXT NOT NULL,
+            "description" TEXT,
+            "parentId" TEXT,
+            "gstApplicable" BOOLEAN NOT NULL DEFAULT false,
+            "tdsApplicable" BOOLEAN NOT NULL DEFAULT false,
+            "isActive" BOOLEAN NOT NULL DEFAULT true,
+            "isDeleted" BOOLEAN NOT NULL DEFAULT false,
+            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMP(3) NOT NULL,
+            CONSTRAINT "account_categories_pkey" PRIMARY KEY ("id")
+          );
+        `;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "account_categories_type_idx" ON "account_categories"("type");`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "account_categories_parentId_idx" ON "account_categories"("parentId");`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "account_categories_createdAt_idx" ON "account_categories"("createdAt");`;
+        await prisma.$executeRaw`
+          DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint WHERE conname = 'account_categories_parentId_fkey'
+            ) THEN
+              ALTER TABLE "account_categories"
+                ADD CONSTRAINT "account_categories_parentId_fkey"
+                FOREIGN KEY ("parentId") REFERENCES "account_categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+            END IF;
+          END;
+          $$;
+        `;
+        console.log('✅ AccountCategory table created successfully');
+      } else {
+        console.log('❌ Error checking AccountCategory table:', error.message);
+      }
     }
     
     // Check AccountEntry table
@@ -152,7 +190,80 @@ async function initializeDatabase() {
       await prisma.accountEntry.findFirst();
       console.log('✅ AccountEntry table exists');
     } catch (error: any) {
-      console.log('❌ Error checking AccountEntry table:', error.message);
+      const message = (error?.message || '').toLowerCase();
+      if (message.includes('does not exist')) {
+        console.log('🗄️ Creating account_entries table...');
+        await prisma.$executeRaw`
+          CREATE TABLE IF NOT EXISTS "account_entries" (
+            "id" TEXT NOT NULL,
+            "entryId" TEXT NOT NULL,
+            "date" TIMESTAMP(3) NOT NULL,
+            "categoryId" TEXT NOT NULL,
+            "amount" DOUBLE PRECISION NOT NULL,
+            "description" TEXT,
+            "partyId" TEXT,
+            "paymentMethod" TEXT,
+            "referenceNo" TEXT,
+            "gstAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+            "tdsAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+            "totalAmount" DOUBLE PRECISION NOT NULL,
+            "type" TEXT NOT NULL,
+            "statusTime" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "isActive" BOOLEAN NOT NULL DEFAULT true,
+            "isDeleted" BOOLEAN NOT NULL DEFAULT false,
+            "branchId" TEXT,
+            "createdBy" TEXT NOT NULL,
+            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMP(3) NOT NULL,
+            CONSTRAINT "account_entries_pkey" PRIMARY KEY ("id")
+          );
+        `;
+        await prisma.$executeRaw`CREATE UNIQUE INDEX IF NOT EXISTS "account_entries_entryId_key" ON "account_entries"("entryId");`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "account_entries_date_idx" ON "account_entries"("date");`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "account_entries_categoryId_idx" ON "account_entries"("categoryId");`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "account_entries_partyId_idx" ON "account_entries"("partyId");`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "account_entries_type_idx" ON "account_entries"("type");`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "account_entries_branchId_idx" ON "account_entries"("branchId");`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "account_entries_createdBy_idx" ON "account_entries"("createdBy");`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "account_entries_createdAt_idx" ON "account_entries"("createdAt");`;
+        await prisma.$executeRaw`
+          DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint WHERE conname = 'account_entries_categoryId_fkey'
+            ) THEN
+              ALTER TABLE "account_entries"
+                ADD CONSTRAINT "account_entries_categoryId_fkey"
+                FOREIGN KEY ("categoryId") REFERENCES "account_categories"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint WHERE conname = 'account_entries_partyId_fkey'
+            ) THEN
+              ALTER TABLE "account_entries"
+                ADD CONSTRAINT "account_entries_partyId_fkey"
+                FOREIGN KEY ("partyId") REFERENCES "parties"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint WHERE conname = 'account_entries_branchId_fkey'
+            ) THEN
+              ALTER TABLE "account_entries"
+                ADD CONSTRAINT "account_entries_branchId_fkey"
+                FOREIGN KEY ("branchId") REFERENCES "branches"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint WHERE conname = 'account_entries_createdBy_fkey'
+            ) THEN
+              ALTER TABLE "account_entries"
+                ADD CONSTRAINT "account_entries_createdBy_fkey"
+                FOREIGN KEY ("createdBy") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+            END IF;
+          END;
+          $$;
+        `;
+        console.log('✅ AccountEntry table created successfully');
+      } else {
+        console.log('❌ Error checking AccountEntry table:', error.message);
+      }
     }
     
     // Check ClientLedger table
@@ -160,15 +271,149 @@ async function initializeDatabase() {
       await prisma.clientLedger.findFirst();
       console.log('✅ ClientLedger table exists');
     } catch (error: any) {
-      console.log('❌ Error checking ClientLedger table:', error.message);
+      const message = (error?.message || '').toLowerCase();
+      if (message.includes('does not exist')) {
+        console.log('🗄️ Creating client_ledgers table...');
+        await prisma.$executeRaw`
+          CREATE TABLE IF NOT EXISTS "client_ledgers" (
+            "id" TEXT NOT NULL,
+            "clientId" TEXT NOT NULL,
+            "openingBalance" DOUBLE PRECISION NOT NULL DEFAULT 0,
+            "currentBalance" DOUBLE PRECISION NOT NULL DEFAULT 0,
+            "lastTransactionDate" TIMESTAMP(3),
+            "balanceType" TEXT NOT NULL DEFAULT 'DEBIT',
+            "financialYear" TEXT NOT NULL,
+            "isActive" BOOLEAN NOT NULL DEFAULT true,
+            "isDeleted" BOOLEAN NOT NULL DEFAULT false,
+            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMP(3) NOT NULL,
+            "createdBy" TEXT NOT NULL,
+            CONSTRAINT "client_ledgers_pkey" PRIMARY KEY ("id")
+          );
+        `;
+        await prisma.$executeRaw`CREATE UNIQUE INDEX IF NOT EXISTS "client_ledgers_clientId_key" ON "client_ledgers"("clientId");`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "client_ledgers_balanceType_idx" ON "client_ledgers"("balanceType");`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "client_ledgers_financialYear_idx" ON "client_ledgers"("financialYear");`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "client_ledgers_createdAt_idx" ON "client_ledgers"("createdAt");`;
+        await prisma.$executeRaw`
+          DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint WHERE conname = 'client_ledgers_clientId_fkey'
+            ) THEN
+              ALTER TABLE "client_ledgers"
+                ADD CONSTRAINT "client_ledgers_clientId_fkey"
+                FOREIGN KEY ("clientId") REFERENCES "parties"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint WHERE conname = 'client_ledgers_createdBy_fkey'
+            ) THEN
+              ALTER TABLE "client_ledgers"
+                ADD CONSTRAINT "client_ledgers_createdBy_fkey"
+                FOREIGN KEY ("createdBy") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+            END IF;
+          END;
+          $$;
+        `;
+        console.log('✅ ClientLedger table created successfully');
+      } else {
+        console.log('❌ Error checking ClientLedger table:', error.message);
+      }
     }
     
-    // Check LedgerEntry table
+    // Check LedgerEntry table and missing accountEntryId column
     try {
       await prisma.ledgerEntry.findFirst();
       console.log('✅ LedgerEntry table exists');
     } catch (error: any) {
-      console.log('❌ Error checking LedgerEntry table:', error.message);
+      const message = (error?.message || '').toLowerCase();
+      if (message.includes('does not exist')) {
+        console.log('🗄️ Creating ledger_entries table...');
+        await prisma.$executeRaw`
+          CREATE TABLE IF NOT EXISTS "ledger_entries" (
+            "id" TEXT NOT NULL,
+            "date" TIMESTAMP(3) NOT NULL,
+            "accountId" TEXT NOT NULL,
+            "accountType" TEXT NOT NULL,
+            "description" TEXT NOT NULL,
+            "debitAmount" DOUBLE PRECISION,
+            "creditAmount" DOUBLE PRECISION,
+            "balance" DOUBLE PRECISION NOT NULL,
+            "isActive" BOOLEAN NOT NULL DEFAULT true,
+            "isDeleted" BOOLEAN NOT NULL DEFAULT false,
+            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMP(3) NOT NULL,
+            "transactionId" TEXT,
+            "branchId" TEXT,
+            "createdBy" TEXT NOT NULL,
+            "accountEntryId" TEXT,
+            CONSTRAINT "ledger_entries_pkey" PRIMARY KEY ("id")
+          );
+        `;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "ledger_entries_date_idx" ON "ledger_entries"("date");`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "ledger_entries_accountId_idx" ON "ledger_entries"("accountId");`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "ledger_entries_accountType_idx" ON "ledger_entries"("accountType");`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "ledger_entries_transactionId_idx" ON "ledger_entries"("transactionId");`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "ledger_entries_branchId_idx" ON "ledger_entries"("branchId");`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "ledger_entries_createdBy_idx" ON "ledger_entries"("createdBy");`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "ledger_entries_createdAt_idx" ON "ledger_entries"("createdAt");`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "ledger_entries_accountEntryId_idx" ON "ledger_entries"("accountEntryId");`;
+        await prisma.$executeRaw`
+          DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint WHERE conname = 'ledger_entries_branchId_fkey'
+            ) THEN
+              ALTER TABLE "ledger_entries"
+                ADD CONSTRAINT "ledger_entries_branchId_fkey"
+                FOREIGN KEY ("branchId") REFERENCES "branches"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint WHERE conname = 'ledger_entries_createdBy_fkey'
+            ) THEN
+              ALTER TABLE "ledger_entries"
+                ADD CONSTRAINT "ledger_entries_createdBy_fkey"
+                FOREIGN KEY ("createdBy") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint WHERE conname = 'ledger_entries_transactionId_fkey'
+            ) THEN
+              ALTER TABLE "ledger_entries"
+                ADD CONSTRAINT "ledger_entries_transactionId_fkey"
+                FOREIGN KEY ("transactionId") REFERENCES "transactions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint WHERE conname = 'ledger_entries_accountEntryId_fkey'
+            ) THEN
+              ALTER TABLE "ledger_entries"
+                ADD CONSTRAINT "ledger_entries_accountEntryId_fkey"
+                FOREIGN KEY ("accountEntryId") REFERENCES "account_entries"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+            END IF;
+          END;
+          $$;
+        `;
+        console.log('✅ LedgerEntry table created successfully');
+      } else if (message.includes('column "ledger_entries.accountentryid" does not exist') || message.includes('column "accountentryid" does not exist')) {
+        console.log('🛠️ Adding missing ledger_entries.accountEntryId column...');
+        await prisma.$executeRaw`ALTER TABLE "ledger_entries" ADD COLUMN IF NOT EXISTS "accountEntryId" TEXT;`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "ledger_entries_accountEntryId_idx" ON "ledger_entries"("accountEntryId");`;
+        await prisma.$executeRaw`
+          DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint WHERE conname = 'ledger_entries_accountEntryId_fkey'
+            ) THEN
+              ALTER TABLE "ledger_entries"
+                ADD CONSTRAINT "ledger_entries_accountEntryId_fkey"
+                FOREIGN KEY ("accountEntryId") REFERENCES "account_entries"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+            END IF;
+          END;
+          $$;
+        `;
+        console.log('✅ ledger_entries.accountEntryId column added successfully');
+      } else {
+        console.log('❌ Error checking LedgerEntry table:', error.message);
+      }
     }
     
     console.log('🚀 Database initialization complete');

@@ -243,18 +243,76 @@ export default function AccountingPage() {
   // Update transaction
   const updateTransaction = (transaction: AccountingEntry) => {
     setSelectedTransaction(transaction);
+    
+    // Format time to HH:MM (Indian time format)
+    let timeValue = '00:00';
+    if (transaction.statusTime) {
+      // If statusTime has time component
+      if (transaction.statusTime.includes('T')) {
+        const timePart = transaction.statusTime.split('T')[1];
+        if (timePart) {
+          timeValue = timePart.substring(0, 5);
+        }
+      }
+    } else if (transaction.time) {
+      // Fallback to time field
+      if (/^\d{2}:\d{2}/.test(transaction.time)) {
+        timeValue = transaction.time.substring(0, 5);
+      } else if (transaction.time.includes('T')) {
+        const timePart = transaction.time.split('T')[1];
+        if (timePart) {
+          timeValue = timePart.substring(0, 5);
+        }
+      }
+    } else if (transaction.date && transaction.date.includes('T')) {
+      // Fallback: try to extract from date if it has time component
+      const timePart = transaction.date.split('T')[1];
+      if (timePart) {
+        timeValue = timePart.substring(0, 5);
+      }
+    }
+
+    // Format date to YYYY-MM-DD
+    let dateValue = '';
+    if (transaction.date) {
+      if (transaction.date.includes('T')) {
+        // If it's ISO format, take just the date part
+        dateValue = transaction.date.split('T')[0];
+      } else if (/^\d{4}-\d{2}-\d{2}/.test(transaction.date)) {
+        // Already in correct format
+        dateValue = transaction.date.substring(0, 10);
+      } else {
+        // Try to parse and format
+        const date = new Date(transaction.date);
+        if (!isNaN(date.getTime())) {
+          dateValue = date.toISOString().split('T')[0];
+        }
+      }
+    }
+
+    // Get category ID from the categories list
+    let categoryId = transaction.categoryId || '';
+    if (transaction.category?.id) {
+      categoryId = transaction.category.id;
+    } else if (transaction.category?.name) {
+      // Find category by name
+      const foundCategory = categories.find(c => c.name === transaction.category?.name);
+      if (foundCategory) {
+        categoryId = foundCategory.id;
+      }
+    }
+
+    // Determine amount type from type field or accountType
+    const amountType = transaction.type ? transaction.type : (transaction.accountType === 'INCOME_ACCOUNT' ? 'INCOME' : 'EXPENSE');
+
     setTransactionForm({
-      transactionNo: transaction.transactionId || transaction.entryId || '',
-      date: transaction.date,
-      time: formatTransactionTime(
-        transaction.time,
-        transaction.date,
-        transaction.statusTime || transaction.createdAt,
-      ),
-      amount: transaction.creditAmount || transaction.debitAmount || 0,
-      amountType: transaction.accountType === 'INCOME_ACCOUNT' ? 'INCOME' : 'EXPENSE',
-      category: '',
-      account: transaction.accountId || '',
+      transactionNo: transaction.entryId || transaction.transactionId || '',
+      date: dateValue,
+      time: timeValue,
+      amount: transaction.amount || transaction.creditAmount || transaction.debitAmount || 0,
+      amountType: amountType as 'INCOME' | 'EXPENSE',
+      category: categoryId,
+      account: transaction.party?.name || transaction.partyId || transaction.accountId || '',
       remark: transaction.description || ''
     });
   };
@@ -429,7 +487,7 @@ export default function AccountingPage() {
                     >
                       <option value="">Select Category</option>
                       {categories.filter(c => c.type === transactionForm.amountType).map(category => (
-                        <option key={category.id} value={category.name}>{category.name}</option>
+                        <option key={category.id} value={category.id}>{category.name}</option>
                       ))}
                     </select>
                   </div>
@@ -510,27 +568,27 @@ export default function AccountingPage() {
                         >
                           <td className="px-4 py-3 text-sm text-gray-900">{formatDate(transaction.date)}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{formatTransactionTime(
-                            transaction.time,
+                            transaction.statusTime || transaction.time,
                             transaction.date,
-                            transaction.statusTime || transaction.createdAt,
+                            transaction.createdAt,
                           )}</td>
                           <td className="px-4 py-3 text-sm">
                             <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              transaction.accountType === 'INCOME_ACCOUNT' 
+                              transaction.type === 'INCOME' 
                                 ? 'bg-green-100 text-green-800' 
                                 : 'bg-red-100 text-red-800'
                             }`}>
-                              {transaction.accountType === 'INCOME_ACCOUNT' ? 'INCOME' : 'EXPENSE'}
+                              {transaction.type || (transaction.accountType === 'INCOME_ACCOUNT' ? 'INCOME' : 'EXPENSE')}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-sm text-right text-green-600 font-bold">
-                            {transaction.accountType === 'INCOME_ACCOUNT' ? formatCurrency(transaction.creditAmount || 0) : ''}
+                            {(transaction.type === 'INCOME' || transaction.accountType === 'INCOME_ACCOUNT') ? formatCurrency(transaction.amount || transaction.creditAmount || 0) : ''}
                           </td>
                           <td className="px-4 py-3 text-sm text-right text-red-600 font-bold">
-                            {transaction.accountType === 'EXPENSE_ACCOUNT' ? formatCurrency(transaction.debitAmount || 0) : ''}
+                            {(transaction.type === 'EXPENSE' || transaction.accountType === 'EXPENSE_ACCOUNT') ? formatCurrency(transaction.amount || transaction.debitAmount || 0) : ''}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">-</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{transaction.accountId || '-'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">{transaction.category?.name || '-'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">{transaction.party?.name || transaction.partyId || transaction.accountId || '-'}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{transaction.description || '-'}</td>
                         </tr>
                       ))}

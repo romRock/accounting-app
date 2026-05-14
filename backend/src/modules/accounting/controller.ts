@@ -425,16 +425,23 @@ export const getAccountCategories = async (req: Request, res: Response) => {
     const userId = req.user?.id;
     const branchId = req.user?.branchId;
 
-    // For now, return success without database operations
-    // TODO: Implement after database tables are properly created
-    res.status(200).json({
-      message: 'Account categories retrieved successfully',
-      categories: [
+    // Check if categories exist in database
+    let categories = await prisma.accountCategory.findMany({
+      where: type ? { type: String(type) } : {},
+      skip: (Number(page) - 1) * Number(limit),
+      take: Number(limit),
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // If no categories exist, seed with mock data
+    if (categories.length === 0 && !type) {
+      const mockCategories = [
         {
           id: 'cat-1',
           name: 'Cash',
           type: 'INCOME',
           description: 'Cash income entries',
+          parentId: null,
           gstApplicable: false,
           tdsApplicable: false,
           isActive: true,
@@ -447,6 +454,7 @@ export const getAccountCategories = async (req: Request, res: Response) => {
           name: 'LBL',
           type: 'INCOME',
           description: 'LBL income entries (Label/Entry/Token)',
+          parentId: null,
           gstApplicable: false,
           tdsApplicable: false,
           isActive: true,
@@ -459,6 +467,7 @@ export const getAccountCategories = async (req: Request, res: Response) => {
           name: 'LBL',
           type: 'EXPENSE',
           description: 'LBL expense entries (Label/Entry/Token)',
+          parentId: null,
           gstApplicable: false,
           tdsApplicable: false,
           isActive: true,
@@ -471,6 +480,7 @@ export const getAccountCategories = async (req: Request, res: Response) => {
           name: 'Money Transfer',
           type: 'EXPENSE',
           description: 'Money transfer expenses',
+          parentId: null,
           gstApplicable: false,
           tdsApplicable: false,
           isActive: true,
@@ -478,14 +488,31 @@ export const getAccountCategories = async (req: Request, res: Response) => {
           createdAt: new Date(),
           updatedAt: new Date(),
         },
-      ],
+      ];
+
+      // Insert mock categories into database
+      for (const cat of mockCategories) {
+        await prisma.accountCategory.create({ data: cat });
+      }
+
+      categories = mockCategories;
+    }
+
+    const total = await prisma.accountCategory.count({
+      where: type ? { type: String(type) } : {},
+    });
+
+    res.status(200).json({
+      message: 'Account categories retrieved successfully',
+      categories,
       pagination: {
         page: Number(page),
         limit: Number(limit),
-        total: 4,
+        total,
       },
     });
   } catch (error) {
+    console.error('Get account categories error:', error);
     throw error;
   }
 };
@@ -538,6 +565,7 @@ export const createAccountEntry = async (req: Request, res: Response) => {
   try {
     const {
       date,
+      time,
       categoryId,
       amount,
       description,
@@ -554,43 +582,125 @@ export const createAccountEntry = async (req: Request, res: Response) => {
     const userId = req.user?.id;
     const branchId = req.user?.branchId;
 
+    // Validate required fields
+    if (!date || !categoryId || !amount || !type) {
+      throw createError('Missing required fields: date, categoryId, amount, type', 400);
+    }
+
+    // Validate that category exists
+    const category = await prisma.accountCategory.findUnique({
+      where: { id: categoryId },
+    });
+    if (!category) {
+      // Log available categories for debugging
+      const availableCategories = await prisma.accountCategory.findMany({
+        select: { id: true, name: true, type: true },
+      });
+      console.log('Available categories:', availableCategories);
+      throw createError(
+        `Category with ID '${categoryId}' not found. Available categories: ${availableCategories.map(c => `${c.id} (${c.name})`).join(', ')}`,
+        400
+      );
+    }
+
     // Generate sequential TRN ID if not provided
     let finalEntryId = entryId;
     if (!finalEntryId) {
       finalEntryId = await getLatestAccountTransactionId();
     }
 
-    const ledgerEntry = await prisma.ledgerEntry.create({
+    // Parse time safely
+    let statusTime = new Date();
+    if (time) {
+      const parsedTime = new Date(time);
+      if (!isNaN(parsedTime.getTime())) {
+        statusTime = parsedTime;
+      }
+    }
+
+    // Handle partyId - if provided, find or create party
+    let finalPartyId: string | undefined = undefined;
+    if (partyId) {
+      // Try to find party by ID first
+      let party = await prisma.party.findUnique({
+        where: { id: partyId },
+      });
+
+      // If not found by ID, try to find by name or create
+      if (!party) {
+        party = await prisma.party.findFirst({
+          where: { name: partyId },
+        });
+
+        // If still not found, create new party
+        if (!party) {
+          party = await prisma.party.create({
+            data: {
+              name: partyId,
+              isActive: true,
+            },
+          });
+        }
+      }
+      finalPartyId = party.id;
+    }
+
+    // Create AccountEntry record first
+    const accountEntry = await prisma.accountEntry.create({
+      data: {
+        entryId: finalEntryId,
+        date: new Date(date),
+        statusTime,
+        categoryId,
+        amount: Number(amount),
+        description: description || '',
+        partyId: finalPartyId || undefined,
+        paymentMethod: paymentMethod || undefined,
+        referenceNo: referenceNo || undefined,
+        gstAmount: gstAmount ? Number(gstAmount) : 0,
+        tdsAmount: tdsAmount ? Number(tdsAmount) : 0,
+        totalAmount: totalAmount ? Number(totalAmount) : Number(amount),
+        type,
+        branchId: branchId || undefined,
+        createdBy: userId!,
+      },
+      include: {
+        category: true,
+        party: true,
+      },
+    });
+
+    // Create corresponding LedgerEntry record
+    await prisma.ledgerEntry.create({
       data: {
         date: new Date(date),
-        accountId: partyId || 'GENERAL',
+        accountId: finalPartyId ?? 'GENERAL',
         accountType: type === 'INCOME' ? 'INCOME_ACCOUNT' : 'EXPENSE_ACCOUNT',
         description: description || `${type} entry`,
         debitAmount: type === 'EXPENSE' ? Number(amount) : null,
         creditAmount: type === 'INCOME' ? Number(amount) : null,
-        balance: 0, // Will be calculated based on previous entries
+        balance: 0,
         transactionId: finalEntryId,
-        branchId,
+        branchId: branchId || undefined,
         createdBy: userId!,
+        accountEntryId: accountEntry.id,
       },
     });
 
     res.status(201).json({
       message: 'Account entry created successfully',
-      ledgerEntry: {
-        ...ledgerEntry,
-        entryId: finalEntryId,
-      },
+      entry: accountEntry,
     });
   } catch (error) {
+    console.error('Create account entry error:', error);
     throw error;
   }
 };
 
 async function getLatestAccountTransactionId(): Promise<string> {
-  const lastEntry = await prisma.ledgerEntry.findFirst({
+  const lastEntry = await prisma.accountEntry.findFirst({
     where: {
-      transactionId: {
+      entryId: {
         startsWith: 'TRN',
       },
       isActive: true,
@@ -601,11 +711,11 @@ async function getLatestAccountTransactionId(): Promise<string> {
     },
   });
 
-  if (!lastEntry || !lastEntry.transactionId) {
+  if (!lastEntry || !lastEntry.entryId) {
     return 'TRN001';
   }
 
-  const match = lastEntry.transactionId.match(/TRN(\d+)/);
+  const match = lastEntry.entryId.match(/TRN(\d+)/);
   if (!match) {
     return 'TRN001';
   }
@@ -641,9 +751,10 @@ export const getAccountEntries = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    // Map accounting params to ledgerEntry fields
-    if (partyId) where.accountId = partyId as string;
-    if (type) where.accountType = type === 'INCOME' ? 'INCOME_ACCOUNT' : 'EXPENSE_ACCOUNT';
+    // Map accounting params to AccountEntry fields
+    if (categoryId) where.categoryId = categoryId as string;
+    if (type) where.type = type as string;
+    if (partyId) where.partyId = partyId as string;
 
     if (dateFrom || dateTo) {
       where.date = {};
@@ -653,24 +764,32 @@ export const getAccountEntries = async (req: Request, res: Response) => {
     if (search) {
       where.OR = [
         { description: { contains: search as string, mode: 'insensitive' } },
-        { accountId: { contains: search as string, mode: 'insensitive' } },
-        { accountType: { contains: search as string, mode: 'insensitive' } },
-        { transactionId: { contains: search as string, mode: 'insensitive' } },
+        { partyId: { contains: search as string, mode: 'insensitive' } },
+        { type: { contains: search as string, mode: 'insensitive' } },
+        { entryId: { contains: search as string, mode: 'insensitive' } },
       ];
     }
 
     // Get total count for pagination
-    const total = await prisma.ledgerEntry.count({ where });
+    const total = await prisma.accountEntry.count({ where });
 
-    // Get ledger entries with pagination
-    const entries = await prisma.ledgerEntry.findMany({
+    // Get account entries with pagination
+    const entries = await prisma.accountEntry.findMany({
       where,
       include: {
-        creator: {
+        category: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
+            name: true,
+            type: true,
+            description: true,
+          },
+        },
+        party: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
           },
         },
       },
@@ -680,14 +799,14 @@ export const getAccountEntries = async (req: Request, res: Response) => {
     });
 
     // Calculate totals
-    const incomeTotal = await prisma.ledgerEntry.aggregate({
-      where: { ...where, creditAmount: { not: null } },
-      _sum: { creditAmount: true },
+    const incomeTotal = await prisma.accountEntry.aggregate({
+      where: { ...where, type: 'INCOME' },
+      _sum: { amount: true },
     });
 
-    const expenseTotal = await prisma.ledgerEntry.aggregate({
-      where: { ...where, debitAmount: { not: null } },
-      _sum: { debitAmount: true },
+    const expenseTotal = await prisma.accountEntry.aggregate({
+      where: { ...where, type: 'EXPENSE' },
+      _sum: { amount: true },
     });
 
     res.json({
@@ -697,9 +816,9 @@ export const getAccountEntries = async (req: Request, res: Response) => {
         limit: Number(limit),
         total,
       },
-      incomeTotal: (incomeTotal._sum?.creditAmount) || 0,
-      expenseTotal: (expenseTotal._sum?.debitAmount) || 0,
-      sum: ((incomeTotal._sum?.creditAmount) || 0) - ((expenseTotal._sum?.debitAmount) || 0),
+      incomeTotal: (incomeTotal._sum?.amount) || 0,
+      expenseTotal: (expenseTotal._sum?.amount) || 0,
+      sum: ((incomeTotal._sum?.amount) || 0) - ((expenseTotal._sum?.amount) || 0),
     });
   } catch (error) {
     throw error;
@@ -722,14 +841,19 @@ export const updateAccountEntry = async (req: Request, res: Response) => {
       totalAmount,
       type,
       status,
+      time,
     } = req.body;
     const userId = req.user?.id;
 
-    const existingEntry = await prisma.ledgerEntry.findFirst({
+    const existingEntry = await prisma.accountEntry.findFirst({
       where: {
         id: id as string,
         isActive: true,
         isDeleted: false,
+      },
+      include: {
+        category: true,
+        party: true,
       },
     });
 
@@ -737,30 +861,87 @@ export const updateAccountEntry = async (req: Request, res: Response) => {
       throw createError('Account entry not found', 404);
     }
 
-    const ledgerEntry = await prisma.ledgerEntry.update({
+    // Parse time safely
+    let statusTime = existingEntry.statusTime || new Date();
+    if (time) {
+      const parsedTime = new Date(time);
+      if (!isNaN(parsedTime.getTime())) {
+        statusTime = parsedTime;
+      }
+    }
+
+    // Handle partyId - if provided, find or create party
+    let finalPartyId: string | null | undefined = partyId ? undefined : existingEntry.partyId;
+    if (partyId) {
+      // Try to find party by ID first
+      let party = await prisma.party.findUnique({
+        where: { id: partyId },
+      });
+
+      // If not found by ID, try to find by name or create
+      if (!party) {
+        party = await prisma.party.findFirst({
+          where: { name: partyId },
+        });
+
+        // If still not found, create new party
+        if (!party) {
+          party = await prisma.party.create({
+            data: {
+              name: partyId,
+              isActive: true,
+            },
+          });
+        }
+      }
+      finalPartyId = party.id;
+    }
+
+    const updatedEntry = await prisma.accountEntry.update({
       where: { id: id as string },
       data: {
         date: date ? new Date(date) : undefined,
-        accountId: partyId || 'GENERAL',
-        accountType: type === 'INCOME' ? 'INCOME_ACCOUNT' : 'EXPENSE_ACCOUNT',
-        description: description || `${type} entry`,
-        debitAmount: type === 'EXPENSE' ? Number(amount) : null,
-        creditAmount: type === 'INCOME' ? Number(amount) : null,
-        balance: 0, // Will be calculated based on previous entries
-        transactionId: existingEntry.transactionId,
-        branchId: existingEntry.branchId,
-        createdBy: existingEntry.createdBy,
+        categoryId: categoryId || existingEntry.categoryId,
+        amount: amount ? Number(amount) : undefined,
+        description: description || existingEntry.description,
+        partyId: finalPartyId !== undefined ? finalPartyId : existingEntry.partyId,
+        paymentMethod: paymentMethod || existingEntry.paymentMethod,
+        referenceNo: referenceNo || existingEntry.referenceNo,
+        gstAmount: gstAmount ? Number(gstAmount) : existingEntry.gstAmount,
+        tdsAmount: tdsAmount ? Number(tdsAmount) : existingEntry.tdsAmount,
+        totalAmount: totalAmount ? Number(totalAmount) : existingEntry.totalAmount,
+        type: type || existingEntry.type,
+        statusTime,
+      },
+      include: {
+        category: true,
+        party: true,
+      },
+    });
+
+    // Update corresponding LedgerEntry
+    await prisma.ledgerEntry.updateMany({
+      where: {
+        accountEntryId: id as string,
+      },
+      data: {
+        date: date ? new Date(date) : undefined,
+        accountId: finalPartyId ?? existingEntry.partyId ?? 'GENERAL',
+        accountType: (type || existingEntry.type) === 'INCOME' ? 'INCOME_ACCOUNT' : 'EXPENSE_ACCOUNT',
+        description: description || existingEntry.description || `${type || existingEntry.type} entry`,
+        debitAmount: (type || existingEntry.type) === 'EXPENSE' ? Number(amount || existingEntry.amount) : null,
+        creditAmount: (type || existingEntry.type) === 'INCOME' ? Number(amount || existingEntry.amount) : null,
       },
     });
 
     // Create audit log
     await prisma.auditLog.create({
       data: {
-        entity: 'LedgerEntry',
+        entity: 'AccountEntry',
         entityId: id as string,
         action: 'UPDATE',
         oldValues: JSON.stringify(existingEntry),
-        newValues: JSON.stringify(ledgerEntry),
+        newValues: JSON.stringify(updatedEntry),
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
         createdBy: userId!,
@@ -769,19 +950,19 @@ export const updateAccountEntry = async (req: Request, res: Response) => {
 
     res.json({
       message: 'Account entry updated successfully',
-      ledgerEntry,
+      entry: updatedEntry,
     });
   } catch (error) {
+    console.error('Update account entry error:', error);
     throw error;
   }
 };
-// ... (rest of the code remains the same)
 export const deleteAccountEntry = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const userId = req.user?.id;
 
-    const existingEntry = await prisma.ledgerEntry.findFirst({
+    const existingEntry = await prisma.accountEntry.findFirst({
       where: {
         id: id as string,
         isActive: true,
@@ -793,22 +974,26 @@ export const deleteAccountEntry = async (req: Request, res: Response) => {
       throw createError('Account entry not found', 404);
     }
 
-    await prisma.ledgerEntry.update({
-      where: { id: id as string },
-      data: {
-        isActive: false,
-        isDeleted: true,
+    // Delete corresponding LedgerEntry records first
+    await prisma.ledgerEntry.deleteMany({
+      where: {
+        accountEntryId: id as string,
       },
+    });
+
+    // Hard delete from database
+    await prisma.accountEntry.delete({
+      where: { id: id as string },
     });
 
     // Create audit log
     await prisma.auditLog.create({
       data: {
-        entity: 'LedgerEntry',
+        entity: 'AccountEntry',
         entityId: id as string,
         action: 'DELETE',
         oldValues: JSON.stringify(existingEntry),
-        newValues: JSON.stringify({ deleted: true }),
+        newValues: JSON.stringify({ deleted: true, hardDelete: true }),
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
         createdBy: userId!,
@@ -817,9 +1002,10 @@ export const deleteAccountEntry = async (req: Request, res: Response) => {
 
     res.json({
       message: 'Account entry deleted successfully',
-      ledgerEntry: existingEntry,
+      entry: existingEntry,
     });
   } catch (error) {
+    console.error('Delete account entry error:', error);
     throw error;
   }
 };

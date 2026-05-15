@@ -47,75 +47,91 @@ export default function BalanceSheetPage() {
     const clientName = client.name.toLowerCase();
 
     try {
-      // 1. Transactions Module
-      const [outwardTxns, inwardTxns] = await Promise.all([
-        transactionApi.getTransactions({ type: 'OUTWARD', page: 1, limit: 1000 }),
-        transactionApi.getTransactions({ type: 'INWARD', page: 1, limit: 1000 })
-      ]);
+      // 1. Transactions Module - reduced limit for production compatibility
+      try {
+        const [outwardTxns, inwardTxns] = await Promise.all([
+          transactionApi.getTransactions({ type: 'OUTWARD', page: 1, limit: 100 }),
+          transactionApi.getTransactions({ type: 'INWARD', page: 1, limit: 100 })
+        ]);
 
-      const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];
+        const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];
 
-      allTxns.forEach((txn: any) => {
-        const receiverName = txn.receiverName?.toLowerCase() || '';
-        const senderName = txn.senderName?.toLowerCase() || '';
+        allTxns.forEach((txn: any) => {
+          const receiverName = txn.receiverName?.toLowerCase() || '';
+          const senderName = txn.senderName?.toLowerCase() || '';
 
-        if (receiverName === clientName || senderName === clientName) {
-          if (txn.type === 'OUTWARD') {
-            // OUTWARD: Receiver gets credit (money coming to them), we collect
-            totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
-          } else if (txn.type === 'INWARD') {
-            // INWARD: Sender pays debit (money going from them), we pay
-            totalDebit += (txn.amount || 0);
+          if (receiverName === clientName || senderName === clientName) {
+            if (txn.type === 'OUTWARD') {
+              // OUTWARD: Receiver gets credit (money coming to them), we collect
+              totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
+            } else if (txn.type === 'INWARD') {
+              // INWARD: Sender pays debit (money going from them), we pay
+              totalDebit += (txn.amount || 0);
+            }
           }
-        }
-      });
+        });
+      } catch (error) {
+        console.error(`Error fetching transactions for ${client.name}:`, error);
+      }
 
-      // 2. Accounting Module
-      const accEntries = await accountingApi.getAccountEntries({ page: 1, limit: 1000 });
-      (accEntries.entries || []).forEach((entry: any) => {
-        const partyName = entry.party?.name?.toLowerCase() || '';
-        if (partyName === clientName) {
-          if (entry.type === 'INCOME') {
-            totalCredit += entry.creditAmount || entry.amount || 0;
-          } else if (entry.type === 'EXPENSE') {
-            totalDebit += entry.debitAmount || entry.amount || 0;
+      // 2. Accounting Module - reduced limit for production compatibility
+      try {
+        const accEntries = await accountingApi.getAccountEntries({ page: 1, limit: 100 });
+        (accEntries.entries || []).forEach((entry: any) => {
+          const partyName = entry.party?.name?.toLowerCase() || '';
+          if (partyName === clientName) {
+            if (entry.type === 'INCOME') {
+              totalCredit += entry.creditAmount || entry.amount || 0;
+            } else if (entry.type === 'EXPENSE') {
+              totalDebit += entry.debitAmount || entry.amount || 0;
+            }
           }
-        }
-      });
+        });
+      } catch (error) {
+        console.error(`Error fetching accounting entries for ${client.name}:`, error);
+      }
 
-      // 3. Hawala Module
-      const hawalaEntries = await getHawalaEntries({ page: 1, limit: 1000 });
-      (hawalaEntries.data || []).forEach((entry: any) => {
-        const partyA = entry.partyA?.toLowerCase() || '';
-        const partyB = entry.partyB?.toLowerCase() || '';
+      // 3. Hawala Module - reduced limit for production compatibility
+      try {
+        const hawalaEntries = await getHawalaEntries({ page: 1, limit: 100 });
+        (hawalaEntries.data || []).forEach((entry: any) => {
+          const partyA = entry.partyA?.toLowerCase() || '';
+          const partyB = entry.partyB?.toLowerCase() || '';
 
-        if (partyA === clientName) {
-          // Party A gives money (debit)
-          totalDebit += entry.amount || 0;
-        }
-        if (partyB === clientName) {
-          // Party B receives money (credit)
-          totalCredit += entry.amount || 0;
-        }
-      });
+          if (partyA === clientName) {
+            // Party A gives money (debit)
+            totalDebit += entry.amount || 0;
+          }
+          if (partyB === clientName) {
+            // Party B receives money (credit)
+            totalCredit += entry.amount || 0;
+          }
+        });
+      } catch (error) {
+        console.error(`Error fetching hawala entries for ${client.name}:`, error);
+      }
 
-      // 4. Special Entry Module
-      const splEntries = await getSpecialEntries({ page: 1, limit: 1000 });
-      (splEntries.data || []).forEach((entry: any) => {
-        const partyA = entry.partyA?.toLowerCase() || '';
-        const partyB = entry.partyB?.toLowerCase() || '';
-        const partyC = entry.partyC?.toLowerCase() || '';
+      // 4. Special Entry Module - reduced limit for production compatibility
+      try {
+        const splEntries = await getSpecialEntries({ page: 1, limit: 100 });
+        (splEntries.data || []).forEach((entry: any) => {
+          const partyA = entry.partyA?.toLowerCase() || '';
+          const partyB = entry.partyB?.toLowerCase() || '';
+          const partyC = entry.partyC?.toLowerCase() || '';
 
-        if (partyA === clientName) {
-          totalDebit += entry.amountA || 0;
-        }
-        if (partyB === clientName) {
-          totalDebit += entry.amountB || 0;
-        }
-        if (partyC === clientName) {
-          totalCredit += entry.amountC || 0;
-        }
-      });
+          if (partyA === clientName) {
+            totalDebit += entry.amountA || 0;
+          }
+          if (partyB === clientName) {
+            totalDebit += entry.amountB || 0;
+          }
+          if (partyC === clientName) {
+            totalCredit += entry.amountC || 0;
+          }
+        });
+      } catch (error) {
+        console.error(`Error fetching special entries for ${client.name}:`, error);
+      }
 
     } catch (error) {
       console.error(`Error calculating balance for ${client.name}:`, error);

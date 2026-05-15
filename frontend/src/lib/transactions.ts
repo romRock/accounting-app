@@ -607,6 +607,37 @@ export const transactionApi = {
     }
   },
 
+  // Transaction Refund Report API
+  async getTransactionRefundReport(date?: string): Promise<any> {
+    const { accessToken } = useAuthStore.getState();
+    console.log('=== TRANSACTION REFUND REPORT API DEBUG ===');
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+    
+    const url = new URL(`${API_BASE_URL}/api/reports/transaction-refund`);
+    if (date) {
+      url.searchParams.append('date', date);
+    }
+    
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: headers,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to fetch transaction refund report');
+    }
+
+    return await response.json();
+  },
+
   // Test function for debugging (no authentication required)
   async testCityAdd(name: string, code: string, state: string, number?: string): Promise<any> {
     const response = await fetch(`${API_BASE_URL}/api/cities/test`, {

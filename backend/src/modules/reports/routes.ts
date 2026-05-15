@@ -8,6 +8,7 @@ import {
   getBalanceSummaryReport,
   exportToPDF,
   exportToExcel,
+  getTransactionRefundReport,
 } from './controller';
 import { validateReportFilters } from './validation';
 
@@ -22,6 +23,7 @@ router.get('/outward', requirePermission('reports.read'), validateReportFilters,
 router.get('/user-ledger', requirePermission('reports.read'), validateReportFilters, getUserLedgerReport);
 router.get('/branch-performance', requirePermission('reports.read'), validateReportFilters, getBranchPerformanceReport);
 router.get('/balance-summary', requirePermission('reports.read'), validateReportFilters, getBalanceSummaryReport);
+router.get('/transaction-refund', requirePermission('reports.report_7'), getTransactionRefundReport);
 
 // Export endpoints
 router.get('/export/pdf', requirePermission('reports.export'), exportToPDF);

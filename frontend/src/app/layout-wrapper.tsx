@@ -24,7 +24,7 @@ export default function LayoutWrapper({
     setIsHydrated(true);
   }, []);
   const [activeTransactionTab, setActiveTransactionTab] = useState<'outward' | 'inward'>('outward');
-  const [activeReport, setActiveReport] = useState<'outward' | 'inward' | 'combo' | 'outward-centerwise' | 'inward-centerwise' | 'amount-type' | 'customer'>('outward');
+  const [activeReport, setActiveReport] = useState<'outward' | 'inward' | 'combo' | 'outward-centerwise' | 'inward-centerwise' | 'amount-type' | 'customer' | 'transaction-refund'>('outward');
   const [activeMasterTab, setActiveMasterTab] = useState<'users' | 'roles' | 'centers' | 'clients'>('users');
   const [activeBalanceSheetTab, setActiveBalanceSheetTab] = useState<'final' | 'statutory'>('final');
   const [activeAccountingTab, setActiveAccountingTab] = useState<'accounts' | 'category' | 'reports'>('accounts');
@@ -563,7 +563,7 @@ export default function LayoutWrapper({
               
               {/* Balance Sheet Tabs - Only show on balance sheet page */}
               {pathname === '/balance-sheet' && (
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center justify-between w-full">
                   <button
                     onClick={() => {
                       setActiveBalanceSheetTab('final');
@@ -571,7 +571,7 @@ export default function LayoutWrapper({
                       const event = new CustomEvent('setBalanceSheetTab', { detail: 'final' });
                       window.dispatchEvent(event);
                     }}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                    className={`px-4 py-2 mr-4 rounded-lg font-medium transition-all duration-200 text-sm ${
                       activeBalanceSheetTab === 'final'
                         ? 'bg-blue-600 text-white shadow-sm'
                         : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
@@ -579,21 +579,26 @@ export default function LayoutWrapper({
                   >
                     Final Balance Sheet
                   </button>
-                  <button
-                    onClick={() => {
-                      setActiveBalanceSheetTab('statutory');
-                      // Dispatch event for balance sheet page
-                      const event = new CustomEvent('setBalanceSheetTab', { detail: 'statutory' });
-                      window.dispatchEvent(event);
-                    }}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
-                      activeBalanceSheetTab === 'statutory'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                    }`}
-                  >
-                    Statutory Balance Sheet
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => {
+                        const event = new CustomEvent('exportBalanceSheet', { detail: 'excel' });
+                        window.dispatchEvent(event);
+                      }}
+                      className="px-3 py-1.5 rounded-md text-xs font-medium bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400 shadow-sm transition-all"
+                    >
+                      Export Excel
+                    </button>
+                    <button
+                      onClick={() => {
+                        const event = new CustomEvent('exportBalanceSheet', { detail: 'pdf' });
+                        window.dispatchEvent(event);
+                      }}
+                      className="px-3 py-1.5 rounded-md text-xs font-medium bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400 shadow-sm transition-all"
+                    >
+                      Export PDF
+                    </button>
+                  </div>
                 </div>
               )}
               
@@ -685,7 +690,7 @@ export default function LayoutWrapper({
                           { id: 'amount-type', name: 'Amount Type Report', permission: 'report_4' },
                           { id: 'transaction', name: 'Transaction Report', permission: 'report_5' },
                           { id: 'customer', name: 'Customer Report', permission: 'report_6' },
-                          { id: 'refund', name: 'Transaction Refund Report', permission: 'report_7' },
+                          { id: 'transaction-refund', name: 'Transaction Refund Report', permission: 'report_7' },
                         ].filter((report) => {
                           // Check if user has permission for this specific report
                           return hasPermission('reports', report.permission);

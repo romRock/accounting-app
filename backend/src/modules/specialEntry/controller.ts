@@ -316,6 +316,7 @@ export const updateSpecialEntry = async (req: Request, res: Response) => {
 export const deleteSpecialEntry = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const userId = req.user?.id;
 
     // Check if special entry exists
     const existingEntry = await prisma.specialEntry.findFirst({
@@ -333,9 +334,15 @@ export const deleteSpecialEntry = async (req: Request, res: Response) => {
       });
     }
 
-    // Hard delete the special entry
-    await prisma.specialEntry.delete({
-      where: { id: id as string }
+    // Soft delete the special entry
+    await prisma.specialEntry.update({
+      where: { id: id as string },
+      data: {
+        isActive: false,
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: userId!,
+      }
     });
 
     // Generate audit log
@@ -346,7 +353,7 @@ export const deleteSpecialEntry = async (req: Request, res: Response) => {
       oldValues: JSON.stringify(existingEntry),
       ipAddress: req.ip,
       userAgent: req.get('User-Agent'),
-      createdBy: req.user?.id || 'system'
+      createdBy: userId || 'system'
     });
 
     res.status(200).json({

@@ -52,6 +52,8 @@ model SpecialEntry {
   statusTime      DateTime @default(now())
   isActive        Boolean  @default(true)
   isDeleted       Boolean  @default(false)
+  deletedAt       DateTime?
+  deletedBy       String?
   branchId        String?
   createdBy       String
   createdAt       DateTime @default(now())
@@ -184,6 +186,8 @@ model Transaction {
   type              String   @default("OUTWARD")
   isActive          Boolean  @default(true)
   isDeleted         Boolean  @default(false)
+  deletedAt         DateTime?
+  deletedBy         String?
   branchId          String?
   createdBy         String
   createdAt         DateTime @default(now())
@@ -210,6 +214,8 @@ model Hawala {
   statusTime    DateTime @default(now())
   isActive      Boolean  @default(true)
   isDeleted     Boolean  @default(false)
+  deletedAt     DateTime?
+  deletedBy     String?
   branchId      String?
   createdBy     String
   createdAt     DateTime @default(now())
@@ -234,6 +240,8 @@ model LedgerEntry {
   balance       Float
   isActive      Boolean  @default(true)
   isDeleted     Boolean  @default(false)
+  deletedAt     DateTime?
+  deletedBy     String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   transactionId String?
@@ -335,6 +343,8 @@ model AccountEntry {
   statusTime      DateTime @default(now())
   isActive        Boolean  @default(true)
   isDeleted       Boolean  @default(false)
+  deletedAt       DateTime?
+  deletedBy       String?
   branchId        String?
   createdBy       String
   createdAt       DateTime @default(now())

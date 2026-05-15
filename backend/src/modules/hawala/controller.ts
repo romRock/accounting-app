@@ -376,6 +376,7 @@ export const deleteHawala = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { createdBy } = req.body;
+    const userId = req.user?.id || createdBy;
 
     // Check if hawala entry exists
     const existingHawala = await prisma.hawala.findFirst({
@@ -397,9 +398,15 @@ export const deleteHawala = async (req: Request, res: Response) => {
     // Get old values for audit log
     const oldValues = JSON.stringify(existingHawala);
 
-    // Hard delete hawala entry
-    await prisma.hawala.delete({
-      where: { id: id as string }
+    // Soft delete hawala entry
+    await prisma.hawala.update({
+      where: { id: id as string },
+      data: {
+        isActive: false,
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: userId!,
+      }
     });
 
     // Generate audit log - handle foreign key constraint gracefully

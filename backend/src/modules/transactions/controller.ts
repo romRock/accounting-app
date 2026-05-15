@@ -369,9 +369,15 @@ export const deleteTransaction = async (req: Request, res: Response) => {
       throw createError('Transaction not found', 404);
     }
 
-    // Hard delete transaction - completely remove from database
-    await prisma.transaction.delete({
+    // Soft delete transaction - mark as deleted but keep in database
+    await prisma.transaction.update({
       where: { id: id as string },
+      data: {
+        isActive: false,
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: userId!,
+      },
     });
 
     // Create audit log

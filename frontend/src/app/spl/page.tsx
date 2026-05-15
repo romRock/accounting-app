@@ -75,6 +75,11 @@ export default function SPLPage() {
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
+  const [filterByDate, setFilterByDate] = useState(false);
+  const [dateFilter, setDateFilter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [isSelectingRange, setIsSelectingRange] = useState(false);
 
   // Real-time time update
   useEffect(() => {
@@ -94,11 +99,32 @@ export default function SPLPage() {
   useEffect(() => {
     const fetchSpecialEntries = async () => {
       try {
+        // Get today's date in YYYY-MM-DD format
+        const today = new Date().toISOString().split('T')[0];
+        
+        // Determine date range
+        let dateFrom, dateTo;
+        if (filterByDate) {
+          if (isSelectingRange) {
+            dateFrom = startDate || today;
+            dateTo = endDate || today;
+          } else {
+            dateFrom = dateFilter || today;
+            dateTo = dateFilter || today;
+          }
+        } else {
+          // Default to today when filterByDate is false
+          dateFrom = today;
+          dateTo = today;
+        }
+
         const response = await getSpecialEntries({
           page: 1,
           limit: 100,
           search: searchTerm || undefined,
-          status: statusFilter === 'all' ? undefined : statusFilter
+          status: statusFilter === 'all' ? undefined : statusFilter,
+          dateFrom,
+          dateTo
         });
         
         if (response.success && response.data) {
@@ -112,7 +138,7 @@ export default function SPLPage() {
     };
 
     fetchSpecialEntries();
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm, statusFilter, filterByDate, dateFilter, startDate, endDate, isSelectingRange]);
 
   // Generate transaction ID based on latest SPL entries
   const generateTransactionId = () => {
@@ -481,8 +507,110 @@ export default function SPLPage() {
         {/* SPL Table */}
         <Card className="shadow-sm border-gray-200 bg-gray-100">
           <CardHeader>
-            <CardTitle className="text-lg font-semibold text-gray-900">SPL Transactions</CardTitle>
-            <CardDescription>View and manage special entry transactions</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-semibold text-gray-900">SPL Transactions</CardTitle>
+                <CardDescription>View and manage special entry transactions</CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-4 items-center">
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="filterByDate"
+                      checked={filterByDate}
+                      onChange={(e) => {
+                        setFilterByDate(e.target.checked);
+                        if (!e.target.checked) {
+                          setDateFilter('');
+                          setStartDate('');
+                          setEndDate('');
+                          setIsSelectingRange(false);
+                        }
+                      }}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <Label htmlFor="filterByDate" className="text-sm font-medium text-gray-700">
+                      By Date
+                    </Label>
+                    {filterByDate && (
+                      <div className="flex flex-col space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStartDate('');
+                              setEndDate('');
+                              setDateFilter('');
+                              setIsSelectingRange(false);
+                            }}
+                            className={`px-3 py-1 text-xs rounded ${!isSelectingRange && !dateFilter
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                          >
+                            Single Date
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStartDate('');
+                              setEndDate('');
+                              setDateFilter('');
+                              setIsSelectingRange(true);
+                            }}
+                            className={`px-3 py-1 text-xs rounded ${isSelectingRange
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                          >
+                            Date Range
+                          </button>
+                        </div>
+
+                        {!isSelectingRange ? (
+                          <Input
+                            type="date"
+                            value={dateFilter}
+                            onChange={(e) => {
+                              setDateFilter(e.target.value);
+                            }}
+                            className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
+                          />
+                        ) : (
+                          <div className="flex items-center space-x-2">
+                            <Input
+                              type="date"
+                              value={startDate}
+                              onChange={(e) => setStartDate(e.target.value)}
+                              placeholder="Start date"
+                              className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
+                            />
+                            <span className="text-gray-500 text-sm">to</span>
+                            <Input
+                              type="date"
+                              value={endDate}
+                              onChange={(e) => setEndDate(e.target.value)}
+                              placeholder="End date"
+                              className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="hidden sm:block">
+                    <Input
+                      placeholder="Search SPL entries..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="bg-white w-48 lg:w-64 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="p-4">
             <div className="overflow-x-auto">

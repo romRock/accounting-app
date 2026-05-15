@@ -1099,16 +1099,28 @@ export const deleteAccountEntry = async (req: Request, res: Response) => {
       throw createError('Account entry not found', 404);
     }
 
-    // Delete corresponding LedgerEntry records first
-    await prisma.ledgerEntry.deleteMany({
+    // Soft delete corresponding LedgerEntry records first
+    await prisma.ledgerEntry.updateMany({
       where: {
         accountEntryId: id as string,
       },
+      data: {
+        isActive: false,
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: userId!,
+      },
     });
 
-    // Hard delete from database
-    await prisma.accountEntry.delete({
+    // Soft delete from database
+    await prisma.accountEntry.update({
       where: { id: id as string },
+      data: {
+        isActive: false,
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: userId!,
+      },
     });
 
     // Create audit log
@@ -1118,7 +1130,7 @@ export const deleteAccountEntry = async (req: Request, res: Response) => {
         entityId: id as string,
         action: 'DELETE',
         oldValues: JSON.stringify(existingEntry),
-        newValues: JSON.stringify({ deleted: true, hardDelete: true }),
+        newValues: JSON.stringify({ deleted: true, softDelete: true }),
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
         createdBy: userId!,

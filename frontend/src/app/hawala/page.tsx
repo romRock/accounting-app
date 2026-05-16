@@ -457,7 +457,7 @@ export default function HawalaPage() {
 
 
         {/* Entry Form */}
-        <Card className="shadow-sm border-gray-200 bg-gray-100 mx-4 sm:mx-6 lg:mx-8">
+        <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10 mx-4 sm:mx-6 lg:mx-8">
           <CardHeader></CardHeader>
           <CardContent className="space-y-4">
             {/* Row 1: Transaction ID, Token No, Date, Time */}
@@ -592,7 +592,7 @@ export default function HawalaPage() {
 
 
         {/* Hawala Table */}
-        <Card className="shadow-sm border-gray-200 bg-gray-100 mx-4 sm:mx-6 lg:mx-8">
+        <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10 mx-4 sm:mx-6 lg:mx-8">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="text-lg font-semibold text-gray-900">Hawala Entries</div>
@@ -698,33 +698,33 @@ export default function HawalaPage() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <table className="w-full border border-gray-200 rounded-lg">
-                <thead className="bg-blue-50">
-                  <tr>
-                    <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-blue-900 text-white">
+                    <th className="px-4 py-3 text-left text-sm font-bold">
                       Token No
                     </th>
-                    <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-sm font-bold">
                       Date
                     </th>
-                    <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-sm font-bold">
                       Time
                     </th>
-                    <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-sm font-bold">
                       Amount
                     </th>
-                    <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-sm font-bold">
                       Party A (Udhar Party)
                     </th>
-                    <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-sm font-bold">
                       Party B (Jama Party)
                     </th>
-                    <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-sm font-bold">
                       Remark
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody>
                   {filteredEntries.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="border border-gray-200 px-4 py-8 text-center text-gray-500">
@@ -732,32 +732,33 @@ export default function HawalaPage() {
                       </td>
                     </tr>
                   ) : (
-                    filteredEntries.map((entry) => (
+                    filteredEntries.map((entry, index) => (
                       <tr
                         key={entry.id}
                         onClick={() => handleSelectEntry(entry)}
-                        className={`hover:bg-gray-50 cursor-pointer ${selectedEntry?.id === entry.id ? 'bg-blue-50' : ''
-                          }`}
+                        className={`border-b cursor-pointer transition-colors ${
+                          index % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-50 hover:bg-gray-100'
+                        } ${selectedEntry?.id === entry.id ? 'bg-blue-50' : ''}`}
                       >
-                        <td className="border border-gray-200 px-4 py-3 text-sm text-gray-900">
+                        <td className="px-4 py-3 text-sm text-gray-900">
                           {entry.tokenNo}
                         </td>
-                        <td className="border border-gray-200 px-4 py-3 text-sm text-gray-600">
+                        <td className="px-4 py-3 text-sm text-gray-900">
                           {formatDate(entry.date)}
                         </td>
-                        <td className="border border-gray-200 px-4 py-3 text-sm text-gray-600">
+                        <td className="px-4 py-3 text-sm text-gray-900">
                           {formatTime(entry.time)}
                         </td>
-                        <td className="border border-gray-200 px-4 py-3 text-sm font-medium text-gray-900">
+                        <td className="px-4 py-3 text-sm font-semibold text-blue-600">
                           {formatCurrency(entry.amount)}
                         </td>
-                        <td className="border border-gray-200 px-4 py-3 text-sm text-gray-900">
+                        <td className="px-4 py-3 text-sm text-gray-900">
                           {entry.partyA}
                         </td>
-                        <td className="border border-gray-200 px-4 py-3 text-sm text-gray-900">
+                        <td className="px-4 py-3 text-sm text-gray-900">
                           {entry.partyB}
                         </td>
-                        <td className="border border-gray-200 px-4 py-3 text-sm text-gray-600">
+                        <td className="px-4 py-3 text-sm text-gray-900">
                           {entry.remark || '-'}
                         </td>
                       </tr>
@@ -771,7 +772,7 @@ export default function HawalaPage() {
 
         {/* Ledger Effects Summary */}
         {ledgerEffects.length > 0 && (
-          <Card className="shadow-sm border-gray-200 bg-gray-100 mx-4 sm:mx-6 lg:mx-8">
+          <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10 mx-4 sm:mx-6 lg:mx-8">
             <CardHeader>
               <CardTitle className="text-lg font-semibold text-gray-900">Ledger Effects Summary</CardTitle>
             </CardHeader>

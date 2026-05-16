@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation';
 
 interface KeyboardShortcut {
   key: string;
+  ctrl?: boolean;
   action: () => void;
   description: string;
 }
@@ -35,9 +36,11 @@ export const useKeyboardShortcuts = (shortcuts: KeyboardShortcut[]) => {
     const pressedKey = event.key.toLowerCase();
     
     // Find matching shortcut
-    const matchingShortcut = shortcuts.find(shortcut => 
-      shortcut.key.toLowerCase() === pressedKey
-    );
+    const matchingShortcut = shortcuts.find(shortcut => {
+      const keyMatch = shortcut.key.toLowerCase() === pressedKey;
+      const ctrlMatch = shortcut.ctrl ? event.ctrlKey || event.metaKey : true;
+      return keyMatch && ctrlMatch;
+    });
 
     if (matchingShortcut) {
       event.preventDefault();

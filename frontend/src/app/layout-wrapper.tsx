@@ -17,6 +17,7 @@ export default function LayoutWrapper({
   const pathname = usePathname();
   const { user, isAuthenticated, logout } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
 
   // Wait for Zustand hydration to complete
@@ -33,15 +34,15 @@ export default function LayoutWrapper({
 
   // Global keyboard shortcuts
   useKeyboardShortcuts([
-    { key: 'd', action: () => router.push('/'), description: 'Navigate to Dashboard' },
-    { key: 't', action: () => router.push('/transactions'), description: 'Navigate to Transactions' },
-    { key: 'a', action: () => router.push('/accounting'), description: 'Navigate to Accounting' },
-    { key: 'w', action: () => router.push('/hawala'), description: 'Navigate to Hawala' },
-    { key: 's', action: () => router.push('/spl'), description: 'Navigate to Special Entry' },
-    { key: 'b', action: () => router.push('/balance-sheet'), description: 'Navigate to Balance Sheet' },
-    { key: 'r', action: () => router.push('/reports'), description: 'Navigate to Reports' },
-    { key: 'm', action: () => router.push('/master'), description: 'Navigate to Master' },
-    { key: 'h', action: () => router.push('/help'), description: 'Navigate to Help' },
+    { key: 'd', ctrl: true, action: () => router.push('/'), description: 'Navigate to Dashboard' },
+    { key: 't', ctrl: true, action: () => router.push('/transactions'), description: 'Navigate to Transactions' },
+    { key: 'a', ctrl: true, action: () => router.push('/accounting'), description: 'Navigate to Accounting' },
+    { key: 'h', ctrl: true, action: () => router.push('/hawala'), description: 'Navigate to Hawala' },
+    { key: 's', ctrl: true, action: () => router.push('/spl'), description: 'Navigate to Special Entry' },
+    { key: 'b', ctrl: true, action: () => router.push('/balance-sheet'), description: 'Navigate to Balance Sheet' },
+    { key: 'r', ctrl: true, action: () => router.push('/reports'), description: 'Navigate to Reports' },
+    { key: 'm', ctrl: true, action: () => router.push('/master'), description: 'Navigate to Master' },
+    { key: 'p', ctrl: true, action: () => router.push('/help'), description: 'Navigate to Help' },
   ]);
 
   useEffect(() => {
@@ -337,14 +338,20 @@ export default function LayoutWrapper({
 
   return (
     <div className="min-h-screen bg-white flex">
-      {/* Sidebar - 20% width on desktop */}
-      <div className={`hidden lg:flex lg:w-1/5 bg-white border-r border-gray-200 flex-col h-screen fixed left-0 top-0`}>
-        <div className="flex items-center justify-center h-20 bg-white border-b border-gray-200 flex-shrink-0 ">
-          <Image src="/images/logo.png" alt="Angadiya Logo" width={100} height={50} className="object-contain" priority />
+      {/* Sidebar - Collapsible on desktop */}
+      <div className={`hidden lg:flex bg-white border-r border-gray-200 flex-col h-screen fixed left-0 top-0 transition-all duration-300 ${
+        isSidebarCollapsed ? 'w-16' : 'w-1/5'
+      }`}>
+        <div className={`flex items-center justify-center h-20 bg-white border-b border-gray-200 flex-shrink-0 ${isSidebarCollapsed ? 'px-2' : ''}`}>
+          {isSidebarCollapsed ? (
+            <Image src="/images/logo.png" alt="Angadiya Logo" width={50} height={50} className="object-contain" priority />
+          ) : (
+            <Image src="/images/logo.png" alt="Angadiya Logo" width={100} height={50} className="object-contain" priority />
+          )}
         </div>
         
-        <nav className="flex-1 pt-4 px-4 overflow-hidden relative bg-gradient-to-br from-gray-50 via-white to-gray-100 animate-gradient">
-          <div className="space-y-1 relative z-10">
+        <nav className="flex-1 pt-4 overflow-hidden relative bg-gradient-to-br from-gray-50 via-white to-gray-100 animate-gradient">
+          <div className={`space-y-1 relative z-10 ${isSidebarCollapsed ? 'px-2' : 'px-4'}`}>
             {navigation.map((item) => (
               <Link
                 key={item.name}
@@ -353,93 +360,120 @@ export default function LayoutWrapper({
                   pathname === item.href
                     ? 'bg-blue-500 text-white border border-white'
                     : 'text-gray-700 hover:bg-blue-500 hover:text-white'
-                }`}
+                } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                title={isSidebarCollapsed ? item.name : ''}
               >
-                <span className={`mr-3 transition-transform duration-200 group-hover:scale-110 ${
+                <span className={`transition-transform duration-200 group-hover:scale-110 ${
                   pathname === item.href ? 'text-white' : 'text-gray-500 group-hover:text-white'
                 }`}>
                   {item.icon}
                 </span>
-                <span className="truncate">{item.name}</span>
-                {item.name === 'Dashboard' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ D ]</span>
-                )}
-                {item.name === 'Transactions' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ T ]</span>
-                )}
-                {item.name === 'Accounting' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ A ]</span>
-                )}
-                {item.name === 'Hawala' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ W ]</span>
-                )}
-                {item.name === 'Special Entry' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ S ]</span>
-                )}
-                {item.name === 'Reports' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ R ]</span>
-                )}
-                {item.name === 'Balance Sheet' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ B ]</span>
-                )}
-                {item.name === 'Master Data' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ M ]</span>
-                )}
-                {item.name === 'Help' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ H ]</span>
+                {!isSidebarCollapsed && (
+                  <>
+                    <span className="ml-3 truncate">{item.name}</span>
+                    {item.name === 'Dashboard' && (
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+D ]</span>
+                    )}
+                    {item.name === 'Transactions' && (
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+T ]</span>
+                    )}
+                    {item.name === 'Accounting' && (
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+A ]</span>
+                    )}
+                    {item.name === 'Hawala' && (
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+H ]</span>
+                    )}
+                    {item.name === 'Special Entry' && (
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+S ]</span>
+                    )}
+                    {item.name === 'Reports' && (
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+R ]</span>
+                    )}
+                    {item.name === 'Balance Sheet' && (
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+B ]</span>
+                    )}
+                    {item.name === 'Master Data' && (
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+M ]</span>
+                    )}
+                    {item.name === 'Help' && (
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+P ]</span>
+                    )}
+                  </>
                 )}
               </Link>
             ))}
           </div>
         </nav>
 
-        <div className="p-4 border-t border-gray-200 flex-shrink-0">
-          <div className="flex items-center mb-4">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-medium shadow-lg">
-              {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
+        <div className={`p-4 border-t border-gray-200 flex-shrink-0 ${isSidebarCollapsed ? 'px-2' : ''}`}>
+          {isSidebarCollapsed ? (
+            <div className="flex flex-col items-center space-y-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-medium shadow-lg">
+                {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
+              </div>
+              <Button
+                onClick={logout}
+                variant="outline"
+                className="p-2 border-gray-300 text-gray-50 hover:bg-gray-100 hover:text-gray-900 hover:border-gray-400 transition-all duration-200"
+                title="Sign Out"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </Button>
             </div>
-            <div className="ml-3 flex-1 min-w-0">
-              <div className="text-sm font-medium text-gray-900 truncate">
-                {user?.firstName} {user?.lastName}
+          ) : (
+            <>
+              <div className="flex items-center mb-4">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-medium shadow-lg">
+                  {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
+                </div>
+                <div className="ml-3 flex-1 min-w-0">
+                  <div className="text-sm font-medium text-gray-900 truncate">
+                    {user?.firstName} {user?.lastName}
+                  </div>
+                  <div className="text-xs text-gray-500 truncate">
+                    {user?.email}
+                  </div>
+                  <div className="text-xs text-blue-600 font-medium">
+                    {(() => {
+                      try {
+                        const roleName = user?.role?.name;
+                        if (typeof roleName === 'string') {
+                          return roleName;
+                        }
+                        if (typeof roleName === 'object' && roleName !== null) {
+                          console.warn('Role name is an object, converting to string');
+                          return String(roleName);
+                        }
+                        return 'No Role';
+                      } catch (error) {
+                        console.error('Error rendering role name:', error);
+                        return 'No Role';
+                      }
+                    })()}
+                  </div>
+                </div>
               </div>
-              <div className="text-xs text-gray-500 truncate">
-                {user?.email}
-              </div>
-              <div className="text-xs text-blue-600 font-medium">
-                {(() => {
-                  try {
-                    const roleName = user?.role?.name;
-                    if (typeof roleName === 'string') {
-                      return roleName;
-                    }
-                    if (typeof roleName === 'object' && roleName !== null) {
-                      console.warn('Role name is an object, converting to string');
-                      return String(roleName);
-                    }
-                    return 'No Role';
-                  } catch (error) {
-                    console.error('Error rendering role name:', error);
-                    return 'No Role';
-                  }
-                })()}
-              </div>
-            </div>
-          </div>
-          <Button
-            onClick={logout}
-            variant="outline"
-            className="w-full border-gray-300 text-gray-50 hover:bg-gray-100 hover:text-gray-900 hover:border-gray-400 transition-all duration-200"
-          >
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            Sign Out
-          </Button>
+              <Button
+                onClick={logout}
+                variant="outline"
+                className="w-full border-gray-300 text-gray-50 hover:bg-gray-100 hover:text-gray-900 hover:border-gray-400 transition-all duration-200"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Sign Out
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Main Content Area - 80% width on desktop */}
-      <div className="flex-1 lg:w-4/5 flex flex-col overflow-hidden lg:ml-[20%]">
+      {/* Main Content Area - Adjust margin based on sidebar state */}
+      <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 lg:ml-0 ${
+        isSidebarCollapsed ? 'lg:ml-16' : 'lg:ml-[20%]'
+      }`}>
         {/* Top Bar */}
         <div className="bg-white border-b border-gray-200 shadow-sm flex-shrink-0" style={{ zIndex: 9999999 }}>
           <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16 fixed w-full top-0 bg-white z-50">
@@ -454,10 +488,30 @@ export default function LayoutWrapper({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </Button>
+              <Button
+  variant="ghost"
+  size="sm"
+  onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+  className="hidden lg:flex relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000"
+  title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+>
+  <svg
+    className="h-6 w-6 relative z-10 transition-transform duration-500 group-hover:rotate-12"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    {isSidebarCollapsed ? (
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+    ) : (
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+    )}
+  </svg>
+</Button>
               
               {/* Transaction Tabs - Only show on transactions page with RBAC */}
               {pathname === '/transactions' && (
-                <div className="flex items-center space-x-1 fixed">
+                <div className="flex items-center space-x-3">
                   {hasPermission('transactions', 'outward') && (
                     <button
                       onClick={() => {
@@ -466,13 +520,13 @@ export default function LayoutWrapper({
                         const event = new CustomEvent('setTransactionTab', { detail: 'outward' });
                         window.dispatchEvent(event);
                       }}
-                      className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                         activeTransactionTab === 'outward'
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                          ? 'bg-blue-600 border-blue-400 text-white'
+                          : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
                       }`}
                     >
-                      Outward Booking
+                      <span className="relative z-10">Outward Booking</span>
                     </button>
                   )}
                   {hasPermission('transactions', 'inward') && (
@@ -483,13 +537,13 @@ export default function LayoutWrapper({
                         const event = new CustomEvent('setTransactionTab', { detail: 'inward' });
                         window.dispatchEvent(event);
                       }}
-                      className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                         activeTransactionTab === 'inward'
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                          ? 'bg-blue-600 border-blue-400 text-white'
+                          : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
                       }`}
                     >
-                      Inward Booking
+                      <span className="relative z-10">Inward Booking</span>
                     </button>
                   )}
                 </div>
@@ -497,7 +551,7 @@ export default function LayoutWrapper({
               
               {/* Master Tabs - Only show on master page */}
               {pathname === '/master' && (
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center space-x-3">
                   <button
                     onClick={() => {
                       setActiveMasterTab('users');
@@ -505,13 +559,13 @@ export default function LayoutWrapper({
                       const event = new CustomEvent('setMasterTab', { detail: 'users' });
                       window.dispatchEvent(event);
                     }}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                       activeMasterTab === 'users'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        ? 'bg-blue-600 border-blue-400 text-white'
+                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
                     }`}
                   >
-                    Users
+                    <span className="relative z-10">Users</span>
                   </button>
                   <button
                     onClick={() => {
@@ -520,13 +574,13 @@ export default function LayoutWrapper({
                       const event = new CustomEvent('setMasterTab', { detail: 'roles' });
                       window.dispatchEvent(event);
                     }}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                       activeMasterTab === 'roles'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        ? 'bg-blue-600 border-blue-400 text-white'
+                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
                     }`}
                   >
-                    Roles
+                    <span className="relative z-10">Roles</span>
                   </button>
                   <button
                     onClick={() => {
@@ -535,13 +589,13 @@ export default function LayoutWrapper({
                       const event = new CustomEvent('setMasterTab', { detail: 'centers' });
                       window.dispatchEvent(event);
                     }}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                       activeMasterTab === 'centers'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        ? 'bg-blue-600 border-blue-400 text-white'
+                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
                     }`}
                   >
-                    Centers
+                    <span className="relative z-10">Centers</span>
                   </button>
                   <button
                     onClick={() => {
@@ -550,13 +604,13 @@ export default function LayoutWrapper({
                       const event = new CustomEvent('setMasterTab', { detail: 'clients' });
                       window.dispatchEvent(event);
                     }}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                       activeMasterTab === 'clients'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        ? 'bg-blue-600 border-blue-400 text-white'
+                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
                     }`}
                   >
-                    Clients
+                    <span className="relative z-10">Clients</span>
                   </button>
                 </div>
               )}
@@ -571,13 +625,13 @@ export default function LayoutWrapper({
                       const event = new CustomEvent('setBalanceSheetTab', { detail: 'final' });
                       window.dispatchEvent(event);
                     }}
-                    className={`px-4 py-2 mr-4 rounded-lg font-medium transition-all duration-200 text-sm ${
+                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 mr-4 font-medium text-sm ${
                       activeBalanceSheetTab === 'final'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        ? 'bg-blue-600 border-blue-400 text-white'
+                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
                     }`}
                   >
-                    Final Balance Sheet
+                    <span className="relative z-10">Final Balance Sheet</span>
                   </button>
                   <div className="flex items-center space-x-2">
                     <button
@@ -585,18 +639,18 @@ export default function LayoutWrapper({
                         const event = new CustomEvent('exportBalanceSheet', { detail: 'excel' });
                         window.dispatchEvent(event);
                       }}
-                      className="px-3 py-1.5 rounded-md text-xs font-medium bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400 shadow-sm transition-all"
+                      className="relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-3 py-1.5 font-medium text-xs"
                     >
-                      Export Excel
+                      <span className="relative z-10">Export Excel</span>
                     </button>
                     <button
                       onClick={() => {
                         const event = new CustomEvent('exportBalanceSheet', { detail: 'pdf' });
                         window.dispatchEvent(event);
                       }}
-                      className="px-3 py-1.5 rounded-md text-xs font-medium bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400 shadow-sm transition-all"
+                      className="relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-3 py-1.5 font-medium text-xs"
                     >
-                      Export PDF
+                      <span className="relative z-10">Export PDF</span>
                     </button>
                   </div>
                 </div>
@@ -604,7 +658,7 @@ export default function LayoutWrapper({
               
               {/* Accounting Tabs - Only show on accounting page */}
               {pathname === '/accounting' && (
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center space-x-3">
                   <button
                     onClick={() => {
                       setActiveAccountingTab('accounts');
@@ -612,13 +666,13 @@ export default function LayoutWrapper({
                       const event = new CustomEvent('setAccountingTab', { detail: 'accounts' });
                       window.dispatchEvent(event);
                     }}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                       activeAccountingTab === 'accounts'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        ? 'bg-blue-600 border-blue-400 text-white'
+                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
                     }`}
                   >
-                    Accounts
+                    <span className="relative z-10">Accounts</span>
                   </button>
                   <button
                     onClick={() => {
@@ -627,13 +681,13 @@ export default function LayoutWrapper({
                       const event = new CustomEvent('setAccountingTab', { detail: 'category' });
                       window.dispatchEvent(event);
                     }}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                       activeAccountingTab === 'category'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        ? 'bg-blue-600 border-blue-400 text-white'
+                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
                     }`}
                   >
-                    Category
+                    <span className="relative z-10">Category</span>
                   </button>
                 </div>
               )}
@@ -672,16 +726,16 @@ export default function LayoutWrapper({
                 <div className="relative">
                   <button
                     onClick={() => setReportDropdownOpen(!reportDropdownOpen)}
-                    className="px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm bg-blue-600 text-white shadow-sm hover:bg-blue-700 flex items-center space-x-2"
+                    className="relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm flex space-x-2"
                   >
-                    <span>{activeReport.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())} Report</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <span className="relative z-10">{activeReport.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())} Report</span>
+                    <svg className="w-4 h-4 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
                   
                   {reportDropdownOpen && (
-                    <div className="absolute top-full left-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                    <div className="absolute top-full left-0 mt-2 w-64 bg-gradient-to-br from-gray-100/95 via-blue-100/90 to-purple-100/85 backdrop-blur-md border border-gray-300/50 rounded-2xl shadow-xl z-50">
                       <div className="py-2">
                         {[
                           { id: 'outward', name: 'Outward Report', permission: 'report_1' },
@@ -704,10 +758,10 @@ export default function LayoutWrapper({
                               const event = new CustomEvent('setActiveReport', { detail: report.id });
                               window.dispatchEvent(event);
                             }}
-                            className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
+                            className={`w-full text-left px-4 py-2 text-sm transition-all duration-200 ${
                               activeReport === report.id
-                                ? 'bg-blue-50 text-blue-600 font-medium'
-                                : 'text-gray-700 hover:bg-gray-100'
+                                ? 'bg-blue-500 text-white font-medium'
+                                : 'text-gray-800 hover:bg-blue-500/20'
                             }`}
                           >
                             {report.name}
@@ -774,25 +828,31 @@ export default function LayoutWrapper({
                   </span>
                   <span className="truncate">{item.name}</span>
                 {item.name === 'Dashboard' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ D ]</span>
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+D ]</span>
                 )}
                 {item.name === 'Transactions' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ T ]</span>
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+T ]</span>
                 )}
                 {item.name === 'Accounting' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ A ]</span>
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+A ]</span>
                 )}
                 {item.name === 'Hawala' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ W ]</span>
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+H ]</span>
+                )}
+                {item.name === 'Special Entry' && (
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+S ]</span>
+                )}
+                {item.name === 'Reports' && (
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+R ]</span>
                 )}
                 {item.name === 'Balance Sheet' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ B ]</span>
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+B ]</span>
                 )}
                 {item.name === 'Master Data' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ M ]</span>
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+M ]</span>
                 )}
                 {item.name === 'Help' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ H ]</span>
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+P ]</span>
                 )}
                 </Link>
               ))}

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/store';
 import { formatCurrency, formatDate, formatTime } from '@/lib/utils';
+import { RefreshCw, Trash2, Save } from 'lucide-react';
 import { ClientTypeahead } from '@/components/ui/client-typeahead';
 import { accountingApi, AccountingEntry } from '@/lib/accounting';
 
@@ -40,7 +41,7 @@ export default function AccountingPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterByDate, setFilterByDate] = useState(false);
   const [isSelectingRange, setIsSelectingRange] = useState(false);
-  const [dateFilter, setDateFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [categoryForm, setCategoryForm] = useState({ name: '', type: 'INCOME' as 'INCOME' | 'EXPENSE' });
@@ -191,21 +192,40 @@ export default function AccountingPage() {
       );
     }
 
-    if (filterByDate) {
-      filtered = filtered.filter(transaction => {
-        const transactionDate = transaction.date?.includes('T')
-          ? transaction.date.split('T')[0]
-          : transaction.date || '';
+    // Always filter by date to show only current day entries by default
+    filtered = filtered.filter(transaction => {
+      let transactionDate = transaction.date?.includes('T')
+        ? transaction.date.split('T')[0]
+        : transaction.date || '';
 
+      // Normalize date format - handle DD/MM/YYYY, YYYY-MM-DD, and other formats
+      if (transactionDate.includes('/')) {
+        const parts = transactionDate.split('/');
+        if (parts.length === 3) {
+          // Assume DD/MM/YYYY format
+          transactionDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+      }
+
+      // Get today's date in YYYY-MM-DD format for comparison
+      const today = new Date();
+      const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+      // If filterByDate is enabled and user has selected a specific date or range
+      if (filterByDate) {
         if (!isSelectingRange) {
+          // Filter to selected date if provided, otherwise today
           return !dateFilter || transactionDate === dateFilter;
         }
 
         return startDate && endDate
           ? transactionDate >= startDate && transactionDate <= endDate
           : true;
-      });
-    }
+      }
+
+      // Default: always filter to today's date
+      return transactionDate === todayString;
+    });
 
     return filtered;
   }, [transactions, searchTerm, filterByDate, dateFilter, isSelectingRange, startDate, endDate]);
@@ -450,7 +470,7 @@ export default function AccountingPage() {
           <>
 
             {/* Transaction Entry Form */}
-            <Card className="shadow-sm border-gray-200 bg-gray-100">
+            <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
               <CardContent className="p-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {/* Row 1 */}
@@ -559,6 +579,7 @@ export default function AccountingPage() {
                         onClick={clearForm}
                         className="bg-red-600 hover:bg-red-700 text-white border-red-600 w-full sm:w-auto"
                       >
+                        <RefreshCw className="w-4 h-4 mr-2" />
                         Clear
                       </Button>
                       <Button
@@ -566,12 +587,14 @@ export default function AccountingPage() {
                         disabled={!selectedTransaction}
                         className="bg-orange-600 hover:bg-orange-700 text-white border-orange-600 w-full sm:w-auto"
                       >
+                        <Trash2 className="w-4 h-4 mr-2" />
                         Delete
                       </Button>
                       <Button
                         onClick={saveTransaction}
                         className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
                       >
+                        <Save className="w-4 h-4 mr-2" />
                         {selectedTransaction ? 'Update' : 'Save'}
                       </Button>
                     </div>
@@ -580,7 +603,7 @@ export default function AccountingPage() {
 
 
             {/* Data Table */}
-            <Card className="shadow-sm border-gray-200 bg-gray-100">
+            <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
               <CardHeader className="pb-0">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="text-lg font-semibold text-gray-900">Accounting Entries</div>
@@ -647,7 +670,7 @@ export default function AccountingPage() {
                             type="date"
                             value={dateFilter}
                             onChange={(e) => setDateFilter(e.target.value)}
-                            className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                            className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
                           />
                         ) : (
                           <div className="flex items-center space-x-2">
@@ -656,7 +679,7 @@ export default function AccountingPage() {
                               value={startDate}
                               onChange={(e) => setStartDate(e.target.value)}
                               placeholder="Start date"
-                              className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                              className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
                             />
                             <span className="text-gray-500 text-sm">to</span>
                             <Input
@@ -664,7 +687,7 @@ export default function AccountingPage() {
                               value={endDate}
                               onChange={(e) => setEndDate(e.target.value)}
                               placeholder="End date"
-                              className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                              className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
                             />
                           </div>
                         )}
@@ -744,7 +767,7 @@ export default function AccountingPage() {
         {/* TAB 2: CATEGORY MANAGEMENT */}
         {activeTab === 'category' && (
           <>
-            <Card className="shadow-sm border-gray-200 bg-gray-100">
+            <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
               <CardContent className="p-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -796,7 +819,7 @@ export default function AccountingPage() {
               </CardContent>
             </Card>
 
-            <Card className="shadow-sm border-gray-200 bg-gray-100">
+            <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
               <CardContent className="p-4">
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse">

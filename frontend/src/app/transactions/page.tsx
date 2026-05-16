@@ -14,6 +14,7 @@ import { CityTypeahead } from '@/components/ui/typeahead';
 import { ClientTypeahead, Client } from '@/components/ui/client-typeahead';
 import { useAuthStore } from '@/store/index';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { RefreshCw, Trash2, Save } from 'lucide-react';
 import { transactionApi, Transaction } from '@/lib/transactions';
 
 // Modern transaction schema matching backend
@@ -503,7 +504,7 @@ export default function TransactionsPage() {
     <div className="bg-white min-h-screen w-full">
       <div className="pt-16 space-y-4 sm:space-y-6">
         {/* Transaction Form */}
-        <Card className="shadow-sm border-gray-200 bg-gray-100">
+        <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
           <CardHeader className="pb-4">
             <CardTitle className="text-xl font-semibold text-gray-900">
               {editingTransaction ? 'Edit Transaction' : `${activeTab === 'outward' ? 'Outward' : 'Inward'} Booking`}
@@ -784,6 +785,7 @@ export default function TransactionsPage() {
                     onClick={handleClear}
                     className="bg-red-600 hover:bg-red-700 text-white border-red-600 w-full sm:w-auto"
                   >
+                    <RefreshCw className="w-4 h-4 mr-2" />
                     Clear
                   </Button>
                   
@@ -792,8 +794,9 @@ export default function TransactionsPage() {
                       type="button"
                       variant="destructive"
                       onClick={handleDelete}
-                      className="bg-red-600 hover:bg-red-700 w-full sm:w-auto"
+                      className="bg-orange-600 hover:bg-orange-700 text-white border-orange-600 w-full sm:w-auto"
                     >
+                      <Trash2 className="w-4 h-4 mr-2" />
                       Delete
                     </Button>
                   )}
@@ -805,6 +808,7 @@ export default function TransactionsPage() {
                     disabled={submitting}
                     className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
                   >
+                    <Save className="w-4 h-4 mr-2" />
                     {submitting ? 'Saving...' : (editingTransaction ? 'Update' : 'Save')}
                   </Button>
                 </div>
@@ -814,14 +818,11 @@ export default function TransactionsPage() {
         </Card>
 
         {/* Section 4: Recent Transactions */}
-        <Card className="shadow-sm border-gray-200 bg-gray-100">
+        <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
           <CardHeader className="pb-4">
             <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
               <div>
                 <CardTitle className="text-xl font-semibold text-gray-900">Recent Transactions</CardTitle>
-                <CardDescription className="text-gray-600">
-                  Latest {activeTab} transactions
-                </CardDescription>
               </div>
               
               <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:space-y-0 sm:space-x-4">
@@ -945,78 +946,80 @@ export default function TransactionsPage() {
                 {/* Tablet Table - All Columns */}
                 <div className="hidden md:block lg:hidden">
                   <div className="w-full overflow-x-auto">
-                    <table className="min-w-[1400px] divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Token</th>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Center</th>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Type</th>
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-blue-900 text-white">
+                          <th className="px-4 py-3 text-left text-sm font-bold">Token</th>
+                          <th className="px-4 py-3 text-left text-sm font-bold">Date</th>
+                          <th className="px-4 py-3 text-left text-sm font-bold">Time</th>
+                          <th className="px-4 py-3 text-left text-sm font-bold">Center</th>
+                          <th className="px-4 py-3 text-left text-sm font-bold">Amount</th>
+                          <th className="px-4 py-3 text-left text-sm font-bold">Amount Type</th>
                           {activeTab === 'outward' ? (
                             <>
-                              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Booking Comm</th>
-                              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Center Comm</th>
+                              <th className="px-4 py-3 text-left text-sm font-bold">Booking Comm</th>
+                              <th className="px-4 py-3 text-left text-sm font-bold">Center Comm</th>
                             </>
                           ) : (
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cutting Comm</th>
+                            <th className="px-4 py-3 text-left text-sm font-bold">Cutting Comm</th>
                           )}
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver Name</th>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender Name</th>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remark</th>
-                          <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                          <th className="px-4 py-3 text-left text-sm font-bold">Receiver Name</th>
+                          <th className="px-4 py-3 text-left text-sm font-bold">Sender Name</th>
+                          <th className="px-4 py-3 text-left text-sm font-bold">Remark</th>
+                          <th className="px-4 py-3 text-center text-sm font-bold">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {filteredTransactions.map((transaction) => (
+                      <tbody>
+                        {filteredTransactions.map((transaction, index) => (
                           <tr
                             key={transaction.id}
                             onClick={() => handleRowClick(transaction)}
-                            className="hover:bg-gray-50 cursor-pointer transition-colors duration-150"
+                            className={`border-b cursor-pointer transition-colors ${
+                              index % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-50 hover:bg-gray-100'
+                            }`}
                           >
-                            <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
+                            <td className="px-4 py-3 text-sm text-gray-900">
                               {transaction.tokenNo}
                             </td>
-                            <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
+                            <td className="px-4 py-3 text-sm text-gray-900">
                               {new Date(transaction.date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                             </td>
-                            <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
+                            <td className="px-4 py-3 text-sm text-gray-900">
                               {new Date(transaction.time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })}
                             </td>
-                            <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
+                            <td className="px-4 py-3 text-sm text-gray-900">
                               {transaction.center?.name}
                             </td>
-                            <td className="px-2 py-2 whitespace-nowrap text-xs font-semibold text-blue-600">
+                            <td className="px-4 py-3 text-sm font-semibold text-blue-600">
                               {formatCurrency(transaction.amount)}
                             </td>
-                            <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
+                            <td className="px-4 py-3 text-sm text-gray-900">
                               {transaction.amountType}
                             </td>
                             {activeTab === 'outward' ? (
                             <>
-                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
+                              <td className="px-4 py-3 text-sm text-gray-900">
                                 {formatCurrency(transaction.bookingCommission || 0)}
                               </td>
-                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
+                              <td className="px-4 py-3 text-sm text-gray-900">
                                 {formatCurrency(transaction.centerCommission || 0)}
                               </td>
                             </>
                           ) : (
-                            <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
+                            <td className="px-4 py-3 text-sm text-gray-900">
                               {formatCurrency(transaction.bookingCommission || 0)}
                             </td>
                           )}
-                            <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
+                            <td className="px-4 py-3 text-sm text-gray-900">
                               {transaction.receiverName}
                             </td>
-                            <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
+                            <td className="px-4 py-3 text-sm text-gray-900">
                               {transaction.senderName}
                             </td>
-                            <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
+                            <td className="px-4 py-3 text-sm text-gray-900">
                               {transaction.remark || '-'}
                             </td>
-                            <td className="px-2 py-2 whitespace-nowrap text-center text-xs">
+                            <td className="px-4 py-3 text-center text-sm">
                               <div className="flex justify-center space-x-1">
                                 <button
                                   onClick={(e) => {
@@ -1055,78 +1058,80 @@ export default function TransactionsPage() {
                 {/* Desktop Table - All Columns */}
                 <div className="hidden lg:block">
                   <div className="w-full overflow-x-auto">
-                    <table className="min-w-[1400px] divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Token</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Center</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Type</th>
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-blue-900 text-white">
+                          <th className="px-4 py-3 text-left text-sm font-bold">Token</th>
+                          <th className="px-4 py-3 text-left text-sm font-bold">Date</th>
+                          <th className="px-4 py-3 text-left text-sm font-bold">Time</th>
+                          <th className="px-4 py-3 text-left text-sm font-bold">Center</th>
+                          <th className="px-4 py-3 text-left text-sm font-bold">Amount</th>
+                          <th className="px-4 py-3 text-left text-sm font-bold">Amount Type</th>
                           {activeTab === 'outward' ? (
                             <>
-                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Booking Comm</th>
-                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Center Comm</th>
+                              <th className="px-4 py-3 text-left text-sm font-bold">Booking Comm</th>
+                              <th className="px-4 py-3 text-left text-sm font-bold">Center Comm</th>
                             </>
                           ) : (
-                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cutting Comm</th>
+                            <th className="px-4 py-3 text-left text-sm font-bold">Cutting Comm</th>
                           )}
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver Name</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender Name</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remark</th>
-                          <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                          <th className="px-4 py-3 text-left text-sm font-bold">Receiver Name</th>
+                          <th className="px-4 py-3 text-left text-sm font-bold">Sender Name</th>
+                          <th className="px-4 py-3 text-left text-sm font-bold">Remark</th>
+                          <th className="px-4 py-3 text-center text-sm font-bold">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {filteredTransactions.map((transaction) => (
+                      <tbody>
+                        {filteredTransactions.map((transaction, index) => (
                           <tr
                             key={transaction.id}
                             onClick={() => handleRowClick(transaction)}
-                            className="hover:bg-gray-50 cursor-pointer transition-colors duration-150"
+                            className={`border-b cursor-pointer transition-colors ${
+                              index % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-50 hover:bg-gray-100'
+                            }`}
                           >
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                            <td className="px-4 py-3 text-sm text-gray-900">
                               {transaction.tokenNo}
                             </td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                            <td className="px-4 py-3 text-sm text-gray-900">
                               {new Date(transaction.date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                             </td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                            <td className="px-4 py-3 text-sm text-gray-900">
                               {new Date(transaction.time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })}
                             </td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                            <td className="px-4 py-3 text-sm text-gray-900">
                               {transaction.center?.name}
                             </td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm font-semibold text-blue-600">
+                            <td className="px-4 py-3 text-sm font-semibold text-blue-600">
                               {formatCurrency(transaction.amount)}
                             </td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                            <td className="px-4 py-3 text-sm text-gray-900">
                               {transaction.amountType}
                             </td>
                             {activeTab === 'outward' ? (
                             <>
-                              <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                              <td className="px-4 py-3 text-sm text-gray-900">
                                 {formatCurrency(transaction.bookingCommission || 0)}
                               </td>
-                              <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                              <td className="px-4 py-3 text-sm text-gray-900">
                                 {formatCurrency(transaction.centerCommission || 0)}
                               </td>
                             </>
                           ) : (
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                            <td className="px-4 py-3 text-sm text-gray-900">
                               {formatCurrency(transaction.bookingCommission || 0)}
                             </td>
                           )}
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                            <td className="px-4 py-3 text-sm text-gray-900">
                               {transaction.receiverName}
                             </td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                            <td className="px-4 py-3 text-sm text-gray-900">
                               {transaction.senderName}
                             </td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                            <td className="px-4 py-3 text-sm text-gray-900">
                               {transaction.remark || '-'}
                             </td>
-                            <td className="px-3 py-3 whitespace-nowrap text-center text-sm">
+                            <td className="px-4 py-3 text-center text-sm">
                               <div className="flex justify-center space-x-2">
                                 <button
                                   onClick={(e) => {

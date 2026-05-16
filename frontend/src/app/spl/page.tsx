@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { RefreshCw, Trash2, Save } from 'lucide-react';
 import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
 
 // Function to format time in Indian time format
@@ -329,7 +330,7 @@ export default function SPLPage() {
         
         
         {/* SPL Entry Form */}
-        <Card className="shadow-sm border-gray-200 bg-gray-100">
+        <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
           <CardHeader></CardHeader>
           <CardContent className="p-4">
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -486,17 +487,15 @@ export default function SPLPage() {
             {/* Action Buttons */}
             <div className="flex justify-end gap-3 mt-6">
               <Button onClick={clearForm} variant="outline" className="bg-red-600 hover:bg-red-700 text-white border-red-600 w-full sm:w-auto">
-                {/* <RefreshCw className="w-4 h-4 mr-2" />  */}
-                {/* need to use same icon as hawala page */}
+                <RefreshCw className="w-4 h-4 mr-2" />
                 Clear
               </Button>
               <Button onClick={deleteEntry} variant="outline" className="bg-orange-600 hover:bg-orange-700 text-white border-orange-600 w-full sm:w-auto" disabled={!selectedEntry}>
-                {/* need to use same icon as hawala page */}
+                <Trash2 className="w-4 h-4 mr-2" />
                 Delete
               </Button>
               <Button onClick={saveEntry} className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto">
-                {/* <Save className="w-4 h-4 mr-2" /> */}
-                {/* need to use same icon as hawala page */}
+                <Save className="w-4 h-4 mr-2" />
                 {selectedEntry ? 'Update' : 'Save'}
               </Button>
             </div>
@@ -505,7 +504,7 @@ export default function SPLPage() {
 
 
         {/* SPL Table */}
-        <Card className="shadow-sm border-gray-200 bg-gray-100">
+        <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -614,40 +613,40 @@ export default function SPLPage() {
           </CardHeader>
           <CardContent className="p-4">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full border-collapse">
                 <thead>
-                  <tr className="bg-blue-50 border-b border-blue-200">
-                    <th className="px-4 py-3 text-left font-medium text-blue-900">Token No</th>
-                    <th className="px-4 py-3 text-left font-medium text-blue-900">Date</th>
-                    <th className="px-4 py-3 text-left font-medium text-blue-900">Time</th>
-                    <th className="px-4 py-3 text-right font-medium text-blue-900">Amount A</th>
-                    <th className="px-4 py-3 text-left font-medium text-blue-900">Party A (Udhar)</th>
-                    <th className="px-4 py-3 text-right font-medium text-blue-900">Amount B</th>
-                    <th className="px-4 py-3 text-left font-medium text-blue-900">Party B (Jama)</th>
-                    <th className="px-4 py-3 text-right font-medium text-blue-900">Amount C</th>
-                    <th className="px-4 py-3 text-left font-medium text-blue-900">Party C (Jama/Udhar)</th>
-                    <th className="px-4 py-3 text-left font-medium text-blue-900">Remark</th>
+                  <tr className="bg-blue-900 text-white">
+                    <th className="px-4 py-3 text-left text-sm font-bold">Token No</th>
+                    <th className="px-4 py-3 text-left text-sm font-bold">Date</th>
+                    <th className="px-4 py-3 text-left text-sm font-bold">Time</th>
+                    <th className="px-4 py-3 text-right text-sm font-bold">Amount A</th>
+                    <th className="px-4 py-3 text-left text-sm font-bold">Party A (Udhar)</th>
+                    <th className="px-4 py-3 text-right text-sm font-bold">Amount B</th>
+                    <th className="px-4 py-3 text-left text-sm font-bold">Party B (Jama)</th>
+                    <th className="px-4 py-3 text-right text-sm font-bold">Amount C</th>
+                    <th className="px-4 py-3 text-left text-sm font-bold">Party C (Jama/Udhar)</th>
+                    <th className="px-4 py-3 text-left text-sm font-bold">Remark</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredEntries.map((entry, index) => (
-                    <tr 
+                    <tr
                       key={entry.id}
                       className={`border-b cursor-pointer transition-colors ${
-                        index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                      } ${selectedEntry?.id === entry.id ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
+                        index % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-50 hover:bg-gray-100'
+                      } ${selectedEntry?.id === entry.id ? 'bg-blue-100' : ''}`}
                       onClick={() => editEntry(entry)}
                     >
-                      <td className="px-4 py-3 font-medium text-gray-900">{entry.tokenNo}</td>
-                      <td className="px-4 py-3 text-gray-900">{formatDate(entry.date)}</td>
-                      <td className="px-4 py-3 text-gray-900">{formatTime(entry.time)}</td>
-                      <td className="px-4 py-3 text-gray-900">{formatCurrency(entry.amountA || 0)}</td>
-                      <td className="px-4 py-3 text-gray-900">{entry.partyA}</td>
-                      <td className="px-4 py-3 text-right text-gray-900">{formatCurrency(entry.amountB || 0)}</td>
-                      <td className="px-4 py-3 text-gray-900">{entry.partyB}</td>
-                      <td className="px-4 py-3 text-right text-gray-900">{formatCurrency(entry.amountC || 0)}</td>
-                      <td className="px-4 py-3 text-gray-900">{entry.partyC}</td>
-                      <td className="px-4 py-3 text-gray-900">{entry.remark || ''}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{entry.tokenNo}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{formatDate(entry.date)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{formatTime(entry.time)}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-blue-600">{formatCurrency(entry.amountA || 0)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{entry.partyA}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-blue-600">{formatCurrency(entry.amountB || 0)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{entry.partyB}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-blue-600">{formatCurrency(entry.amountC || 0)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{entry.partyC}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{entry.remark || ''}</td>
                     </tr>
                   ))}
                 </tbody>

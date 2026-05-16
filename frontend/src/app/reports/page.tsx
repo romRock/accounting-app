@@ -1795,7 +1795,7 @@ export default function ReportsPage() {
 
         {/* Filter Section */}
         {activeReport !== 'transaction-refund' && (
-          <Card className="shadow-sm border-gray-200 bg-gray-100">
+          <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
             <CardHeader className="pb-4">
               <CardTitle className="text-xl font-semibold text-gray-900">
                 Filters
@@ -2005,7 +2005,7 @@ export default function ReportsPage() {
 
         {/* Report Summary */}
         {summary && activeReport !== 'transaction-refund' && (
-          <Card className="shadow-sm border-gray-200 bg-gray-100">
+          <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
             <CardHeader className="pb-4">
               <CardTitle className="text-xl font-semibold text-gray-900">
                 Report Summary
@@ -2061,7 +2061,7 @@ export default function ReportsPage() {
 
         {/* Report Data Table */}
         {activeReport === 'transaction' ? (
-          <Card className="shadow-sm border-gray-200 bg-gray-100">
+          <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
             <CardHeader className="pb-4">
               <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
                 <div>
@@ -2145,7 +2145,7 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
         ) : activeReport === 'customer' ? (
-          <Card className="shadow-sm border-gray-200 bg-gray-100">
+          <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
             <CardHeader className="pb-4">
               <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
                 <div>
@@ -2221,7 +2221,7 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
         ) : activeReport === 'transaction-refund' ? (
-          <Card className="shadow-sm border-gray-200 bg-gray-100">
+          <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
             <CardHeader className="pb-4">
               <div>
                 <CardTitle className="text-xl font-semibold text-gray-900">
@@ -2317,7 +2317,7 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
         ) : (
-          <Card className="shadow-sm border-gray-200 bg-gray-100">
+          <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
             <CardHeader className="pb-4">
               <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
                 <div>
@@ -2557,7 +2557,7 @@ export default function ReportsPage() {
 
               {/* Ledger Data Table - Full Height */}
               <div className="flex-1 overflow-auto p-4">
-                <Card className="shadow-sm border-gray-200 bg-gray-100 h-full flex flex-col">
+                <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10 h-full flex flex-col">
                   <div className="px-4 py-2 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900">Ledger Data ({filteredClientLedger.length} records)</span>
                   </div>

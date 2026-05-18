@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { formatCurrency, formatDate, formatTime } from '@/lib/utils';
 import { RefreshCw, Trash2, Save } from 'lucide-react';
 import { ClientTypeahead } from '@/components/ui/client-typeahead';
 import { accountingApi, AccountingEntry } from '@/lib/accounting';
+import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
 
 // Category Data Structure
 interface Category {
@@ -46,6 +47,7 @@ export default function AccountingPage() {
   const [endDate, setEndDate] = useState('');
   const [categoryForm, setCategoryForm] = useState({ name: '', type: 'INCOME' as 'INCOME' | 'EXPENSE' });
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const amountInputRef = useRef<HTMLInputElement>(null);
 
   // Generate transaction ID based on latest accounting transactions
   const generateTransactionId = () => {
@@ -233,7 +235,7 @@ export default function AccountingPage() {
   // Save transaction
   const saveTransaction = async () => {
     if (!transactionForm.amount || !transactionForm.category || !transactionForm.account) {
-      alert('Please fill in all required fields');
+      showErrorToast('Please fill in all required fields');
       return;
     }
 
@@ -254,17 +256,22 @@ export default function AccountingPage() {
         // Update existing transaction
         await accountingApi.updateAccountEntry(selectedTransaction.id, entryData);
         setSelectedTransaction(null);
+        showUpdateToast('Accounting entry updated successfully');
       } else {
         // Add new transaction - backend will generate entryId
         await accountingApi.createAccountEntry(entryData);
+        showSuccessToast('Accounting entry added successfully');
       }
 
       // Refresh data
       await fetchAccountingEntries();
       await clearForm();
+      
+      // Focus on amount input (keyboard-friendly)
+      setTimeout(() => amountInputRef.current?.focus(), 100);
     } catch (error) {
       console.error('Failed to save transaction:', error);
-      alert('Failed to save transaction. Please try again.');
+      showErrorToast('Failed to save transaction. Please try again.');
     }
   };
 
@@ -380,14 +387,15 @@ export default function AccountingPage() {
     if (confirm('Are you sure you want to delete this transaction?')) {
       try {
         await accountingApi.deleteAccountEntry(id);
+        showDeleteToast('Accounting entry deleted successfully');
         await fetchAccountingEntries();
         if (selectedTransaction?.id === id) {
           setSelectedTransaction(null);
-          await clearForm();
+          clearForm();
         }
       } catch (error) {
         console.error('Failed to delete transaction:', error);
-        alert('Failed to delete transaction. Please try again.');
+        showErrorToast('Failed to delete transaction. Please try again.');
       }
     }
   };
@@ -406,12 +414,15 @@ export default function AccountingPage() {
       remark: ''
     });
     setSelectedTransaction(null);
+    
+    // Focus on amount input (keyboard-friendly)
+    setTimeout(() => amountInputRef.current?.focus(), 100);
   };
 
   // Category management functions
   const saveCategory = () => {
     if (!categoryForm.name) {
-      alert('Please enter category name');
+      showErrorToast('Please enter category name');
       return;
     }
 
@@ -423,6 +434,7 @@ export default function AccountingPage() {
           : c
       ));
       setSelectedCategory(null);
+      showUpdateToast('Category updated successfully');
     } else {
       // Add new category
       const newCategory: Category = {
@@ -431,6 +443,7 @@ export default function AccountingPage() {
         type: categoryForm.type
       };
       setCategories(prev => [...prev, newCategory]);
+      showSuccessToast('Category added successfully');
     }
 
     setCategoryForm({ name: '', type: 'INCOME' });
@@ -462,8 +475,9 @@ export default function AccountingPage() {
   }
 
   return (
-    <div className="bg-white min-h-screen w-full">
-      <div className="pt-16 space-y-4 sm:space-y-6">
+    <>
+      <div className="bg-white min-h-screen w-full">
+        <div className="pt-16 space-y-4 sm:space-y-6">
         
         {/* TAB 1: ACCOUNTS */}
         {activeTab === 'accounts' && (
@@ -509,6 +523,7 @@ export default function AccountingPage() {
                     <Label htmlFor="amount" className="text-sm font-medium text-gray-700">Amount *</Label>
                     <Input
                       id="amount"
+                      ref={amountInputRef}
                       type="number"
                       value={transactionForm.amount}
                       onChange={(e) => {
@@ -875,5 +890,7 @@ export default function AccountingPage() {
         )}
       </div>
     </div>
+    <Toaster />
+    </>
   );
 }

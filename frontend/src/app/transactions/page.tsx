@@ -16,6 +16,7 @@ import { useAuthStore } from '@/store/index';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { RefreshCw, Trash2, Save } from 'lucide-react';
 import { transactionApi, Transaction } from '@/lib/transactions';
+import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
 
 // Modern transaction schema matching backend
 const transactionSchema = z.object({
@@ -74,9 +75,9 @@ export default function TransactionsPage() {
   const [selectedSenderClient, setSelectedSenderClient] = useState<ClientData | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
+  const centerInputRef = useRef<HTMLInputElement>(null);
   const cityTypeaheadRef = useRef<any>(null);
   const [filterByDate, setFilterByDate] = useState(false);
   const [dateFilter, setDateFilter] = useState('');
@@ -291,7 +292,6 @@ export default function TransactionsPage() {
   const onSubmit = async (data: TransactionForm) => {
     try {
       setSubmitting(true);
-      setError(null);
 
       const transactionData = {
         ...data,
@@ -305,11 +305,13 @@ export default function TransactionsPage() {
         // Refetch transactions to get complete data with relationships
         await fetchTransactions();
         setEditingTransaction(null);
+        showUpdateToast('Transaction updated successfully');
       } else {
         // Create new transaction
         const createdTransaction = await transactionApi.createTransaction(transactionData);
         // Refetch transactions to get complete data with relationships
         await fetchTransactions();
+        showSuccessToast('Transaction added successfully');
         
         // Set commission values from backend response
         if (createdTransaction.commission !== undefined) {
@@ -337,10 +339,10 @@ export default function TransactionsPage() {
       setValue('time', new Date().toTimeString().slice(0, 5));
       setValue('autoCommission', true);
       
-      // Focus on first input
-      setTimeout(() => firstInputRef.current?.focus(), 100);
+      // Focus on center input (keyboard-friendly)
+      setTimeout(() => centerInputRef.current?.focus(), 100);
     } catch (err: any) {
-      setError(err.message || 'Failed to save transaction');
+      showErrorToast('Failed to save transaction. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -363,10 +365,9 @@ export default function TransactionsPage() {
     setSelectedCity(null); // Clear city selection
     setSelectedReceiverClient(null); // Clear receiver client
     setSelectedSenderClient(null); // Clear sender client
-    setError(null);
     setCityResetKey(Date.now().toString()); // Trigger city typeahead reset
         
-    setTimeout(() => firstInputRef.current?.focus(), 100);
+    setTimeout(() => centerInputRef.current?.focus(), 100);
   };
 
   const handleDelete = async () => {
@@ -376,8 +377,9 @@ export default function TransactionsPage() {
         // Refetch transactions to get complete data with relationships
         await fetchTransactions();
         handleClear();
+        showDeleteToast('Transaction deleted successfully');
       } catch (err: any) {
-        setError(err.message || 'Failed to delete transaction');
+        showErrorToast('Failed to delete transaction. Please try again.');
       }
     }
   };
@@ -485,6 +487,14 @@ export default function TransactionsPage() {
     return () => window.removeEventListener('setTransactionTab', handleTabChange as EventListener);
   }, []);
 
+  // Show error toast for validation errors
+  useEffect(() => {
+    if (Object.keys(errors).length > 0) {
+      const firstError = Object.values(errors)[0];
+      showErrorToast(firstError?.message || 'Please fill in all required fields');
+    }
+  }, [errors]);
+
   if (!isAuthenticated) {
     return null;
   }
@@ -501,8 +511,9 @@ export default function TransactionsPage() {
   }
 
   return (
-    <div className="bg-white min-h-screen w-full">
-      <div className="pt-16 space-y-4 sm:space-y-6">
+    <>
+      <div className="bg-white min-h-screen w-full">
+        <div className="pt-16 space-y-4 sm:space-y-6">
         {/* Transaction Form */}
         <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
           <CardHeader className="pb-4">
@@ -514,12 +525,6 @@ export default function TransactionsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {error && (
-              <Alert className="border-red-200 bg-red-50">
-                <AlertDescription className="text-red-800">{error}</AlertDescription>
-              </Alert>
-            )}
-
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               {/* Section 1: General Information */}
               <div className="space-y-4">
@@ -578,6 +583,7 @@ export default function TransactionsPage() {
                     }}
                     placeholder="Search city..."
                     resetKey={cityResetKey}
+                    inputRef={centerInputRef}
                   />
                 </div>
 
@@ -1243,5 +1249,7 @@ export default function TransactionsPage() {
         </Card>
       </div>
     </div>
+    <Toaster />
+    </>
   );
 }

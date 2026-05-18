@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -61,6 +61,7 @@ interface SPLEntry {
 export default function SPLPage() {
   const [splEntries, setSPLEntries] = useState<SpecialEntry[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<SpecialEntry | null>(null);
+  const amountInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     transactionId: '',
     tokenNo: 0,
@@ -185,6 +186,9 @@ export default function SPLPage() {
       remark: ''
     });
     setSelectedEntry(null);
+    
+    // Focus on amount input (keyboard-friendly)
+    setTimeout(() => amountInputRef.current?.focus(), 100);
   };
 
   // Save entry
@@ -214,11 +218,13 @@ export default function SPLPage() {
     
     if (missingFields.length > 0) {
       console.log('🔍 SPL DEBUG: Missing fields:', missingFields);
+      showErrorToast('Please fill in all required fields');
       return;
     }
 
     if (formData.partyA === formData.partyB) {
       console.log('🔍 SPL DEBUG: Party A and Party B are the same:', formData.partyA);
+      showErrorToast('Party A and Party B must be different');
       return;
     }
 
@@ -271,6 +277,9 @@ export default function SPLPage() {
       } else {
         showSuccessToast('Special entry created successfully');
       }
+      
+      // Focus on amount input (keyboard-friendly)
+      setTimeout(() => amountInputRef.current?.focus(), 100);
     } catch (error) {
       showErrorToast(`Error: ${(error as Error).message}`);
     }
@@ -326,7 +335,7 @@ export default function SPLPage() {
   return (
     <>
     <div className="bg-white min-h-screen w-full">
-      <div className="pt-16 space-y-4 sm:space-y-6 p-6">
+      <div className="pt-16 space-y-4 sm:space-y-6">
         
         
         {/* SPL Entry Form */}
@@ -381,6 +390,7 @@ export default function SPLPage() {
                 <Label htmlFor="amountA" className="text-sm font-medium text-red-700">Amount A (UDHAR) *</Label>
                 <Input
                   id="amountA"
+                  ref={amountInputRef}
                   type="number"
                   value={formData.amountA}
                   onChange={(e) => setFormData(prev => ({ ...prev, amountA: e.target.value }))}

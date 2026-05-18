@@ -14,6 +14,7 @@ interface TypeaheadProps {
   disabled?: boolean;
   className?: string;
   resetKey?: string;
+  inputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 export function CityTypeahead({ 
@@ -24,7 +25,8 @@ export function CityTypeahead({
   placeholder = "Search city...", 
   disabled = false,
   className = "",
-  resetKey
+  resetKey,
+  inputRef
 }: TypeaheadProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState(value || '');
@@ -32,9 +34,19 @@ export function CityTypeahead({
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   
-  const inputRef = useRef<HTMLInputElement>(null);
+  const localInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Use external ref if provided, otherwise use internal ref
+  const finalInputRef = inputRef || localInputRef;
+
+  // Expose the input ref to parent component when inputRef is provided
+  useEffect(() => {
+    if (inputRef && localInputRef.current) {
+      (inputRef as React.MutableRefObject<HTMLInputElement>).current = localInputRef.current;
+    }
+  }, [inputRef]);
 
   // Sync searchTerm with value prop when it changes (for edit functionality)
   useEffect(() => {
@@ -104,7 +116,7 @@ export function CityTypeahead({
     onChange(city.id, city);
     setIsOpen(false);
     setSelectedIndex(-1);
-    inputRef.current?.blur();
+    finalInputRef.current?.blur();
   };
 
   // Handle keyboard navigation
@@ -131,7 +143,7 @@ export function CityTypeahead({
       case 'Escape':
         setIsOpen(false);
         setSelectedIndex(-1);
-        inputRef.current?.blur();
+        finalInputRef.current?.blur();
         break;
     }
   };
@@ -204,7 +216,7 @@ export function CityTypeahead({
       <div className="relative">
         <Input
           id={id}
-          ref={inputRef}
+          ref={finalInputRef}
           type="text"
           value={searchTerm}
           onChange={handleInputChange}

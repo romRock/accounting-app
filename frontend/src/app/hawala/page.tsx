@@ -1,19 +1,18 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { formatCurrency, formatDate, formatTime } from '@/lib/utils';
 import { Search, Calendar, Filter, Trash2, Save, RefreshCw, Edit, Check, X, Clock, User, DollarSign, FileText } from 'lucide-react';
 import { ClientTypeahead } from '@/components/ui/client-typeahead';
-import { AlertCircle, CheckCircle } from 'lucide-react';
 import { getHawalaEntries, createHawala, updateHawala, deleteHawala, HawalaEntry } from '@/lib/hawala';
 import API_BASE_URL from '@/lib/api';
 import { useAuthStore } from '@/store/index';
+import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
 
 // Get auth token from store (same as transactions)
 const getAuthToken = () => {
@@ -53,8 +52,6 @@ export default function HawalaPage() {
   const [endDate, setEndDate] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [clients, setClients] = useState<any[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   // Generate transaction ID based on latest hawala entries
   const generateTransactionId = () => {
@@ -99,6 +96,7 @@ export default function HawalaPage() {
     amount: '',
     remark: '',
   });
+  const amountInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize form and fetch hawala entries
   useEffect(() => {
@@ -160,7 +158,7 @@ export default function HawalaPage() {
       }
     } catch (error) {
       console.error('Error fetching hawala entries:', error);
-      setError('Failed to fetch hawala entries');
+      showErrorToast('Failed to fetch hawala entries');
     }
   };
 
@@ -250,24 +248,24 @@ export default function HawalaPage() {
   // Form validation
   const validateForm = () => {
     if (!formData.partyA || !formData.partyB) {
-      alert('Please select both parties');
+      showErrorToast('Please select both parties');
       return false;
     }
 
     if (formData.partyA === formData.partyB) {
-      alert('Party A and Party B must be different');
+      showErrorToast('Party A and Party B must be different');
       return false;
     }
 
     const amount = parseFloat(formData.amount);
     if (!amount || amount <= 0) {
-      alert('Amount must be greater than 0');
+      showErrorToast('Amount must be greater than 0');
       return false;
     }
 
     // const commission = parseFloat(formData.commission);
     // if (formData.commission && (isNaN(commission) || commission < 0)) {
-    //   alert('Commission must be a positive number');
+    //   showErrorToast('Commission must be a positive number');
     //   return false;
     // }
 
@@ -276,10 +274,6 @@ export default function HawalaPage() {
 
   // Save hawala entry
   const handleSave = async () => {
-    // Clear previous messages
-    setError(null);
-    setSuccess(null);
-
     // Debug logging to see form data values
     console.log('Current form data:', formData);
     console.log('Validation checks:', {
@@ -300,14 +294,14 @@ export default function HawalaPage() {
 
     // Validate required fields (remark is optional)
     if (!formData.transactionId || !formData.date || !formData.time || !formData.partyA || !formData.partyB || !formData.amount || formData.amount.trim() === '') {
-      setError('Please fill in all required fields');
+      showErrorToast('Please fill in all required fields');
       console.log('Validation failed - one or more required fields are empty');
       return;
     }
 
     // Validate that Party A and Party B are different
     if (formData.partyA === formData.partyB) {
-      setError('Party A and Party B must be different clients');
+      showErrorToast('Party A and Party B must be different clients');
       console.log('Validation failed - Party A and Party B are the same');
       return;
     }
@@ -321,7 +315,7 @@ export default function HawalaPage() {
       console.log('Auth store state:', JSON.stringify(useAuthStore.getState()));
 
       if (!token) {
-        setError('Please login to save hawala entries');
+        showErrorToast('Please login to save hawala entries');
         console.log('ERROR: No token found');
         return;
       } else {
@@ -388,10 +382,17 @@ export default function HawalaPage() {
         handleClear();
       }
 
-      setSuccess(editingId ? 'Hawala entry updated successfully' : 'Hawala entry created successfully');
+      if (editingId) {
+        showUpdateToast('Hawala entry updated successfully');
+      } else {
+        showSuccessToast('Hawala entry created successfully');
+      }
+      
+      // Focus on amount input (keyboard-friendly)
+      setTimeout(() => amountInputRef.current?.focus(), 100);
     } catch (error) {
       console.error('Error saving hawala entry:', error);
-      setError('Failed to save hawala entry');
+      showErrorToast('Failed to save hawala entry');
     }
   };
 
@@ -411,6 +412,9 @@ export default function HawalaPage() {
       });
       setEditingId(null);
       setSelectedEntry(null);
+      
+      // Focus on amount input (keyboard-friendly)
+      setTimeout(() => amountInputRef.current?.focus(), 100);
     });
   };
 
@@ -427,10 +431,10 @@ export default function HawalaPage() {
         // Refresh hawala entries
         fetchHawalaEntries();
         
-        setSuccess('Hawala entry deleted successfully');
+        showDeleteToast('Hawala entry deleted successfully');
       } catch (error: any) {
         console.error('Error deleting hawala entry:', error);
-        setError(error.message || 'Failed to delete hawala entry');
+        showErrorToast(error.message || 'Failed to delete hawala entry');
       }
     }
   };
@@ -452,12 +456,13 @@ export default function HawalaPage() {
   };
 
   return (
-    <div className="bg-white min-h-screen w-full">
-      <div className="pt-16 space-y-4 sm:space-y-6">
+    <>
+      <div className="bg-white min-h-screen w-full">
+        <div className="pt-16 space-y-4 sm:space-y-6">
 
 
         {/* Entry Form */}
-        <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10 mx-4 sm:mx-6 lg:mx-8">
+        <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
           <CardHeader></CardHeader>
           <CardContent className="space-y-4">
             {/* Row 1: Transaction ID, Token No, Date, Time */}
@@ -503,11 +508,12 @@ export default function HawalaPage() {
             </div>
 
             {/* Row 2: Amount, Party A, Party B */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
               <div>
                 <Label htmlFor="amount">Amount</Label>
                 <Input
                   id="amount"
+                  ref={amountInputRef}
                   type="number"
                   value={formData.amount}
                   onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
@@ -545,10 +551,6 @@ export default function HawalaPage() {
                   className="bg-white border-gray-300 text-black"
                 />
               </div>
-            </div>
-
-            {/* Row 3: Remark (Full Width) */}
-            <div className="grid grid-cols-1 gap-4">
               <div>
                 <Label htmlFor="remark">Remark</Label>
                 <Input
@@ -592,7 +594,7 @@ export default function HawalaPage() {
 
 
         {/* Hawala Table */}
-        <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10 mx-4 sm:mx-6 lg:mx-8">
+        <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="text-lg font-semibold text-gray-900">Hawala Entries</div>
@@ -816,5 +818,7 @@ export default function HawalaPage() {
         )}
       </div>
     </div>
+    <Toaster />
+    </>
   );
 }

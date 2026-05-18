@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { useAuthStore } from '@/store';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { Button } from '@/components/ui/button';
+import { Calendar } from 'lucide-react';
 
 export default function LayoutWrapper({
   children,
@@ -34,8 +35,8 @@ export default function LayoutWrapper({
 
   // Global keyboard shortcuts
   useKeyboardShortcuts([
-    { key: 'd', ctrl: true, action: () => router.push('/'), description: 'Navigate to Dashboard' },
-    { key: 't', ctrl: true, action: () => router.push('/transactions'), description: 'Navigate to Transactions' },
+    { key: 'd', ctrl: true, action: () => router.push('/dashboard'), description: 'Navigate to Dashboard' },
+    { key: 'x', ctrl: true, action: () => router.push('/transactions'), description: 'Navigate to Transactions' },
     { key: 'a', ctrl: true, action: () => router.push('/accounting'), description: 'Navigate to Accounting' },
     { key: 'h', ctrl: true, action: () => router.push('/hawala'), description: 'Navigate to Hawala' },
     { key: 's', ctrl: true, action: () => router.push('/spl'), description: 'Navigate to Special Entry' },
@@ -375,7 +376,7 @@ export default function LayoutWrapper({
                       <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+D ]</span>
                     )}
                     {item.name === 'Transactions' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+T ]</span>
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+X ]</span>
                     )}
                     {item.name === 'Accounting' && (
                       <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+A ]</span>
@@ -526,7 +527,7 @@ export default function LayoutWrapper({
                           : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
                       }`}
                     >
-                      <span className="relative z-10">Outward Booking</span>
+                      <span className="relative z-10">Booking</span>
                     </button>
                   )}
                   {hasPermission('transactions', 'inward') && (
@@ -543,7 +544,7 @@ export default function LayoutWrapper({
                           : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
                       }`}
                     >
-                      <span className="relative z-10">Inward Booking</span>
+                      <span className="relative z-10">Cutting</span>
                     </button>
                   )}
                 </div>
@@ -695,29 +696,19 @@ export default function LayoutWrapper({
               {/* Dashboard Controls - Only show on dashboard page */}
               {pathname === '/dashboard' && (
                 <div className="flex items-center gap-3">
-                  <input
-                    type="date"
-                    defaultValue={new Date().toISOString().split('T')[0]}
-                    className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    onChange={(e) => {
-                      // Dispatch event for dashboard page
-                      const event = new CustomEvent('setDashboardDate', { detail: e.target.value });
-                      window.dispatchEvent(event);
-                    }}
-                  />
-                  <button
-                    onClick={() => {
-                      // Dispatch event for dashboard page
-                      const event = new CustomEvent('refreshDashboard');
-                      window.dispatchEvent(event);
-                    }}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 text-sm hover:bg-gray-50 flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    Refresh
-                  </button>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-200 pointer-events-none" />
+                    <input
+                      type="date"
+                      defaultValue={new Date().toISOString().split('T')[0]}
+                      className="pl-10 pr-4 py-2 bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 border border-blue-500/30 rounded-2xl text-blue-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black transition-all duration-300"
+                      onChange={(e) => {
+                        // Dispatch event for dashboard page
+                        const event = new CustomEvent('setDashboardDate', { detail: e.target.value });
+                        window.dispatchEvent(event);
+                      }}
+                    />
+                  </div>
                 </div>
               )}
               

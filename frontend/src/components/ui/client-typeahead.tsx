@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Input } from './input';
 import { Label } from './label';
 
@@ -38,6 +39,7 @@ export function ClientTypeahead({
   const [results, setResults] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -47,6 +49,18 @@ export function ClientTypeahead({
   useEffect(() => {
     setSearchTerm(value || '');
   }, [value]);
+
+  // Calculate dropdown position when it opens
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom,
+        left: rect.left,
+        width: rect.width
+      });
+    }
+  }, [isOpen]);
 
   // Fetch clients with debounce
   const fetchClients = useCallback(async (query: string) => {
@@ -205,35 +219,46 @@ export function ClientTypeahead({
   };
 
   return (
-    <div className="relative" ref={dropdownRef} style={{ zIndex: 100 }}>
-      <Label htmlFor={id} className="text-sm font-medium text-gray-700">
-        {label}
-      </Label>
-      <div className="relative">
-        <Input
-          id={id}
-          ref={inputRef}
-          type="text"
-          value={searchTerm}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          onFocus={handleFocus}
-          placeholder={placeholder}
-          disabled={disabled}
-          className={`w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500 text-sm ${className}`}
-        />
-        
-        {/* Loading indicator */}
-        {loading && (
-          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-          </div>
-        )}
+    <>
+      <div className="relative" ref={dropdownRef}>
+        <Label htmlFor={id} className="text-sm font-medium text-gray-700">
+          {label}
+        </Label>
+        <div className="relative">
+          <Input
+            id={id}
+            ref={inputRef}
+            type="text"
+            value={searchTerm}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            onFocus={handleFocus}
+            placeholder={placeholder}
+            disabled={disabled}
+            className={`w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500 text-sm ${className}`}
+          />
+          
+          {/* Loading indicator */}
+          {loading && (
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Dropdown */}
-      {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto" style={{ zIndex: 999999 }}>
+      {/* Dropdown rendered via Portal to avoid stacking context issues */}
+      {isOpen && createPortal(
+        <div 
+          className="fixed bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto" 
+          style={{ 
+            top: dropdownPosition.top, 
+            left: dropdownPosition.left, 
+            width: dropdownPosition.width,
+            zIndex: 99999 
+          }}
+          ref={dropdownRef}
+        >
           {loading ? (
             <div className="px-3 py-2 text-sm text-gray-500 text-center">
               Searching...
@@ -266,8 +291,9 @@ export function ClientTypeahead({
               ))}
             </ul>
           )}
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 }

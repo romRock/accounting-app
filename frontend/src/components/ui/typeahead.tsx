@@ -224,6 +224,7 @@ export function CityTypeahead({
           onFocus={handleFocus}
           placeholder={placeholder}
           disabled={disabled}
+          autoComplete="off"
           className={`w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500 text-sm ${className}`}
         />
         

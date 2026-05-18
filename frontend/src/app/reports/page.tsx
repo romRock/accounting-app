@@ -1826,11 +1826,20 @@ export default function ReportsPage() {
         };
       } else {
         // For transaction report and other reports
-        summary = {
-          totalRecords: filteredData.length,
-          totalAmount: filteredData.reduce((sum, item) => sum + (item.amount || 0) + (item.centerCommission || 0), 0),
-          totalCommission: filteredData.reduce((sum, item) => sum + (item.bookingCommission || 0), 0),
-        };
+        if (activeReport === 'inward') {
+          // For inward report, don't include center commission in total amount
+          summary = {
+            totalRecords: filteredData.length,
+            totalAmount: filteredData.reduce((sum, item) => sum + (item.amount || 0), 0),
+            totalCommission: filteredData.reduce((sum, item) => sum + (item.bookingCommission || 0), 0),
+          };
+        } else {
+          summary = {
+            totalRecords: filteredData.length,
+            totalAmount: filteredData.reduce((sum, item) => sum + (item.amount || 0) + (item.centerCommission || 0), 0),
+            totalCommission: filteredData.reduce((sum, item) => sum + (item.bookingCommission || 0), 0),
+          };
+        }
       }
 
       setSummary(summary);
@@ -2092,6 +2101,13 @@ export default function ReportsPage() {
                     <div className="bg-white p-4 rounded-lg border border-gray-200">
                       <div className="text-sm font-medium text-gray-600">Inward Total</div>
                       <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.inwardTotal || 0)}</div>
+                    </div>
+                  </>
+                ) : activeReport === 'inward' ? (
+                  <>
+                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                      <div className="text-sm font-medium text-gray-600">Amount + Commission</div>
+                      <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.totalAmount + summary.totalCommission)}</div>
                     </div>
                   </>
                 ) : (

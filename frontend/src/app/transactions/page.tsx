@@ -33,9 +33,9 @@ const transactionSchema = z.object({
   bookingCommission: z.number().optional(),
   centerCommission: z.number().optional(),
   cuttingCommission: z.number().optional(), // For inward transactions
-  receiverName: z.string().min(1, 'Receiver name is required'),
+  receiverName: z.string().optional(),
   receiverNumber: z.string().optional(),
-  senderName: z.string().min(1, 'Sender name is required'),
+  senderName: z.string().optional(),
   senderNumber: z.string().optional(),
   receiverClientId: z.string().optional(),
   senderClientId: z.string().optional(),
@@ -624,10 +624,11 @@ export default function TransactionsPage() {
                       id="date"
                       type="date"
                       {...register('date')}
+                      autoComplete="off"
                       className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
                     />
                   </div>
-                  
+
                   <div>
                     <Label htmlFor="time" className="text-sm font-medium text-gray-700">Time</Label>
                     <Input
@@ -635,6 +636,7 @@ export default function TransactionsPage() {
                       type="time"
                       value={editingTransaction ? new Date().toTimeString().slice(0, 5) : watch('time')}
                       onChange={(e) => setValue('time', e.target.value)}
+                      autoComplete="off"
                       className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
                     />
                   </div>
@@ -667,6 +669,7 @@ export default function TransactionsPage() {
                         setValue('amount', value);
                         console.log('Amount changed to:', value);
                       }}
+                      autoComplete="off"
                       className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-black text-lg placeholder:text-gray-600"
                       ref={firstInputRef}
                     />
@@ -694,6 +697,7 @@ export default function TransactionsPage() {
                       placeholder="0.00"
                       value={watch('commission') || 0}
                       readOnly={autoCommission}
+                      autoComplete="off"
                       className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-lg placeholder:text-gray-600 ${
                         autoCommission ? 'bg-gray-100 text-gray-500' : 'bg-white text-black'
                       }`}
@@ -708,7 +712,9 @@ export default function TransactionsPage() {
                       step="0.01"
                       placeholder="0.00"
                       value={watch('cuttingCommission') || 0}
+                      onChange={(e) => setValue('cuttingCommission', Number(e.target.value))}
                       readOnly={autoCommission}
+                      autoComplete="off"
                       className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-lg placeholder:text-gray-600 ${
                         autoCommission ? 'bg-gray-100 text-gray-500' : 'bg-white text-black'
                       }`}
@@ -762,62 +768,90 @@ export default function TransactionsPage() {
               {/* Section 2: Contact Information */}
               <div className="space-y-4">
                 <h3 className="text-lg font-medium text-gray-900 border-b pb-2">Contact Information</h3>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div className="relative" style={{ zIndex: 101 }}>
-                    <ClientTypeahead
-                      id="receiverName"
-                      label="Receiver Name"
-                      value={watch('receiverName') || ''}
-                      onChange={(value: string, client?: Client) => {
-                        console.log('ReceiverTypeahead onChange - value:', value, 'client:', client);
-                        setValue('receiverName', value);
-                        if (client && client.mobileNumber) {
-                          setValue('receiverNumber', client.mobileNumber);
-                          setSelectedReceiverClient(client);
-                        } else {
-                          setSelectedReceiverClient(null);
-                        }
-                      }}
-                      placeholder="Search receiver name..."
-                    />
+                    {watch('amountType') === 'CREDIT' ? (
+                      <ClientTypeahead
+                        id="receiverName"
+                        label="Receiver Name"
+                        value={watch('receiverName') || ''}
+                        onChange={(value: string, client?: Client) => {
+                          console.log('ReceiverTypeahead onChange - value:', value, 'client:', client);
+                          setValue('receiverName', value);
+                          if (client && client.mobileNumber) {
+                            setValue('receiverNumber', client.mobileNumber);
+                            setSelectedReceiverClient(client);
+                          } else {
+                            setSelectedReceiverClient(null);
+                          }
+                        }}
+                        placeholder="Search receiver name..."
+                      />
+                    ) : (
+                      <>
+                        <Label htmlFor="receiverName" className="text-sm font-medium text-gray-700">Receiver Name</Label>
+                        <Input
+                          id="receiverName"
+                          placeholder="Enter receiver name"
+                          {...register('receiverName')}
+                          autoComplete="off"
+                          className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                        />
+                      </>
+                    )}
                   </div>
-                  
+
                   <div>
                     <Label htmlFor="receiverNumber" className="text-sm font-medium text-gray-700">Receiver Number</Label>
                     <Input
                       id="receiverNumber"
                       placeholder="Enter receiver number"
                       {...register('receiverNumber')}
+                      autoComplete="off"
                       className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
                     />
                   </div>
-                  
+
                   <div className="relative" style={{ zIndex: 99 }}>
-                    <ClientTypeahead
-                      id="senderName"
-                      label="Sender Name"
-                      value={watch('senderName') || ''}
-                      onChange={(value: string, client?: Client) => {
-                        console.log('SenderTypeahead onChange - value:', value, 'client:', client);
-                        setValue('senderName', value);
-                        if (client && client.mobileNumber) {
-                          setValue('senderNumber', client.mobileNumber);
-                          setSelectedSenderClient(client);
-                        } else {
-                          setSelectedSenderClient(null);
-                        }
-                      }}
-                      placeholder="Search sender name..."
-                    />
+                    {watch('amountType') === 'CREDIT' ? (
+                      <ClientTypeahead
+                        id="senderName"
+                        label="Sender Name"
+                        value={watch('senderName') || ''}
+                        onChange={(value: string, client?: Client) => {
+                          console.log('SenderTypeahead onChange - value:', value, 'client:', client);
+                          setValue('senderName', value);
+                          if (client && client.mobileNumber) {
+                            setValue('senderNumber', client.mobileNumber);
+                            setSelectedSenderClient(client);
+                          } else {
+                            setSelectedSenderClient(null);
+                          }
+                        }}
+                        placeholder="Search sender name..."
+                      />
+                    ) : (
+                      <>
+                        <Label htmlFor="senderName" className="text-sm font-medium text-gray-700">Sender Name</Label>
+                        <Input
+                          id="senderName"
+                          placeholder="Enter sender name"
+                          {...register('senderName')}
+                          autoComplete="off"
+                          className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                        />
+                      </>
+                    )}
                   </div>
-                  
+
                   <div>
                     <Label htmlFor="senderNumber" className="text-sm font-medium text-gray-700">Sender Number</Label>
                     <Input
                       id="senderNumber"
                       placeholder="Enter sender number"
                       {...register('senderNumber')}
+                      autoComplete="off"
                       className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
                     />
                   </div>
@@ -829,6 +863,7 @@ export default function TransactionsPage() {
                     id="remark"
                     placeholder="Enter any remarks"
                     {...register('remark')}
+                    autoComplete="off"
                     className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
                   />
                 </div>

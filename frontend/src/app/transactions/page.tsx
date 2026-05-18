@@ -332,7 +332,6 @@ export default function TransactionsPage() {
       console.log('Fetching transactions with type:', activeTab.toUpperCase());
       const data = await transactionApi.getTransactions({
         page: currentPage,
-        limit: 20,
         type: activeTab.toUpperCase(),
       });
       console.log('Transactions received:', data);

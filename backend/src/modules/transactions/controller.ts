@@ -276,7 +276,7 @@ export const getTransactions = async (req: Request, res: Response) => {
     // Get transactions with pagination
     const transactions = await prisma.transaction.findMany({
       where,
-      orderBy: { date: 'desc' },
+      orderBy: { date: 'asc' },
       skip: (Number(page) - 1) * Number(limit),
       take: Number(limit),
     });

@@ -786,7 +786,7 @@ export default function ReportsPage() {
           type: activeReport === 'inward' ? 'INWARD' : 'OUTWARD',
           search: searchTerm,
           page: currentPage,
-          limit: 100,
+          limit: 10000, // High limit to ensure all entries are fetched
           ...(activeReport === 'amount-type' && filters.amountType && filters.amountType.trim() && { amountType: filters.amountType })
         });
 

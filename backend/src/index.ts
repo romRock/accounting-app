@@ -13,6 +13,7 @@ import reportsRoutes from './modules/reports/routes';
 import masterRoutes from './modules/master/routes';
 import hawalaRoutes from './modules/hawala/routes';
 import specialEntryRoutes from './modules/specialEntry/routes';
+import dashboardRoutes from './modules/dashboard/routes';
 import { authenticateToken, requireRole } from './modules/auth/middleware';
 import { requireAdmin } from './middlewares/rbac';
 import { errorHandler } from './middlewares/errorHandler';
@@ -1940,6 +1941,7 @@ app.use('/api/specialEntry', specialEntryRoutes);
 app.use('/api/accounting', accountingRoutes);
 app.use('/api/reports', authenticateToken, reportsRoutes);
 app.use('/api/master', authenticateToken, masterRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Error handling
 app.use(errorHandler);

@@ -609,6 +609,31 @@ export const createAccountEntry = async (req: Request, res: Response) => {
       finalEntryId = await getLatestAccountTransactionId();
     }
 
+    // Handle duplicate entryId - generate a new one if it already exists
+    let attempts = 0;
+    const maxAttempts = 10;
+    while (attempts < maxAttempts) {
+      const existingEntry = await prisma.accountEntry.findUnique({
+        where: { entryId: finalEntryId },
+      });
+      
+      if (!existingEntry) {
+        break; // entryId is unique, proceed
+      }
+      
+      // Generate a new entryId
+      const match = finalEntryId.match(/TRN(\d+)/);
+      if (match) {
+        const currentNumber = parseInt(match[1], 10);
+        finalEntryId = `TRN${(currentNumber + 1).toString().padStart(3, '0')}`;
+      } else {
+        // If format doesn't match, append timestamp
+        finalEntryId = `TRN${Date.now()}`;
+      }
+      
+      attempts++;
+    }
+
     // Parse time safely
     let statusTime = new Date();
     if (time) {

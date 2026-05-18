@@ -82,10 +82,82 @@ export const createTransaction = async (req: Request, res: Response) => {
     if (autoCommission) {
       const amountNum = Number(amount);
       
-      // Simple 0.01% commission calculation
-      calculatedCommission = Math.round(amountNum * 0.001); // 0.01% commission
-      calculatedBookingCommission = Math.round(calculatedCommission * 0.33); // 33% our commission
-      calculatedCenterCommission = Math.round(calculatedCommission * 0.67); // 67% center commission
+      if (type === 'INWARD') {
+        // INWARD commission calculation (cutting)
+        const minCharge = 50;
+        
+        if (amountNum <= 50000) {
+          // 0 to 50,000: Fixed minimum charge of 50
+          calculatedCommission = minCharge;
+        } else if (amountNum > 50000 && amountNum <= 60000) {
+          // 50,001 to 60,000: Calculate on 60,000 base (next 10,000 round figure)
+          calculatedCommission = 60;
+        } else if (amountNum > 60000 && amountNum <= 70000) {
+          // 60,001 to 70,000: Calculate on 70,000 base
+          calculatedCommission = 70;
+        } else if (amountNum > 70000 && amountNum <= 80000) {
+          // 70,001 to 80,000: Calculate on 80,000 base
+          calculatedCommission = 80;
+        } else if (amountNum > 80000 && amountNum <= 90000) {
+          // 80,001 to 90,000: Calculate on 90,000 base
+          calculatedCommission = 90;
+        } else if (amountNum > 90000 && amountNum <= 100000) {
+          // 90,001 to 100,000: Calculate on 100,000 base
+          calculatedCommission = 100;
+        } else {
+          // For any amount above 100,000, round up to next 10,000 and use as commission base
+          // Example: 110,000 → 110, 115,000 → 120, 1,510,000 → 1,510
+          calculatedCommission = Math.ceil(amountNum / 10000) * 10;
+        }
+        
+        // Our commission (booking commission) is 35% of total commission for inward
+        calculatedBookingCommission = Math.floor(calculatedCommission * 0.35);
+        calculatedCenterCommission = 0; // No center commission for inward transactions
+        
+        // Ensure minimum charge
+        if (calculatedCommission < minCharge) {
+          calculatedCommission = minCharge;
+          calculatedBookingCommission = Math.floor(minCharge * 0.35);
+        }
+      } else {
+        // OUTWARD commission calculation (booking) - same logic as inward but with 33%/67% split
+        const minCharge = 50;
+        
+        if (amountNum <= 50000) {
+          // 0 to 50,000: Fixed minimum charge of 50
+          calculatedCommission = minCharge;
+        } else if (amountNum > 50000 && amountNum <= 60000) {
+          // 50,001 to 60,000: Calculate on 60,000 base
+          calculatedCommission = 60;
+        } else if (amountNum > 60000 && amountNum <= 70000) {
+          // 60,001 to 70,000: Calculate on 70,000 base
+          calculatedCommission = 70;
+        } else if (amountNum > 70000 && amountNum <= 80000) {
+          // 70,001 to 80,000: Calculate on 80,000 base
+          calculatedCommission = 80;
+        } else if (amountNum > 80000 && amountNum <= 90000) {
+          // 80,001 to 90,000: Calculate on 90,000 base
+          calculatedCommission = 90;
+        } else if (amountNum > 90000 && amountNum <= 100000) {
+          // 90,001 to 100,000: Calculate on 100,000 base
+          calculatedCommission = 100;
+        } else {
+          // For any amount above 100,000, round up to next 10,000 and use as commission base
+          // Example: 110,000 → 110, 115,000 → 120, 1,510,000 → 1,510
+          calculatedCommission = Math.ceil(amountNum / 10000) * 10;
+        }
+        
+        // 35% our commission, 65% center commission for outward
+        calculatedBookingCommission = Math.floor(calculatedCommission * 0.35);
+        calculatedCenterCommission = calculatedCommission - calculatedBookingCommission;
+        
+        // Ensure minimum charge
+        if (calculatedCommission < minCharge) {
+          calculatedCommission = minCharge;
+          calculatedBookingCommission = Math.floor(minCharge * 0.35);
+          calculatedCenterCommission = minCharge - calculatedBookingCommission;
+        }
+      }
     }
 
     // Create transaction with new schema
@@ -303,6 +375,92 @@ export const updateTransaction = async (req: Request, res: Response) => {
       throw createError('Transaction not found', 404);
     }
 
+    // Calculate commission if auto is enabled
+    let calculatedCommission = commission;
+    let calculatedBookingCommission = bookingCommission;
+    let calculatedCenterCommission = centerCommission;
+
+    if (autoCommission && amount) {
+      const amountNum = Number(amount);
+      
+      if (type === 'INWARD') {
+        // INWARD commission calculation (cutting)
+        const minCharge = 50;
+        
+        if (amountNum <= 50000) {
+          // 0 to 50,000: Fixed minimum charge of 50
+          calculatedCommission = minCharge;
+        } else if (amountNum > 50000 && amountNum <= 60000) {
+          // 50,001 to 60,000: Calculate on 60,000 base (next 10,000 round figure)
+          calculatedCommission = 60;
+        } else if (amountNum > 60000 && amountNum <= 70000) {
+          // 60,001 to 70,000: Calculate on 70,000 base
+          calculatedCommission = 70;
+        } else if (amountNum > 70000 && amountNum <= 80000) {
+          // 70,001 to 80,000: Calculate on 80,000 base
+          calculatedCommission = 80;
+        } else if (amountNum > 80000 && amountNum <= 90000) {
+          // 80,001 to 90,000: Calculate on 90,000 base
+          calculatedCommission = 90;
+        } else if (amountNum > 90000 && amountNum <= 100000) {
+          // 90,001 to 100,000: Calculate on 100,000 base
+          calculatedCommission = 100;
+        } else {
+          // For any amount above 100,000, round up to next 10,000 and use as commission base
+          // Example: 110,000 → 110, 115,000 → 120, 1,510,000 → 1,510
+          calculatedCommission = Math.ceil(amountNum / 10000) * 10;
+        }
+        
+        // Our commission (booking commission) is 35% of total commission for inward
+        calculatedBookingCommission = Math.floor(calculatedCommission * 0.35);
+        calculatedCenterCommission = 0; // No center commission for inward transactions
+        
+        // Ensure minimum charge
+        if (calculatedCommission < minCharge) {
+          calculatedCommission = minCharge;
+          calculatedBookingCommission = Math.floor(minCharge * 0.35);
+        }
+      } else {
+        // OUTWARD commission calculation (booking) - same logic as inward but with 33%/67% split
+        const minCharge = 50;
+        
+        if (amountNum <= 50000) {
+          // 0 to 50,000: Fixed minimum charge of 50
+          calculatedCommission = minCharge;
+        } else if (amountNum > 50000 && amountNum <= 60000) {
+          // 50,001 to 60,000: Calculate on 60,000 base
+          calculatedCommission = 60;
+        } else if (amountNum > 60000 && amountNum <= 70000) {
+          // 60,001 to 70,000: Calculate on 70,000 base
+          calculatedCommission = 70;
+        } else if (amountNum > 70000 && amountNum <= 80000) {
+          // 70,001 to 80,000: Calculate on 80,000 base
+          calculatedCommission = 80;
+        } else if (amountNum > 80000 && amountNum <= 90000) {
+          // 80,001 to 90,000: Calculate on 90,000 base
+          calculatedCommission = 90;
+        } else if (amountNum > 90000 && amountNum <= 100000) {
+          // 90,001 to 100,000: Calculate on 100,000 base
+          calculatedCommission = 100;
+        } else {
+          // For any amount above 100,000, round up to next 10,000 and use as commission base
+          // Example: 110,000 → 110, 115,000 → 120, 1,510,000 → 1,510
+          calculatedCommission = Math.ceil(amountNum / 10000) * 10;
+        }
+        
+        // 35% our commission, 65% center commission for outward
+        calculatedBookingCommission = Math.floor(calculatedCommission * 0.35);
+        calculatedCenterCommission = calculatedCommission - calculatedBookingCommission;
+        
+        // Ensure minimum charge
+        if (calculatedCommission < minCharge) {
+          calculatedCommission = minCharge;
+          calculatedBookingCommission = Math.floor(minCharge * 0.35);
+          calculatedCenterCommission = minCharge - calculatedBookingCommission;
+        }
+      }
+    }
+
     // Update transaction
     const transaction = await prisma.transaction.update({
       where: { id: id as string },
@@ -313,9 +471,9 @@ export const updateTransaction = async (req: Request, res: Response) => {
         amount: amount ? Number(amount) : undefined,
         amountType: amountType as PaymentType,
         autoCommission: autoCommission !== undefined ? autoCommission : undefined,
-        commission: commission !== undefined ? Number(commission) : undefined,
-        bookingCommission: bookingCommission !== undefined ? Number(bookingCommission) : undefined,
-        centerCommission: centerCommission !== undefined ? Number(centerCommission) : undefined,
+        commission: calculatedCommission !== undefined ? Number(calculatedCommission) : undefined,
+        bookingCommission: calculatedBookingCommission !== undefined ? Number(calculatedBookingCommission) : undefined,
+        centerCommission: calculatedCenterCommission !== undefined ? Number(calculatedCenterCommission) : undefined,
         receiverName,
         receiverNumber: receiverNumber || null,
         senderName,

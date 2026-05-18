@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -382,8 +383,8 @@ export default function ReportsPage() {
         }
       });
 
-      // Sort by date and calculate running balance
-      ledgerEntries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      // Sort by date descending (newest first) and calculate running balance
+      ledgerEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       let runningBalance = 0;
       ledgerEntries.forEach(entry => {
         runningBalance += (entry.credit || 0) - (entry.debit || 0);
@@ -456,6 +457,57 @@ export default function ReportsPage() {
 
     return true;
   });
+
+  // Group filtered ledger entries by day with opening balance
+  const groupedLedgerEntries = (() => {
+    const groups: Array<{
+      date: string;
+      openingBalance: number;
+      entries: any[];
+    }> = [];
+
+    if (filteredClientLedger.length === 0) return groups;
+
+    // Group by date
+    const dateGroups: Record<string, any[]> = {};
+    filteredClientLedger.forEach(entry => {
+      const dateKey = new Date(entry.date).toISOString().split('T')[0];
+      if (!dateGroups[dateKey]) {
+        dateGroups[dateKey] = [];
+      }
+      dateGroups[dateKey].push(entry);
+    });
+
+    // Convert to array and sort by date descending (already sorted)
+    const sortedDates = Object.keys(dateGroups).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
+    // Calculate opening balance for each day
+    // Since entries are sorted descending, we need to calculate from oldest to newest first
+    const ascendingDates = [...sortedDates].sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    let runningBalance = 0;
+
+    ascendingDates.forEach((date) => {
+      const entries = dateGroups[date];
+      // Opening balance for this day is the running balance before processing this day's entries
+      const openingBalance = runningBalance;
+
+      // Update running balance with this day's entries
+      entries.forEach(entry => {
+        runningBalance += (entry.credit || 0) - (entry.debit || 0);
+      });
+
+      groups.push({
+        date,
+        openingBalance,
+        entries,
+      });
+    });
+
+    // Sort groups by date descending for display
+    groups.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    return groups;
+  })();
 
   // Export client ledger
   const exportClientLedger = async (format: 'excel' | 'pdf') => {
@@ -2412,6 +2464,11 @@ export default function ReportsPage() {
                 <div className="flex items-center space-x-4">
                   <h1 className="text-lg font-bold text-gray-900">{selectedClient.name} - Ledger</h1>
                   <span className="text-xs text-gray-500">From {formatDate(selectedClient.createdAt)}</span>
+                  {filteredClientLedger.length > 0 && (
+                    <span className={`text-sm font-bold ${filteredClientLedger[filteredClientLedger.length - 1].balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      Balance: {formatCurrency(filteredClientLedger[filteredClientLedger.length - 1].balance)}
+                    </span>
+                  )}
                 </div>
                 <button
                   onClick={closeLedger}
@@ -2585,36 +2642,57 @@ export default function ReportsPage() {
                               <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-gray-200">
-                            {filteredClientLedger.map((entry, index) => (
-                              <tr
-                                key={index}
-                                className={`hover:bg-gray-50 cursor-pointer ${checkedRows.has(index) ? 'bg-blue-50' : ''}`}
-                                onClick={() => toggleRowCheck(index)}
-                              >
-                                <td className="px-2 py-2 border-r border-gray-200">
-                                  <input
-                                    type="checkbox"
-                                    checked={checkedRows.has(index)}
-                                    onChange={() => toggleRowCheck(index)}
-                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                </td>
-                                <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200">{formatDate(entry.date)}</td>
-                                <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200">{entry.module}</td>
-                                <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200">{entry.description}</td>
-                                <td className={`px-3 py-2 text-sm text-right border-r border-gray-200 ${entry.debit > 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                                  {entry.debit > 0 ? formatCurrency(entry.debit) : '-'}
-                                </td>
-                                <td className={`px-3 py-2 text-sm text-right border-r border-gray-200 ${entry.credit > 0 ? 'text-green-600' : 'text-gray-900'}`}>
-                                  {entry.credit > 0 ? formatCurrency(entry.credit) : '-'}
-                                </td>
-                                <td className={`px-3 py-2 text-sm text-right font-medium ${entry.balance >= 0 ? 'text-green-600' : 'text-red-600'
-                                  }`}>
-                                  {formatCurrency(entry.balance)}
-                                </td>
-                              </tr>
+                          <tbody>
+                            {groupedLedgerEntries.map((group, groupIndex) => (
+                              <React.Fragment key={`group-${groupIndex}`}>
+                                {/* Day header with opening balance */}
+                                <tr className={`${group.openingBalance >= 0 ? 'bg-green-300 border-b-2 border-green-200' : 'bg-red-300 border-b-2 border-red-200'}`}>
+                                  <td colSpan={4} className="px-3 py-2 text-sm font-bold text-gray-900">
+                                    {formatDate(group.date)}
+                                  </td>
+                                  <td colSpan={3} className={`px-3 py-2 text-sm font-bold text-right ${group.openingBalance >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                                    Opening Balance: {formatCurrency(group.openingBalance)}
+                                  </td>
+                                </tr>
+                                {/* Entries for this day */}
+                                {group.entries.map((entry, entryIndex) => {
+                                  const globalIndex = filteredClientLedger.indexOf(entry);
+                                  return (
+                                    <tr
+                                      key={`entry-${groupIndex}-${entryIndex}`}
+                                      className={`hover:bg-gray-50 cursor-pointer ${checkedRows.has(globalIndex) ? 'bg-blue-50' : ''}`}
+                                      onClick={() => toggleRowCheck(globalIndex)}
+                                    >
+                                      <td className="px-2 py-2 border-r border-gray-200">
+                                        <input
+                                          type="checkbox"
+                                          checked={checkedRows.has(globalIndex)}
+                                          onChange={() => toggleRowCheck(globalIndex)}
+                                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                      </td>
+                                      <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200">{formatDate(entry.date)}</td>
+                                      <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200">{entry.module}</td>
+                                      <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200">{entry.description}</td>
+                                      <td className={`px-3 py-2 text-sm text-right border-r border-gray-200 ${entry.debit > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                                        {entry.debit > 0 ? formatCurrency(entry.debit) : '-'}
+                                      </td>
+                                      <td className={`px-3 py-2 text-sm text-right border-r border-gray-200 ${entry.credit > 0 ? 'text-green-600' : 'text-gray-900'}`}>
+                                        {entry.credit > 0 ? formatCurrency(entry.credit) : '-'}
+                                      </td>
+                                      <td className={`px-3 py-2 text-sm text-right font-medium ${entry.balance >= 0 ? 'text-green-600' : 'text-red-600'
+                                        }`}>
+                                        {formatCurrency(entry.balance)}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                                {/* Day separator line */}
+                                <tr className="border-b-2 border-gray-300">
+                                  <td colSpan={7} className="py-1"></td>
+                                </tr>
+                              </React.Fragment>
                             ))}
                           </tbody>
                         </table>

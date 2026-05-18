@@ -19,7 +19,7 @@ export const generateTokens = (user: any & { role: any; branch?: any }) => {
   const accessToken = jwt.sign(
     payload,
     process.env.JWT_SECRET || 'your-secret-key',
-    { expiresIn: '15m' }
+    { expiresIn: '3h' } // Increased from 15m to 3h for continuous accountant work
   );
 
   const refreshToken = jwt.sign(

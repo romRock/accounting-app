@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import rateLimit from 'express-rate-limit';
+// import rateLimit from 'express-rate-limit'; // Disabled for continuous accountant work
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -455,11 +455,11 @@ async function initializeDatabase() {
 }
 
 // Rate limiting
-const limiter = rateLimit({
-  windowMs: 25 * 60 * 1000, // 25 minutes
-  max: 10000, // limit each IP to 10000 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.',
-});
+// const limiter = rateLimit({
+//   windowMs: 25 * 60 * 1000, // 25 minutes
+//   max: 10000, // limit each IP to 10000 requests per windowMs
+//   message: 'Too many requests from this IP, please try again later.',
+// });
 
 // Middleware
 app.use(helmet());
@@ -493,7 +493,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(morgan('combined'));
-app.use(limiter);
+// app.use(limiter); // Disabled for continuous accountant work
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);

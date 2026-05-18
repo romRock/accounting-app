@@ -194,30 +194,85 @@ export default function TransactionsPage() {
     }
   }, [editingTransaction, setValue, activeTab]);
 
-  // All commission calculation functions removed - backend handles all calculations
-
-  // Auto-calculate commission using simple 0.01% rule
+  // Commission calculation for preview (backend is source of truth)
   useEffect(() => {
     console.log('Commission effect triggered:', { autoCommission, amount, activeTab });
     if (autoCommission && amount > 0) {
       if (activeTab === 'outward') {
-        const commission = Math.round(amount * 0.001); // 0.01% commission
-        const bookingCommission = Math.round(commission * 0.33); // 33% our commission
-        const centerCommission = Math.round(commission * 0.67); // 67% center commission
+        // OUTWARD commission calculation - same logic as inward but with 33%/67% split
+        const minCharge = 50;
+        let calculatedCommission = 0;
         
-        console.log('Setting outward commission values:', { commission, bookingCommission, centerCommission });
+        if (amount <= 50000) {
+          // 0 to 50,000: Fixed minimum charge of 50
+          calculatedCommission = minCharge;
+        } else if (amount > 50000 && amount <= 60000) {
+          // 50,001 to 60,000: Calculate on 60,000 base
+          calculatedCommission = 60;
+        } else if (amount > 60000 && amount <= 70000) {
+          // 60,001 to 70,000: Calculate on 70,000 base
+          calculatedCommission = 70;
+        } else if (amount > 70000 && amount <= 80000) {
+          // 70,001 to 80,000: Calculate on 80,000 base
+          calculatedCommission = 80;
+        } else if (amount > 80000 && amount <= 90000) {
+          // 80,001 to 90,000: Calculate on 90,000 base
+          calculatedCommission = 90;
+        } else if (amount > 90000 && amount <= 100000) {
+          // 90,001 to 100,000: Calculate on 100,000 base
+          calculatedCommission = 100;
+        } else {
+          // For any amount above 100,000, round up to next 10,000 and use as commission base
+          calculatedCommission = Math.ceil(amount / 10000) * 10;
+        }
         
-        setValue('commission', commission);
+        // 35% our commission, 65% center commission for outward
+        // Use Math.floor to apply rounding to center side
+        const bookingCommission = Math.floor(calculatedCommission * 0.35);
+        const centerCommission = calculatedCommission - bookingCommission;
+        
+        console.log('Setting outward commission values:', { calculatedCommission, bookingCommission, centerCommission });
+        
+        setValue('commission', calculatedCommission);
         setValue('bookingCommission', bookingCommission);
         setValue('centerCommission', centerCommission);
       } else {
-        // Inward - 35% of total commission (1% of amount)
-        const totalCommission = Math.round(amount * 0.001); // 1% total commission
-        const cuttingCommission = Math.round(totalCommission * 0.35); // 35% of total commission
+        // INWARD commission calculation (cutting)
+        const minCharge = 50;
+        let calculatedCommission = 0;
         
-        console.log('Setting inward cutting commission:', { totalCommission, cuttingCommission });
+        if (amount <= 50000) {
+          // 0 to 50,000: Fixed minimum charge of 50
+          calculatedCommission = minCharge;
+        } else if (amount > 50000 && amount <= 60000) {
+          // 50,001 to 60,000: Calculate on 60,000 base
+          calculatedCommission = 60;
+        } else if (amount > 60000 && amount <= 70000) {
+          // 60,001 to 70,000: Calculate on 70,000 base
+          calculatedCommission = 70;
+        } else if (amount > 70000 && amount <= 80000) {
+          // 70,001 to 80,000: Calculate on 80,000 base
+          calculatedCommission = 80;
+        } else if (amount > 80000 && amount <= 90000) {
+          // 80,001 to 90,000: Calculate on 90,000 base
+          calculatedCommission = 90;
+        } else if (amount > 90000 && amount <= 100000) {
+          // 90,001 to 100,000: Calculate on 100,000 base
+          calculatedCommission = 100;
+        } else {
+          // For any amount above 100,000, round up to next 10,000 and use as commission base
+          // Example: 110,000 → 110, 115,000 → 120, 1,510,000 → 1,510
+          calculatedCommission = Math.ceil(amount / 10000) * 10;
+        }
+        
+        // Our commission (cutting commission) is 35% of total commission for inward
+        // Use Math.floor to apply rounding to center side
+        const cuttingCommission = Math.floor(calculatedCommission * 0.35);
+        
+        console.log('Setting inward cutting commission:', { calculatedCommission, cuttingCommission });
         
         setValue('cuttingCommission', cuttingCommission);
+        setValue('commission', calculatedCommission); // Total commission
       }
     } else if (amount === 0) {
       // Reset commissions when amount is 0
@@ -228,6 +283,7 @@ export default function TransactionsPage() {
         setValue('centerCommission', 0);
       } else {
         setValue('cuttingCommission', 0);
+        setValue('commission', 0);
       }
     }
   }, [amount, autoCommission, setValue, activeTab]);
@@ -293,11 +349,17 @@ export default function TransactionsPage() {
     try {
       setSubmitting(true);
 
-      const transactionData = {
+      const transactionData: any = {
         ...data,
         type: activeTab.toUpperCase(),
         statusTime: new Date().toISOString(),
       };
+
+      // For inward transactions, map cuttingCommission to bookingCommission
+      if (activeTab === 'inward') {
+        transactionData.bookingCommission = data.cuttingCommission || 0;
+        transactionData.centerCommission = 0; // No center commission for inward
+      }
 
       if (editingTransaction) {
         // Update existing transaction
@@ -320,7 +382,9 @@ export default function TransactionsPage() {
             setValue('bookingCommission', createdTransaction.bookingCommission || 0);
             setValue('centerCommission', createdTransaction.centerCommission || 0);
           } else {
+            // For inward, bookingCommission contains the cutting commission (35% of total)
             setValue('cuttingCommission', createdTransaction.bookingCommission || 0);
+            setValue('commission', createdTransaction.commission || 0); // Total commission
           }
         }
       }
@@ -402,8 +466,12 @@ export default function TransactionsPage() {
     setValue('amount', transaction.amount);
     setValue('amountType', transaction.amountType as any);
     setValue('commission', transaction.commission);
-    setValue('bookingCommission', transaction.bookingCommission);
-    setValue('centerCommission', transaction.centerCommission);
+    if (transaction.type === 'INWARD') {
+      setValue('cuttingCommission', transaction.bookingCommission || 0);
+    } else {
+      setValue('bookingCommission', transaction.bookingCommission);
+      setValue('centerCommission', transaction.centerCommission);
+    }
     setValue('receiverName', transaction.receiverName);
     setValue('receiverNumber', transaction.receiverNumber || '');
     setValue('senderName', transaction.senderName);
@@ -599,20 +667,6 @@ export default function TransactionsPage() {
                         const value = parseInt(e.target.value) || 0;
                         setValue('amount', value);
                         console.log('Amount changed to:', value);
-                        // Trigger commission calculation immediately
-                        if (watch('autoCommission') && value > 0) {
-                          const commission = Math.round(value * 0.001); // 0.1% commission
-                          const bookingCommission = Math.round(commission * 0.35);
-                          const centerCommission = Math.round(commission * 0.65);
-                          console.log('Immediate commission calculation:', { commission, bookingCommission, centerCommission });
-                          setValue('commission', commission);
-                          setValue('bookingCommission', bookingCommission);
-                          setValue('centerCommission', centerCommission);
-                        } else {
-                          setValue('commission', 0);
-                          setValue('bookingCommission', 0);
-                          setValue('centerCommission', 0);
-                        }
                       }}
                       className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-black text-lg placeholder:text-gray-600"
                       ref={firstInputRef}

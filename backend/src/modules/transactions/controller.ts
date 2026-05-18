@@ -225,7 +225,7 @@ export const getTransactions = async (req: Request, res: Response) => {
   try {
     const {
       page = 1,
-      limit = 10,
+      limit,
       type,
       status,
       centerId,
@@ -273,12 +273,15 @@ export const getTransactions = async (req: Request, res: Response) => {
     // Get total count for pagination
     const total = await prisma.transaction.count({ where });
 
-    // Get transactions with pagination
+    // Get transactions with pagination (only if limit is provided)
+    const limitNum = limit ? Number(limit) : undefined;
     const transactions = await prisma.transaction.findMany({
       where,
       orderBy: { date: 'asc' },
-      skip: (Number(page) - 1) * Number(limit),
-      take: Number(limit),
+      ...(limitNum && {
+        skip: (Number(page) - 1) * limitNum,
+        take: limitNum,
+      }),
     });
 
     // Get center details for all transactions
@@ -296,11 +299,16 @@ export const getTransactions = async (req: Request, res: Response) => {
 
     res.json({
       transactions: transactionsWithCenters,
-      pagination: {
+      pagination: limitNum ? {
         page: Number(page),
-        limit: Number(limit),
+        limit: limitNum,
         total,
-        pages: Math.ceil(total / Number(limit)),
+        pages: Math.ceil(total / limitNum),
+      } : {
+        page: 1,
+        limit: total,
+        total,
+        pages: 1,
       },
     });
   } catch (error) {

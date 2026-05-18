@@ -354,6 +354,14 @@ export default function TransactionsPage() {
         statusTime: new Date().toISOString(),
       };
 
+      // Add client IDs if clients are selected
+      if (selectedSenderClient) {
+        transactionData.senderClientId = selectedSenderClient.id;
+      }
+      if (selectedReceiverClient) {
+        transactionData.receiverClientId = selectedReceiverClient.id;
+      }
+
       // For inward transactions, map cuttingCommission to bookingCommission
       if (activeTab === 'inward') {
         transactionData.bookingCommission = data.cuttingCommission || 0;
@@ -779,9 +787,11 @@ export default function TransactionsPage() {
                         onChange={(value: string, client?: Client) => {
                           console.log('ReceiverTypeahead onChange - value:', value, 'client:', client);
                           setValue('receiverName', value);
-                          if (client && client.mobileNumber) {
-                            setValue('receiverNumber', client.mobileNumber);
+                          if (client) {
                             setSelectedReceiverClient(client);
+                            if (client.mobileNumber) {
+                              setValue('receiverNumber', client.mobileNumber);
+                            }
                           } else {
                             setSelectedReceiverClient(null);
                           }
@@ -822,9 +832,11 @@ export default function TransactionsPage() {
                         onChange={(value: string, client?: Client) => {
                           console.log('SenderTypeahead onChange - value:', value, 'client:', client);
                           setValue('senderName', value);
-                          if (client && client.mobileNumber) {
-                            setValue('senderNumber', client.mobileNumber);
+                          if (client) {
                             setSelectedSenderClient(client);
+                            if (client.mobileNumber) {
+                              setValue('senderNumber', client.mobileNumber);
+                            }
                           } else {
                             setSelectedSenderClient(null);
                           }

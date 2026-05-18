@@ -118,8 +118,10 @@ export default function AccountingPage() {
         console.log('📝 First entry sample:', response.entries[0]);
         console.log('🆔 First entry ID:', response.entries[0].entryId);
       }
-      setTransactions(response.entries);
-      return response.entries;
+      // Sort entries by date ascending (oldest first) for display
+      const sortedEntries = (response.entries || []).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      setTransactions(sortedEntries);
+      return sortedEntries;
     } catch (error) {
       console.error('Failed to fetch accounting entries:', error);
       setTransactions([]);
@@ -148,7 +150,9 @@ export default function AccountingPage() {
     const loadData = async () => {
       try {
         const entriesResponse = await accountingApi.getAccountEntries();
-        setTransactions(entriesResponse.entries);
+        // Sort entries by date ascending (oldest first) for display
+        const sortedEntries = (entriesResponse.entries || []).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        setTransactions(sortedEntries);
       } catch (error) {
         console.error('Failed to fetch accounting entries:', error);
         setTransactions([]);

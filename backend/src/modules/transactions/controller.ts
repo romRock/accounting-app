@@ -786,37 +786,42 @@ async function generateTokenNumberByType(date: string, type: string): Promise<nu
 async function createClientLedgerEntries(transaction: any) {
   try {
     // Only create ledger entries for credit transactions
-    if (transaction.amountType !== 'CREDIT' || !transaction.senderClientId) {
+    if (transaction.amountType !== 'CREDIT') {
       return;
     }
 
-    // Debit entry for sender (money sent out)
-    await prisma.ledgerEntry.create({
-      data: {
-        date: transaction.date,
-        accountId: transaction.senderClientId,
-        accountType: 'CLIENT',
-        description: `Outward transaction ${transaction.transactionId} - ${transaction.receiverName}`,
-        debitAmount: transaction.amount,
-        creditAmount: 0,
-        balance: 0, // Would be calculated based on previous entries
-        transactionId: transaction.id,
-        branchId: transaction.branchId,
-        createdBy: transaction.createdBy,
-      },
-    });
+    // Case 1: OUTWARD credit booking - Sender is client
+    // Client owes us amount + commission (DEBIT)
+    if (transaction.type === 'OUTWARD' && transaction.senderClientId) {
+      const totalDebit = transaction.amount + transaction.commission;
+      await prisma.ledgerEntry.create({
+        data: {
+          date: transaction.date,
+          accountId: transaction.senderClientId,
+          accountType: 'CLIENT',
+          description: `Outward transaction ${transaction.transactionId} - ${transaction.receiverName} - Amount: ${transaction.amount}, Commission: ${transaction.commission}`,
+          debitAmount: totalDebit,
+          creditAmount: 0,
+          balance: 0,
+          transactionId: transaction.id,
+          branchId: transaction.branchId,
+          createdBy: transaction.createdBy,
+        },
+      });
+    }
 
-    // If receiver is also a client, create credit entry
-    if (transaction.receiverClientId) {
+    // Case 2: INWARD credit booking - Receiver is client
+    // We receive money for client (CREDIT only amount, commission is our profit)
+    if (transaction.type === 'INWARD' && transaction.receiverClientId) {
       await prisma.ledgerEntry.create({
         data: {
           date: transaction.date,
           accountId: transaction.receiverClientId,
           accountType: 'CLIENT',
-          description: `Inward transaction ${transaction.transactionId} - ${transaction.senderName}`,
+          description: `Inward transaction ${transaction.transactionId} - ${transaction.senderName} - Amount: ${transaction.amount}`,
           debitAmount: 0,
           creditAmount: transaction.amount,
-          balance: 0, // Would be calculated based on previous entries
+          balance: 0,
           transactionId: transaction.id,
           branchId: transaction.branchId,
           createdBy: transaction.createdBy,

@@ -181,11 +181,25 @@ export default function ReportsPage() {
 
           if (receiverName === clientName || senderName === clientName) {
             if (txn.type === 'OUTWARD') {
-              // OUTWARD: Receiver gets credit (money coming to them), we collect
-              totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
+              // OUTWARD: Check amountType to determine debit/credit
+              if (txn.amountType === 'CREDIT' && senderName === clientName) {
+                // CREDIT + Sender is client: Client owes us money (DEBIT)
+                // Debit: Amount + Total Commission
+                totalDebit += (txn.amount || 0) + (txn.commission || 0);
+              } else {
+                // CASH or Receiver is client: Normal outward (credit to receiver)
+                totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
+              }
             } else if (txn.type === 'INWARD') {
-              // INWARD: Sender pays debit (money going from them), we pay
-              totalDebit += (txn.amount || 0);
+              // INWARD: Check amountType to determine debit/credit
+              if (txn.amountType === 'CREDIT' && receiverName === clientName) {
+                // CREDIT + Receiver is client: We receive money for client (CREDIT)
+                // Credit: Amount only (commission is our profit)
+                totalCredit += (txn.amount || 0);
+              } else {
+                // CASH or Sender is client: Normal inward (debit to sender)
+                totalDebit += (txn.amount || 0);
+              }
             }
           }
         });
@@ -275,10 +289,14 @@ export default function ReportsPage() {
 
   // Fetch ledger entries for a specific client from all modules
   const fetchClientLedger = async (client: any) => {
+    console.log('=== fetchClientLedger called ===');
+    console.log('Client:', client);
     setLoading(true);
     const ledgerEntries: any[] = [];
     const clientName = client.name.toLowerCase();
     const clientCreatedDate = new Date(client.createdAt);
+    console.log('Client name:', clientName);
+    console.log('Client created date:', clientCreatedDate);
 
     try {
       // 1. Transactions Module
@@ -288,14 +306,51 @@ export default function ReportsPage() {
       ]);
 
       const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];
+      console.log('Total transactions fetched:', allTxns.length);
 
       allTxns.forEach(txn => {
         const receiverName = txn.receiverName?.toLowerCase() || '';
         const senderName = txn.senderName?.toLowerCase() || '';
         const txnDate = new Date(txn.date);
 
-        if ((receiverName === clientName || senderName === clientName) && txnDate >= clientCreatedDate) {
-          const isCredit = txn.type === 'OUTWARD';
+        // Log all transactions for debugging
+        console.log('Transaction:', txn.transactionId, 'Sender:', senderName, 'Receiver:', receiverName, 'Date:', txnDate);
+
+        if (receiverName === clientName || senderName === clientName) {
+          console.log('Matching transaction:', txn.transactionId, 'Type:', txn.type, 'AmountType:', txn.amountType, 'Sender:', senderName, 'Receiver:', receiverName);
+          let isCredit = false;
+          let debitAmount = 0;
+          let creditAmount = 0;
+
+          if (txn.type === 'OUTWARD') {
+            // OUTWARD: Check amountType to determine debit/credit
+            if (txn.amountType === 'CREDIT' && senderName === clientName) {
+              // CREDIT + Sender is client: Client owes us money (DEBIT)
+              isCredit = false;
+              debitAmount = (txn.amount || 0) + (txn.commission || 0);
+              creditAmount = 0;
+            } else {
+              // CASH or Receiver is client: Normal outward (credit to receiver)
+              isCredit = true;
+              debitAmount = 0;
+              creditAmount = (txn.amount || 0) + (txn.centerCommission || 0);
+            }
+          } else if (txn.type === 'INWARD') {
+            // INWARD: Check amountType to determine debit/credit
+            if (txn.amountType === 'CREDIT' && receiverName === clientName) {
+              // CREDIT + Receiver is client: We receive money for client (CREDIT)
+              // Credit: Amount only (commission is our profit)
+              isCredit = true;
+              debitAmount = 0;
+              creditAmount = (txn.amount || 0);
+            } else {
+              // CASH or Sender is client: Normal inward (debit to sender)
+              isCredit = false;
+              debitAmount = (txn.amount || 0);
+              creditAmount = 0;
+            }
+          }
+
           const otherParty = receiverName === clientName ? senderName : receiverName;
           const descParts = [txn.type, otherParty];
           if (txn.center?.name) descParts.push(`Center: ${txn.center.name}`);
@@ -306,8 +361,8 @@ export default function ReportsPage() {
             date: txn.date,
             module: 'Transaction',
             description: descParts.join(' - '),
-            debit: isCredit ? 0 : (txn.amount || 0),
-            credit: isCredit ? (txn.amount || 0) + (txn.centerCommission || 0) : 0,
+            debit: debitAmount,
+            credit: creditAmount,
             balance: 0,
             reference: txn.transactionId || txn.id,
           });
@@ -320,7 +375,7 @@ export default function ReportsPage() {
         const partyName = entry.party?.name?.toLowerCase() || '';
         const entryDate = new Date(entry.date);
 
-        if (partyName === clientName && entryDate >= clientCreatedDate) {
+        if (partyName === clientName) {
           const isCredit = entry.type === 'INCOME';
           const descParts = [entry.type, entry.category || 'General'];
           ledgerEntries.push({
@@ -342,7 +397,7 @@ export default function ReportsPage() {
         const partyB = entry.partyB?.toLowerCase() || '';
         const entryDate = new Date(entry.date);
 
-        if ((partyA === clientName || partyB === clientName) && entryDate >= clientCreatedDate) {
+        if (partyA === clientName || partyB === clientName) {
           const isCredit = partyB === clientName;
           const descParts = [entry.partyA, 'to', entry.partyB];
           if (entry.remark) descParts.push(`Remark: ${entry.remark}`);
@@ -366,7 +421,7 @@ export default function ReportsPage() {
         const partyC = entry.partyC?.toLowerCase() || '';
         const entryDate = new Date(entry.date);
 
-        if ((partyA === clientName || partyB === clientName || partyC === clientName) && entryDate >= clientCreatedDate) {
+        if (partyA === clientName || partyB === clientName || partyC === clientName) {
           const isCredit = partyC === clientName;
           const amount = partyA === clientName ? entry.amountA : partyB === clientName ? entry.amountB : entry.amountC;
           const descParts = ['SPL', entry.partyA, entry.partyB, entry.partyC];
@@ -383,8 +438,8 @@ export default function ReportsPage() {
         }
       });
 
-      // Sort by date descending (newest first) and calculate running balance
-      ledgerEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      // Sort by date ascending (oldest first) and calculate running balance
+      ledgerEntries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       let runningBalance = 0;
       ledgerEntries.forEach(entry => {
         runningBalance += (entry.credit || 0) - (entry.debit || 0);
@@ -402,6 +457,8 @@ export default function ReportsPage() {
 
   // Handle client row click
   const handleClientClick = (client: any) => {
+    console.log('=== handleClientClick called ===');
+    console.log('Client:', client);
     setSelectedClient(client);
     fetchClientLedger(client);
   };
@@ -478,15 +535,14 @@ export default function ReportsPage() {
       dateGroups[dateKey].push(entry);
     });
 
-    // Convert to array and sort by date descending (already sorted)
-    const sortedDates = Object.keys(dateGroups).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    // Convert to array and sort by date ascending (oldest first)
+    const sortedDates = Object.keys(dateGroups).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
     // Calculate opening balance for each day
-    // Since entries are sorted descending, we need to calculate from oldest to newest first
-    const ascendingDates = [...sortedDates].sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    // Entries are already sorted ascending
     let runningBalance = 0;
 
-    ascendingDates.forEach((date) => {
+    sortedDates.forEach((date) => {
       const entries = dateGroups[date];
       // Opening balance for this day is the running balance before processing this day's entries
       const openingBalance = runningBalance;
@@ -503,8 +559,8 @@ export default function ReportsPage() {
       });
     });
 
-    // Sort groups by date descending for display
-    groups.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    // Sort groups by date ascending for display
+    groups.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     return groups;
   })();

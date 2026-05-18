@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/store';
 import { formatDate } from '@/lib/utils';
 import { transactionApi } from '@/lib/transactions';
+import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
 
 // Data Interfaces
 interface User {
@@ -445,14 +446,14 @@ export default function MasterPage() {
               // Reload users list
               loadUsers();
               setUserForm({});
-              alert('User added successfully');
+              showSuccessToast('User added successfully');
             } else {
-              alert('Failed to add user: ' + response.message);
+              showErrorToast('Failed to add user: ' + response.message);
             }
           })
           .catch((error) => {
             console.error('Error adding user:', error);
-            alert('Failed to add user: ' + error.message);
+            showErrorToast('Failed to add user: ' + error.message);
           });
         }
         break;
@@ -460,7 +461,7 @@ export default function MasterPage() {
         if (roleForm.name) {
           // Only admins can add roles
           if (!isAdmin) {
-            alert('Only administrators can add new roles');
+            showErrorToast('Only administrators can add new roles');
             return;
           }
 
@@ -500,10 +501,10 @@ export default function MasterPage() {
 
               setRoles([...roles, roleData]);
               setRoleForm({});
-              alert('Role added successfully!');
+              showSuccessToast('Role added successfully!');
             } catch (error) {
               console.error('Error adding role:', error);
-              alert(error instanceof Error ? error.message : 'Failed to add role');
+              showErrorToast(error instanceof Error ? error.message : 'Failed to add role');
             } finally {
               setLoading(false);
             }
@@ -516,7 +517,7 @@ export default function MasterPage() {
         if (centerForm.name && centerForm.code && centerForm.city) {
           // Only admins can add cities
           if (!isAdmin) {
-            alert('Only administrators can add new cities');
+            showErrorToast('Only administrators can add new cities');
             return;
           }
 
@@ -545,10 +546,10 @@ export default function MasterPage() {
 
               setCenters([...centers, newCenter]);
               setCenterForm({});
-              alert('City added successfully!');
+              showSuccessToast('City added successfully!');
             } catch (error) {
               console.error('Error adding city:', error);
-              alert(error instanceof Error ? error.message : 'Failed to add city');
+              showErrorToast(error instanceof Error ? error.message : 'Failed to add city');
             } finally {
               setLoading(false);
             }
@@ -561,7 +562,7 @@ export default function MasterPage() {
         if (clientForm.name && clientForm.mobileNumber && clientForm.city) {
           // Only admins can add clients
           if (!isAdmin) {
-            alert('Only administrators can add new clients');
+            showErrorToast('Only administrators can add new clients');
             return;
           }
 
@@ -588,10 +589,10 @@ export default function MasterPage() {
 
               setClients([...clients, clientData]);
               setClientForm({});
-              alert('Client added successfully!');
+              showSuccessToast('Client added successfully!');
             } catch (error) {
               console.error('Error adding client:', error);
-              alert(error instanceof Error ? error.message : 'Failed to add client');
+              showErrorToast(error instanceof Error ? error.message : 'Failed to add client');
             } finally {
               setLoading(false);
             }
@@ -635,17 +636,17 @@ export default function MasterPage() {
           .then(() => {
             // Reload users list
             loadUsers();
-            alert('User deleted successfully');
+            showDeleteToast('User deleted successfully');
           })
           .catch((error) => {
             console.error('Error deleting user:', error);
-            alert('Failed to delete user: ' + error.message);
+            showErrorToast('Failed to delete user: ' + error.message);
           });
           break;
         case 'roles':
           // Only admins can delete roles
           if (!isAdmin) {
-            alert('Only administrators can delete roles');
+            showErrorToast('Only administrators can delete roles');
             return;
           }
 
@@ -654,10 +655,10 @@ export default function MasterPage() {
               setLoading(true);
               await transactionApi.deleteRole(id);
               setRoles(roles.filter(r => r.id !== id));
-              alert('Role deleted successfully!');
+              showDeleteToast('Role deleted successfully!');
             } catch (error) {
               console.error('Error deleting role:', error);
-              alert(error instanceof Error ? error.message : 'Failed to delete role');
+              showErrorToast(error instanceof Error ? error.message : 'Failed to delete role');
             } finally {
               setLoading(false);
             }
@@ -668,7 +669,7 @@ export default function MasterPage() {
         case 'centers':
           // Only admins can delete cities
           if (!isAdmin) {
-            alert('Only administrators can delete cities');
+            showErrorToast('Only administrators can delete cities');
             return;
           }
 
@@ -677,10 +678,10 @@ export default function MasterPage() {
               setLoading(true);
               await transactionApi.deleteCity(id);
               setCenters(centers.filter(c => c.id !== id));
-              alert('City deleted successfully!');
+              showDeleteToast('City deleted successfully!');
             } catch (error) {
               console.error('Error deleting city:', error);
-              alert(error instanceof Error ? error.message : 'Failed to delete city');
+              showErrorToast(error instanceof Error ? error.message : 'Failed to delete city');
             } finally {
               setLoading(false);
             }
@@ -691,7 +692,7 @@ export default function MasterPage() {
         case 'clients':
           // Only admins can delete clients
           if (!isAdmin) {
-            alert('Only administrators can delete clients');
+            showErrorToast('Only administrators can delete clients');
             return;
           }
 
@@ -700,10 +701,10 @@ export default function MasterPage() {
               setLoading(true);
               await transactionApi.deleteClient(id);
               setClients(clients.filter(c => c.id !== id));
-              alert('Client deleted successfully!');
+              showDeleteToast('Client deleted successfully!');
             } catch (error) {
               console.error('Error deleting client:', error);
-              alert(error instanceof Error ? error.message : 'Failed to delete client');
+              showErrorToast(error instanceof Error ? error.message : 'Failed to delete client');
             } finally {
               setLoading(false);
             }
@@ -735,20 +736,20 @@ export default function MasterPage() {
             loadUsers();
             setUserForm({});
             setEditingId(null);
-            alert('User updated successfully');
+            showUpdateToast('User updated successfully');
           } else {
-            alert('Failed to update user: ' + response.message);
+            showErrorToast('Failed to update user: ' + response.message);
           }
         })
         .catch((error) => {
           console.error('Error updating user:', error);
-          alert('Failed to update user: ' + error.message);
+          showErrorToast('Failed to update user: ' + error.message);
         });
         break;
       case 'roles':
         // Only admins can update roles
         if (!isAdmin) {
-          alert('Only administrators can update roles');
+          showErrorToast('Only administrators can update roles');
           return;
         }
 
@@ -773,10 +774,10 @@ export default function MasterPage() {
             setRoles(roles.map(r => r.id === editingId ? roleData : r));
             setRoleForm({});
             setEditingId(null);
-            alert('Role updated successfully!');
+            showUpdateToast('Role updated successfully!');
           } catch (error) {
             console.error('Error updating role:', error);
-            alert(error instanceof Error ? error.message : 'Failed to update role');
+            showErrorToast(error instanceof Error ? error.message : 'Failed to update role');
           } finally {
             setLoading(false);
           }
@@ -787,7 +788,7 @@ export default function MasterPage() {
       case 'centers':
         // Only admins can update cities
         if (!isAdmin) {
-          alert('Only administrators can update cities');
+          showErrorToast('Only administrators can update cities');
           return;
         }
 
@@ -816,10 +817,10 @@ export default function MasterPage() {
             };
 
             setCenters(centers.map(c => c.id === editingId ? updatedCenter : c));
-            alert('City updated successfully!');
+            showUpdateToast('City updated successfully!');
           } catch (error) {
             console.error('Error updating city:', error);
-            alert(error instanceof Error ? error.message : 'Failed to update city');
+            showErrorToast(error instanceof Error ? error.message : 'Failed to update city');
           } finally {
             setLoading(false);
           }
@@ -830,7 +831,7 @@ export default function MasterPage() {
       case 'clients':
         // Only admins can update clients
         if (!isAdmin) {
-          alert('Only administrators can update clients');
+          showErrorToast('Only administrators can update clients');
           return;
         }
 
@@ -857,10 +858,10 @@ export default function MasterPage() {
             };
 
             setClients(clients.map(c => c.id === editingId ? clientData : c));
-            alert('Client updated successfully!');
+            showUpdateToast('Client updated successfully!');
           } catch (error) {
             console.error('Error updating client:', error);
-            alert(error instanceof Error ? error.message : 'Failed to update client');
+            showErrorToast(error instanceof Error ? error.message : 'Failed to update client');
           } finally {
             setLoading(false);
           }
@@ -937,8 +938,10 @@ export default function MasterPage() {
   };
 
   return (
-    <div className="bg-white min-h-screen w-full">
-      <div className="pt-16 space-y-4 sm:space-y-6">
+    <>
+      <Toaster />
+      <div className="bg-white min-h-screen w-full">
+        <div className="pt-16 space-y-4 sm:space-y-6">
 
         {/* Tab Content */}
         <Card className="shadow-sm border-gray-200 bg-gray-100">
@@ -1973,5 +1976,6 @@ export default function MasterPage() {
         </Card>
       </div>
     </div>
+    </>
   );
 }

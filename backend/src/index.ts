@@ -123,6 +123,28 @@ async function initializeDatabase() {
       console.error('❌ Error checking account_entries table columns:', error);
     }
 
+    // Check and add missing columns to ledger_entries table if needed
+    console.log('🔍 Checking ledger_entries table columns...');
+    try {
+      const hasDeletedAt = await doesColumnExist('ledger_entries', 'deletedAt');
+      if (!hasDeletedAt) {
+        console.log('🗄️ Adding deletedAt column to ledger_entries...');
+        await prisma.$executeRaw`ALTER TABLE "ledger_entries" ADD COLUMN "deletedAt" TIMESTAMP(3);`;
+        console.log('✅ deletedAt column added');
+      }
+
+      const hasDeletedBy = await doesColumnExist('ledger_entries', 'deletedBy');
+      if (!hasDeletedBy) {
+        console.log('🗄️ Adding deletedBy column to ledger_entries...');
+        await prisma.$executeRaw`ALTER TABLE "ledger_entries" ADD COLUMN "deletedBy" TEXT;`;
+        console.log('✅ deletedBy column added');
+      }
+
+      console.log('✅ ledger_entries table columns verified');
+    } catch (error: any) {
+      console.error('❌ Error checking ledger_entries table columns:', error);
+    }
+
     // Check and create Hawala table if needed
     console.log('🔍 Checking Hawala table...');
     try {

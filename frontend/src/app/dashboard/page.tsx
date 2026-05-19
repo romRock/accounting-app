@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUp, TrendingDown, Activity, Users, MapPin } from 'lucide-react';
+import { TrendingUp, TrendingDown, Activity, Users, MapPin, FileText } from 'lucide-react';
 
 // Dashboard Metrics Interfaces
 interface DashboardMetrics {
@@ -164,6 +164,13 @@ export default function DashboardPage() {
     window.location.href = `/${page}`;
   };
 
+  // Navigate to customer report
+  const navigateToCustomerReport = () => {
+    // Set customer report in localStorage before navigation
+    localStorage.setItem('activeReport', 'customer');
+    window.location.href = '/reports';
+  };
+
   if (loading) {
     return (
       <div className="bg-white min-h-screen w-full flex items-center justify-center">
@@ -275,6 +282,27 @@ export default function DashboardPage() {
                 </div>
                 <div className="bg-gradient-to-br from-purple-500 to-purple-600 p-4 rounded-xl ml-4 shadow-lg">
                   <MapPin className="h-8 w-8 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Customer Report Navigation */}
+          <Card 
+            className="relative overflow-hidden shadow-lg border-0 bg-gradient-to-br from-orange-50 via-white to-orange-100 hover:shadow-2xl hover:scale-105 transition-all duration-300 before:absolute before:inset-0 before:bg-gradient-to-r before:from-orange-500/10 before:to-transparent before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300 cursor-pointer"
+            onClick={navigateToCustomerReport}
+          >
+            <CardContent className="p-6 relative z-10">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-gray-700 mb-1">Customer Report</p>
+                  <p className="text-3xl font-bold text-orange-600">
+                    View
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">Client Ledger Report</p>
+                </div>
+                <div className="bg-gradient-to-br from-orange-500 to-orange-600 p-4 rounded-xl ml-4 shadow-lg">
+                  <FileText className="h-8 w-8 text-white" />
                 </div>
               </div>
             </CardContent>

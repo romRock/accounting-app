@@ -91,6 +91,15 @@ export default function ReportsPage() {
   const [exporting, setExporting] = useState(false);
   const firstInputRef = useRef<HTMLInputElement>(null);
 
+  // Check localStorage for activeReport on mount
+  useEffect(() => {
+    const savedActiveReport = localStorage.getItem('activeReport');
+    if (savedActiveReport && savedActiveReport === 'customer') {
+      setActiveReport('customer');
+      localStorage.removeItem('activeReport'); // Clear after use
+    }
+  }, []);
+
   // ----- Transaction Report (#5) dedicated state -----
   const [txnReportRows, setTxnReportRows] = useState<TxnReportRow[]>([]);
   const [txnModuleFilter, setTxnModuleFilter] = useState<Record<TxnReportModule, boolean>>({

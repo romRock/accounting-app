@@ -523,30 +523,30 @@ export default function HawalaPage() {
               </div>
               <div>
                 <ClientTypeahead
-                  id="partyA"
-                  label="Party A (Credit Party / Receiver)"
-                  placeholder="Select Party A (Credit Party / Receiver)"
-                  value={formData.partyA}
-                  onChange={(client) => {
-                    console.log('Party A selected:', client);
-                    const partyAValue = client || '';
-                    console.log('Setting partyA to:', partyAValue);
-                    setFormData(prev => ({ ...prev, partyA: partyAValue }));
-                  }}
-                  className="bg-white border-gray-300 text-black"
-                />
-              </div>
-              <div>
-                <ClientTypeahead
                   id="partyB"
-                  label="Party B (Debit Party / Sender)"
-                  placeholder="Select Party B (Debit Party / Sender)"
+                  label="Udhar Party (Expense)"
+                  placeholder="Select Udhar Party (Debit)"
                   value={formData.partyB}
                   onChange={(client) => {
                     console.log('Party B selected:', client);
                     const partyBValue = client || '';
                     console.log('Setting partyB to:', partyBValue);
                     setFormData(prev => ({ ...prev, partyB: partyBValue }));
+                  }}
+                  className="bg-white border-gray-300 text-black"
+                />
+              </div>
+              <div>
+                <ClientTypeahead
+                  id="partyA"
+                  label="Jama Party (Income)"
+                  placeholder="Select Jama Party (Credit)"
+                  value={formData.partyA}
+                  onChange={(client) => {
+                    console.log('Party A selected:', client);
+                    const partyAValue = client || '';
+                    console.log('Setting partyA to:', partyAValue);
+                    setFormData(prev => ({ ...prev, partyA: partyAValue }));
                   }}
                   className="bg-white border-gray-300 text-black"
                 />
@@ -716,10 +716,10 @@ export default function HawalaPage() {
                       Amount
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-bold">
-                      Party A (Jama Party)
+                      Udhar Party (Debit)
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-bold">
-                      Party B (Udhar Party)
+                      Jama Party (Credit)
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-bold">
                       Remark
@@ -755,10 +755,10 @@ export default function HawalaPage() {
                           {formatCurrency(entry.amount)}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {entry.partyA}
+                          {entry.partyB}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {entry.partyB}
+                          {entry.partyA}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
                           {entry.remark || '-'}

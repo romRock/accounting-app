@@ -716,10 +716,10 @@ export default function HawalaPage() {
                       Amount
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-bold">
-                      Party A (Udhar Party)
+                      Party A (Jama Party)
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-bold">
-                      Party B (Jama Party)
+                      Party B (Udhar Party)
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-bold">
                       Remark

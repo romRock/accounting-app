@@ -253,13 +253,21 @@ export default function ReportsPage() {
           const partyC = entry.partyC?.toLowerCase() || '';
 
           if (partyA === clientName) {
+            // Party A: Expense/Debit (-)
             totalDebit += entry.amountA || 0;
           }
           if (partyB === clientName) {
-            totalDebit += entry.amountB || 0;
+            // Party B: Income/Credit (+)
+            totalCredit += entry.amountB || 0;
           }
           if (partyC === clientName) {
-            totalCredit += entry.amountC || 0;
+            // Party C: Dynamic based on amountC sign
+            const amountC = entry.amountC || 0;
+            if (amountC > 0) {
+              totalCredit += amountC;
+            } else {
+              totalDebit += Math.abs(amountC);
+            }
           }
         });
       } catch (error) {
@@ -422,16 +430,35 @@ export default function ReportsPage() {
         const entryDate = new Date(entry.date);
 
         if (partyA === clientName || partyB === clientName || partyC === clientName) {
-          const isCredit = partyC === clientName;
-          const amount = partyA === clientName ? entry.amountA : partyB === clientName ? entry.amountB : entry.amountC;
-          const descParts = ['SPL', entry.partyA, entry.partyB, entry.partyC];
+          let isCredit = false;
+          let amount = 0;
+          let descParts: string[] = [];
+
+          if (partyA === clientName) {
+            // Party A: Expense/Debit (-)
+            isCredit = false;
+            amount = entry.amountA || 0;
+            descParts = ['SPL', `Expense to ${entry.partyB}`, `Amount A: ${amount}`];
+          } else if (partyB === clientName) {
+            // Party B: Income/Credit (+)
+            isCredit = true;
+            amount = entry.amountB || 0;
+            descParts = ['SPL', `Income from ${entry.partyA}`, `Amount B: ${amount}`];
+          } else if (partyC === clientName) {
+            // Party C: Dynamic based on amountC sign
+            const amountC = entry.amountC || 0;
+            isCredit = amountC > 0;
+            amount = Math.abs(amountC);
+            descParts = ['SPL', `${isCredit ? 'Income' : 'Expense'} (Remaining A-B)`, `Amount C: ${amountC}`];
+          }
+
           if (entry.remark) descParts.push(`Remark: ${entry.remark}`);
           ledgerEntries.push({
             date: entry.date,
             module: 'Special Entry',
             description: descParts.join(' - '),
-            debit: isCredit ? 0 : (amount || 0),
-            credit: isCredit ? (amount || 0) : 0,
+            debit: isCredit ? 0 : amount,
+            credit: isCredit ? amount : 0,
             balance: 0,
             reference: entry.id,
           });

@@ -196,6 +196,102 @@ export const createSpecialEntry = async (req: Request, res: Response) => {
       }
     });
 
+    // Create client ledger entries for Special Entry
+    // Party A: Expense/Debit (-)
+    // Party B: Income/Credit (+)
+    // Party C: Dynamic based on amountC sign
+    try {
+      // Find partyA by name
+      const partyAEntity = await prisma.party.findFirst({
+        where: { name: partyA }
+      });
+
+      // Find partyB by name
+      const partyBEntity = await prisma.party.findFirst({
+        where: { name: partyB }
+      });
+
+      // Find partyC by name (if provided)
+      const partyCEntity = partyC ? await prisma.party.findFirst({
+        where: { name: partyC }
+      }) : null;
+
+      // Create ledger entry for partyA - DEBIT (EXPENSE)
+      if (partyAEntity) {
+        const partyAClientLedger = await prisma.clientLedger.findUnique({
+          where: { clientId: partyAEntity.id }
+        });
+
+        if (partyAClientLedger) {
+          await prisma.ledgerEntry.create({
+            data: {
+              date: new Date(date),
+              accountId: partyAEntity.id,
+              accountType: 'CLIENT',
+              description: `Special Entry ${specialEntry.transactionId} - Expense to ${partyB} - Amount A: ${amountA}`,
+              debitAmount: parseFloat(amountA),
+              creditAmount: 0,
+              balance: 0,
+              transactionId: specialEntry.id,
+              createdBy: createdBy || req.user?.id || 'system',
+            },
+          });
+        }
+      }
+
+      // Create ledger entry for partyB - CREDIT (INCOME)
+      if (partyBEntity) {
+        const partyBClientLedger = await prisma.clientLedger.findUnique({
+          where: { clientId: partyBEntity.id }
+        });
+
+        if (partyBClientLedger) {
+          await prisma.ledgerEntry.create({
+            data: {
+              date: new Date(date),
+              accountId: partyBEntity.id,
+              accountType: 'CLIENT',
+              description: `Special Entry ${specialEntry.transactionId} - Income from ${partyA} - Amount B: ${amountB}`,
+              debitAmount: 0,
+              creditAmount: parseFloat(amountB),
+              balance: 0,
+              transactionId: specialEntry.id,
+              createdBy: createdBy || req.user?.id || 'system',
+            },
+          });
+        }
+      }
+
+      // Create ledger entry for partyC - DYNAMIC based on amountC sign
+      if (partyCEntity && amountC) {
+        const partyCClientLedger = await prisma.clientLedger.findUnique({
+          where: { clientId: partyCEntity.id }
+        });
+
+        if (partyCClientLedger) {
+          const amountCValue = parseFloat(amountC);
+          const isCredit = amountCValue > 0;
+
+          await prisma.ledgerEntry.create({
+            data: {
+              date: new Date(date),
+              accountId: partyCEntity.id,
+              accountType: 'CLIENT',
+              description: `Special Entry ${specialEntry.transactionId} - ${isCredit ? 'Income' : 'Expense'} (Remaining A-B) - Amount C: ${amountC}`,
+              debitAmount: isCredit ? 0 : Math.abs(amountCValue),
+              creditAmount: isCredit ? amountCValue : 0,
+              balance: 0,
+              transactionId: specialEntry.id,
+              createdBy: createdBy || req.user?.id || 'system',
+            },
+          });
+        }
+      }
+    } catch (ledgerError) {
+      // Log error but don't fail the special entry creation
+      console.error('Error creating client ledger entries for special entry:', ledgerError);
+    }
+
     // Generate audit log
     await generateAuditLog({
       entity: 'SpecialEntry',

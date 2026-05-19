@@ -762,21 +762,28 @@ export const createAccountEntry = async (req: Request, res: Response) => {
     // Income: Credit client account, Expense: Debit client account
     if (finalPartyId) {
       try {
-        await prisma.ledgerEntry.create({
-          data: {
-            date: new Date(date),
-            accountId: finalPartyId,
-            accountType: 'CLIENT',
-            description: `Accounting ${type} - ${description || finalEntryId} - Amount: ${amount}`,
-            debitAmount: type === 'EXPENSE' ? Number(amount) : 0,
-            creditAmount: type === 'INCOME' ? Number(amount) : 0,
-            balance: 0,
-            transactionId: finalEntryId,
-            branchId: branchId || undefined,
-            createdBy: userId!,
-            accountEntryId: accountEntry.id,
-          },
+        // Check if this party has a ClientLedger entry (is a client)
+        const clientLedger = await prisma.clientLedger.findUnique({
+          where: { clientId: finalPartyId },
         });
+
+        if (clientLedger) {
+          await prisma.ledgerEntry.create({
+            data: {
+              date: new Date(date),
+              accountId: finalPartyId,
+              accountType: 'CLIENT',
+              description: `Accounting ${type} - ${description || finalEntryId} - Amount: ${amount}`,
+              debitAmount: type === 'EXPENSE' ? Number(amount) : 0,
+              creditAmount: type === 'INCOME' ? Number(amount) : 0,
+              balance: 0,
+              transactionId: finalEntryId,
+              branchId: branchId || undefined,
+              createdBy: userId!,
+              accountEntryId: accountEntry.id,
+            },
+          });
+        }
       } catch (ledgerError) {
         // Log error but don't fail the accounting entry creation
         console.error('Error creating client ledger entry for accounting:', ledgerError);

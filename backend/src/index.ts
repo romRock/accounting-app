@@ -102,6 +102,8 @@ async function initializeDatabase() {
     }
     
     // Check and create Hawala table if needed
+
+    // Check and create Hawala table if needed
     console.log('🔍 Checking Hawala table...');
     try {
       await prisma.hawala.findFirst();
@@ -109,7 +111,7 @@ async function initializeDatabase() {
     } catch (error: any) {
       if (error.message?.includes('does not exist')) {
         console.log('🗄️ Creating Hawala table...');
-        
+
         // Create Hawala table using raw SQL
         await prisma.$executeRaw`
           CREATE TABLE "Hawala" (

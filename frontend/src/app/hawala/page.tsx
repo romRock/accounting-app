@@ -524,8 +524,8 @@ export default function HawalaPage() {
               <div>
                 <ClientTypeahead
                   id="partyA"
-                  label="Party A (Debit Party / Sender)"
-                  placeholder="Select Party A (Debit Party / Sender)"
+                  label="Party A (Credit Party / Receiver)"
+                  placeholder="Select Party A (Credit Party / Receiver)"
                   value={formData.partyA}
                   onChange={(client) => {
                     console.log('Party A selected:', client);
@@ -539,8 +539,8 @@ export default function HawalaPage() {
               <div>
                 <ClientTypeahead
                   id="partyB"
-                  label="Party B (Credit Party / Receiver)"
-                  placeholder="Select Party B (Credit Party / Receiver)"
+                  label="Party B (Debit Party / Sender)"
+                  placeholder="Select Party B (Debit Party / Sender)"
                   value={formData.partyB}
                   onChange={(client) => {
                     console.log('Party B selected:', client);

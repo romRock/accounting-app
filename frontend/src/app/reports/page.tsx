@@ -232,12 +232,12 @@ export default function ReportsPage() {
           const partyB = entry.partyB?.toLowerCase() || '';
 
           if (partyA === clientName) {
-            // Party A gives money (debit)
-            totalDebit += entry.amount || 0;
+            // Party A (receiver) gets credit (income)
+            totalCredit += entry.amount || 0;
           }
           if (partyB === clientName) {
-            // Party B receives money (credit)
-            totalCredit += entry.amount || 0;
+            // Party B (sender) gets debit (expense)
+            totalDebit += entry.amount || 0;
           }
         });
       } catch (error) {
@@ -390,7 +390,7 @@ export default function ReportsPage() {
         }
       });
 
-      // 3. Hawala Module
+      // 3. Hawala Module - Use ledger entries created by backend
       const hawalaEntries = await getHawalaEntries({ page: 1, limit: 1000 });
       (hawalaEntries.data || []).forEach(entry => {
         const partyA = entry.partyA?.toLowerCase() || '';
@@ -398,8 +398,8 @@ export default function ReportsPage() {
         const entryDate = new Date(entry.date);
 
         if (partyA === clientName || partyB === clientName) {
-          const isCredit = partyB === clientName;
-          const descParts = [entry.partyA, 'to', entry.partyB];
+          const isCredit = partyA === clientName; // Party A (receiver) gets credit
+          const descParts = [entry.partyA, 'from', entry.partyB];
           if (entry.remark) descParts.push(`Remark: ${entry.remark}`);
           ledgerEntries.push({
             date: entry.date,
@@ -742,8 +742,8 @@ export default function ReportsPage() {
               <th>Date</th>
               <th>Module</th>
               <th>Description</th>
-              <th class="text-right">Debit</th>
-              <th class="text-right">Credit</th>
+              <th class="text-right">Expense</th>
+              <th class="text-right">Income</th>
               <th class="text-right">Balance</th>
             </tr>
           </thead>
@@ -2709,8 +2709,8 @@ export default function ReportsPage() {
                               <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Date</th>
                               <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Module</th>
                               <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Description</th>
-                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Debit</th>
-                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Credit</th>
+                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Expense</th>
+                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Income</th>
                               <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
                             </tr>
                           </thead>

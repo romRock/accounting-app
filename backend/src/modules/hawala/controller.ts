@@ -104,6 +104,70 @@ export const createHawala = async (req: Request, res: Response) => {
       }
     });
 
+    // Create client ledger entries for Hawala
+    // Hawala: Credit receiver (partyA), Debit sender (partyB)
+    // partyA = receiver (first input), partyB = sender
+    try {
+      // Find partyA (receiver) by name
+      const partyAEntity = await prisma.party.findFirst({
+        where: { name: partyA }
+      });
+
+      // Find partyB (sender) by name
+      const partyBEntity = await prisma.party.findFirst({
+        where: { name: partyB }
+      });
+
+      // Create ledger entry for receiver (partyA) - CREDIT (INCOME)
+      if (partyAEntity) {
+        const receiverClientLedger = await prisma.clientLedger.findUnique({
+          where: { clientId: partyAEntity.id }
+        });
+
+        if (receiverClientLedger) {
+          await prisma.ledgerEntry.create({
+            data: {
+              date: new Date(date),
+              accountId: partyAEntity.id,
+              accountType: 'CLIENT',
+              description: `Hawala ${hawala.transactionId} - Income from ${partyB} - Amount: ${amount}`,
+              debitAmount: 0,
+              creditAmount: parseInt(amount),
+              balance: 0,
+              transactionId: hawala.id,
+              createdBy,
+            },
+          });
+        }
+      }
+
+      // Create ledger entry for sender (partyB) - DEBIT (EXPENSE)
+      if (partyBEntity) {
+        const senderClientLedger = await prisma.clientLedger.findUnique({
+          where: { clientId: partyBEntity.id }
+        });
+
+        if (senderClientLedger) {
+          await prisma.ledgerEntry.create({
+            data: {
+              date: new Date(date),
+              accountId: partyBEntity.id,
+              accountType: 'CLIENT',
+              description: `Hawala ${hawala.transactionId} - Expense to ${partyA} - Amount: ${amount}`,
+              debitAmount: parseInt(amount),
+              creditAmount: 0,
+              balance: 0,
+              transactionId: hawala.id,
+              createdBy,
+            },
+          });
+        }
+      }
+    } catch (ledgerError) {
+      // Log error but don't fail the hawala entry creation
+      console.error('Error creating client ledger entries for hawala:', ledgerError);
+    }
+
     // Generate audit log - handle foreign key constraint gracefully
     try {
       await generateAuditLog({

@@ -188,8 +188,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="bg-gradient-to-br from-gray-50 via-white to-blue-50 min-h-screen w-full">
-      <div className="pt-16 space-y-6 p-6">
+    <div className="min-h-screen w-full">
+      <div className="pt-16 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Total Outward Booking Commission */}
           <Card className="relative overflow-hidden shadow-lg border-0 bg-gradient-to-br from-blue-50 via-white to-blue-100 hover:shadow-2xl hover:scale-105 transition-all duration-300 before:absolute before:inset-0 before:bg-gradient-to-r before:from-blue-500/10 before:to-transparent before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300">

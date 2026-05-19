@@ -37,11 +37,14 @@ export default function HelpPage() {
           <div>
             <h4 className="font-semibold text-gray-900">What you see</h4>
             <ul className="list-disc list-inside text-gray-600 space-y-1">
-              <li>Total inward/outward amounts</li>
-              <li>Daily commission earned</li>
-              <li>Interactive charts (Line, Bar, Pie)</li>
-              <li>Recent transactions</li>
-              <li>Quick action forms</li>
+              <li>Total Outward Booking Commission</li>
+              <li>Total Inward Booking Commission</li>
+              <li>Total Transactions (Outward, Inward, Hawala, Accounting, Special Entry)</li>
+              <li>Total Clients count</li>
+              <li>Total Centers count</li>
+              <li>Customer Report quick access</li>
+              <li>Income Clients (positive balance)</li>
+              <li>Expense Clients (negative balance)</li>
             </ul>
           </div>
           <div>
@@ -49,8 +52,8 @@ export default function HelpPage() {
             <ul className="list-disc list-inside text-gray-600 space-y-1">
               <li>View KPI cards for quick insights</li>
               <li>Use date picker for specific day analysis</li>
-              <li>Click refresh for latest data</li>
-              <li>Add quick transactions from dashboard</li>
+              <li>Click Customer Report card for direct access to client ledger</li>
+              <li>View income and expense clients with their balances</li>
             </ul>
           </div>
         </div>
@@ -69,7 +72,7 @@ export default function HelpPage() {
           <div>
             <h4 className="font-semibold text-gray-900">How to use</h4>
             <ol className="list-decimal list-inside text-gray-600 space-y-1">
-              <li>Fill general information (ID, Date, Time, Center)</li>
+              <li>Fill general information (Token No, Date, Time, Center)</li>
               <li>Enter amount and commission details</li>
               <li>Add sender/receiver information</li>
               <li>Enter remarks if needed</li>
@@ -120,6 +123,91 @@ export default function HelpPage() {
       )
     },
     {
+      id: 'hawala',
+      title: 'Hawala',
+      icon: <ArrowRightLeft className="w-5 h-5" />,
+      content: (
+        <div className="space-y-3">
+          <div>
+            <h4 className="font-semibold text-gray-900">Purpose</h4>
+            <p className="text-gray-600">Handle Hawala transactions between two parties with automatic ledger effects</p>
+          </div>
+          <div>
+            <h4 className="font-semibold text-gray-900">How it works</h4>
+            <ul className="list-disc list-inside text-gray-600 space-y-1">
+              <li>Udhar Party (Expense/Debit) - Sender of money</li>
+              <li>Jama Party (Income/Credit) - Receiver of money</li>
+              <li>Automatic ledger entries for both parties</li>
+              <li>Client balance affected automatically</li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-semibold text-gray-900">How to use</h4>
+            <ol className="list-decimal list-inside text-gray-600 space-y-1">
+              <li>Select Udhar Party (Expense party/sender)</li>
+              <li>Select Jama Party (Income party/receiver)</li>
+              <li>Enter amount</li>
+              <li>Add remarks if needed</li>
+              <li>Save to create entry</li>
+            </ol>
+          </div>
+          <div>
+            <h4 className="font-semibold text-gray-900">Ledger Effects</h4>
+            <ul className="list-disc list-inside text-gray-600 space-y-1">
+              <li>Udhar Party: Expense/Debit (-) in current balance</li>
+              <li>Jama Party: Income/Credit (+) in current balance</li>
+              <li>View in Customer Report</li>
+            </ul>
+          </div>
+        </div>
+      )
+    },
+    {
+      id: 'special-entry',
+      title: 'Special Entry',
+      icon: <ArrowRightLeft className="w-5 h-5" />,
+      content: (
+        <div className="space-y-3">
+          <div>
+            <h4 className="font-semibold text-gray-900">Purpose</h4>
+            <p className="text-gray-600">Handle 3-party transactions with automatic ledger effects</p>
+          </div>
+          <div>
+            <h4 className="font-semibold text-gray-900">How it works</h4>
+            <ul className="list-disc list-inside text-gray-600 space-y-1">
+              <li>Party A: Expense/Debit (-) with Amount A</li>
+              <li>Party B: Income/Credit (+) with Amount B</li>
+              <li>Party C: Dynamic based on remaining (A - B)</li>
+              <li>If Amount C positive: Income/Credit (+)</li>
+              <li>If Amount C negative: Expense/Debit (-)</li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-semibold text-gray-900">How to use</h4>
+            <ol className="list-decimal list-inside text-gray-600 space-y-1">
+              <li>Select Party A (Expense party)</li>
+              <li>Enter Amount A</li>
+              <li>Select Party B (Income party)</li>
+              <li>Enter Amount B</li>
+              <li>Select Party C (third party)</li>
+              <li>Amount C calculated automatically (A - B)</li>
+              <li>Add remarks if needed</li>
+              <li>Save to create entry</li>
+            </ol>
+          </div>
+          <div>
+            <h4 className="font-semibold text-gray-900">Ledger Effects</h4>
+            <ul className="list-disc list-inside text-gray-600 space-y-1">
+              <li>Party A: Expense side (-) in current balance</li>
+              <li>Party B: Income side (+) in current balance</li>
+              <li>Party C: Dynamic based on Amount C sign</li>
+              <li>View in Customer Report</li>
+            </ul>
+          </div>
+        </div>
+      )
+    },
+    {
       id: 'reports',
       title: 'Reports',
       icon: <FileText className="w-5 h-5" />,
@@ -132,8 +220,13 @@ export default function HelpPage() {
           <div>
             <h4 className="font-semibold text-gray-900">Available Reports</h4>
             <ul className="list-disc list-inside text-gray-600 space-y-1">
-              <li>Transaction Report - All transactions summary</li>
-              <li>Customer Report - Customer-wise analysis</li>
+              <li>Outward Report - Outward transactions summary</li>
+              <li>Inward Report - Inward transactions summary</li>
+              <li>Accounting Report - Income/Expense entries</li>
+              <li>Hawala Report - Hawala transactions</li>
+              <li>Special Entry Report - 3-party transactions</li>
+              <li>Customer Report - Client ledger with Expense/Income columns</li>
+              <li>Transaction Report - Combined all modules</li>
               <li>Centerwise Report - Center performance</li>
               <li>Amount Type Report - Cash vs Account analysis</li>
             </ul>
@@ -146,6 +239,15 @@ export default function HelpPage() {
               <li>View generated report</li>
               <li>Export to PDF or Excel</li>
             </ol>
+          </div>
+          <div>
+            <h4 className="font-semibold text-gray-900">Customer Report Features</h4>
+            <ul className="list-disc list-inside text-gray-600 space-y-1">
+              <li>Shows Expense and Income columns (formerly Debit/Credit)</li>
+              <li>Displays current balance for each client</li>
+              <li>Includes all module transactions (Transactions, Accounting, Hawala, Special Entry)</li>
+              <li>Quick access from Dashboard card</li>
+            </ul>
           </div>
         </div>
       )
@@ -193,51 +295,19 @@ export default function HelpPage() {
           <div>
             <h4 className="font-semibold text-gray-900">Manage</h4>
             <ul className="list-disc list-inside text-gray-600 space-y-1">
-              <li>Users - Add system users</li>
               <li>Roles - Define user permissions</li>
-              <li>Centers - Manage business centers</li>
+              <li>Cities - Manage business centers</li>
               <li>Clients - Add customer data</li>
             </ul>
           </div>
           <div>
             <h4 className="font-semibold text-gray-900">How to use</h4>
             <ol className="list-decimal list-inside text-gray-600 space-y-1">
-              <li>Select tab (Users/Roles/Centers/Clients)</li>
+              <li>Select tab (Roles/Cities/Clients)</li>
               <li>Fill form with required data</li>
               <li>Save to add new entry</li>
               <li>Edit existing entries by clicking rows</li>
-            </ol>
-          </div>
-        </div>
-      )
-    },
-    {
-      id: 'spl',
-      title: 'SPL (Special Entry)',
-      icon: <ArrowRightLeft className="w-5 h-5" />,
-      content: (
-        <div className="space-y-3">
-          <div>
-            <h4 className="font-semibold text-gray-900">Purpose</h4>
-            <p className="text-gray-600">Handle Hawala/middleman transactions between two parties</p>
-          </div>
-          <div>
-            <h4 className="font-semibold text-gray-900">How it works</h4>
-            <ul className="list-disc list-inside text-gray-600 space-y-1">
-              <li>Party A → Debit (sends money)</li>
-              <li>Party B → Credit (receives money)</li>
-              <li>System earns optional commission</li>
-              <li>Creates dual accounting entries</li>
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold text-gray-900">How to use</h4>
-            <ol className="list-decimal list-inside text-gray-600 space-y-1">
-              <li>Select Party A (Debit party)</li>
-              <li>Select Party B (Credit party)</li>
-              <li>Enter amount</li>
-              <li>Add commission if applicable</li>
-              <li>Save to create entry</li>
+              <li>Delete entries when needed</li>
             </ol>
           </div>
         </div>
@@ -248,7 +318,19 @@ export default function HelpPage() {
   const faqs = [
     {
       question: "How to add a transaction?",
-      answer: "Go to Transactions → fill form with details → click Save"
+      answer: "Go to Transactions → fill form with Token No, Date, Time, Center, Amount, Commission, Sender/Receiver details → click Save"
+    },
+    {
+      question: "How to add a Hawala entry?",
+      answer: "Go to Hawala → Select Udhar Party (Expense/Debit) → Select Jama Party (Income/Credit) → Enter amount → Add remarks → Save. Ledger entries created automatically."
+    },
+    {
+      question: "How to add a Special Entry?",
+      answer: "Go to Special Entry → Select Party A (Expense) with Amount A → Select Party B (Income) with Amount B → Select Party C → Amount C calculated automatically (A - B) → Save"
+    },
+    {
+      question: "How to view Customer Report?",
+      answer: "Click Customer Report card on Dashboard OR go to Reports → Select Customer Report from dropdown → View client ledger with Expense/Income columns"
     },
     {
       question: "How to edit data?",
@@ -260,15 +342,27 @@ export default function HelpPage() {
     },
     {
       question: "Difference between Accounting & Transactions?",
-      answer: "Accounting = income/expense entries | Transactions = booking flow (inward/outward)"
+      answer: "Accounting = income/expense entries for daily expenses | Transactions = booking flow (inward/outward) with commissions"
     },
     {
-      question: "What is SPL?",
-      answer: "Special Entry for middleman transactions between two parties with dual accounting effect"
+      question: "What is Hawala?",
+      answer: "Hawala transactions between two parties with automatic ledger effects: Udhar Party (Expense/Debit) and Jama Party (Income/Credit)"
+    },
+    {
+      question: "What is Special Entry?",
+      answer: "3-party transactions where Party A (Expense), Party B (Income), Party C (Dynamic based on remaining A-B) with automatic ledger effects"
+    },
+    {
+      question: "What are Expense and Income columns?",
+      answer: "Formerly Debit/Credit columns in Customer Report. Expense = Debit (- balance), Income = Credit (+ balance)"
     },
     {
       question: "Can I export reports?",
       answer: "Yes, PDF and Excel export options available in Reports and Balance Sheet pages"
+    },
+    {
+      question: "How to access Customer Report quickly?",
+      answer: "Click the orange Customer Report card on Dashboard for direct access to client ledger"
     }
   ];
 
@@ -308,10 +402,24 @@ export default function HelpPage() {
                 </div>
               </div>
               <div className="flex items-start gap-3">
+                <ArrowRightLeft className="w-5 h-5 text-teal-600 mt-1" />
+                <div>
+                  <h4 className="font-medium text-gray-900">Hawala</h4>
+                  <p className="text-sm text-gray-600">2-party transactions</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <ArrowRightLeft className="w-5 h-5 text-cyan-600 mt-1" />
+                <div>
+                  <h4 className="font-medium text-gray-900">Special Entry</h4>
+                  <p className="text-sm text-gray-600">3-party transactions</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
                 <TrendingUp className="w-5 h-5 text-purple-600 mt-1" />
                 <div>
                   <h4 className="font-medium text-gray-900">Reports</h4>
-                  <p className="text-sm text-gray-600">Data analysis</p>
+                  <p className="text-sm text-gray-600">Data analysis & Customer Ledger</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -325,14 +433,14 @@ export default function HelpPage() {
                 <Users className="w-5 h-5 text-red-600 mt-1" />
                 <div>
                   <h4 className="font-medium text-gray-900">Master Data</h4>
-                  <p className="text-sm text-gray-600">Users, Clients, Centers</p>
+                  <p className="text-sm text-gray-600">Roles, Cities, Clients</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <ArrowRightLeft className="w-5 h-5 text-indigo-600 mt-1" />
+                <TrendingUp className="w-5 h-5 text-pink-600 mt-1" />
                 <div>
-                  <h4 className="font-medium text-gray-900">SPL</h4>
-                  <p className="text-sm text-gray-600">Special Hawala entries</p>
+                  <h4 className="font-medium text-gray-900">Dashboard</h4>
+                  <p className="text-sm text-gray-600">Overview & quick access</p>
                 </div>
               </div>
             </div>
@@ -363,24 +471,24 @@ export default function HelpPage() {
                 <span className="text-sm text-gray-700">Accounting</span>
               </div>
               <div className="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200">
-                <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">B</span>
-                <span className="text-sm text-gray-700">Balance Sheet</span>
-              </div>
-              <div className="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200">
-                <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">R</span>
-                <span className="text-sm text-gray-700">Reports</span>
-              </div>
-              <div className="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200">
-                <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">M</span>
-                <span className="text-sm text-gray-700">Master</span>
+                <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">W</span>
+                <span className="text-sm text-gray-700">Hawala</span>
               </div>
               <div className="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200">
                 <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">S</span>
                 <span className="text-sm text-gray-700">Special Entry</span>
               </div>
               <div className="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200">
-                <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">H</span>
-                <span className="text-sm text-gray-700">Help</span>
+                <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">R</span>
+                <span className="text-sm text-gray-700">Reports</span>
+              </div>
+              <div className="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200">
+                <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">B</span>
+                <span className="text-sm text-gray-700">Balance Sheet</span>
+              </div>
+              <div className="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200">
+                <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">M</span>
+                <span className="text-sm text-gray-700">Master</span>
               </div>
             </div>
           </CardContent>
@@ -478,28 +586,41 @@ export default function HelpPage() {
             <div className="space-y-4">
               <div className="flex flex-col md:flex-row gap-4 items-center">
                 <div className="flex-1 p-4 bg-white rounded-lg border border-gray-200">
-                  <h4 className="font-medium text-gray-900 mb-2">Accounting</h4>
-                  <p className="text-sm text-gray-600">Income/Expense entries</p>
+                  <h4 className="font-medium text-gray-900 mb-2">Transactions</h4>
+                  <p className="text-sm text-gray-600">Inward/Outward bookings</p>
                   <div className="mt-2 text-xs text-blue-600">→ Feeds Reports & Balance Sheet</div>
                 </div>
                 <div className="hidden md:block text-gray-400">→</div>
                 <div className="flex-1 p-4 bg-white rounded-lg border border-gray-200">
-                  <h4 className="font-medium text-gray-900 mb-2">Transactions</h4>
-                  <p className="text-sm text-gray-600">Booking operations</p>
-                  <div className="mt-2 text-xs text-green-600">→ Operational entries</div>
+                  <h4 className="font-medium text-gray-900 mb-2">Accounting</h4>
+                  <p className="text-sm text-gray-600">Income/Expense entries</p>
+                  <div className="mt-2 text-xs text-green-600">→ Feeds Customer Report</div>
                 </div>
               </div>
               <div className="flex flex-col md:flex-row gap-4 items-center">
                 <div className="flex-1 p-4 bg-white rounded-lg border border-gray-200">
-                  <h4 className="font-medium text-gray-900 mb-2">SPL</h4>
-                  <p className="text-sm text-gray-600">Special middleman entries</p>
-                  <div className="mt-2 text-xs text-purple-600">→ Affects both parties</div>
+                  <h4 className="font-medium text-gray-900 mb-2">Hawala</h4>
+                  <p className="text-sm text-gray-600">2-party transactions</p>
+                  <div className="mt-2 text-xs text-teal-600">→ Auto ledger effects</div>
                 </div>
                 <div className="hidden md:block text-gray-400">→</div>
                 <div className="flex-1 p-4 bg-white rounded-lg border border-gray-200">
+                  <h4 className="font-medium text-gray-900 mb-2">Special Entry</h4>
+                  <p className="text-sm text-gray-600">3-party transactions</p>
+                  <div className="mt-2 text-xs text-cyan-600">→ Dynamic ledger effects</div>
+                </div>
+              </div>
+              <div className="flex flex-col md:flex-row gap-4 items-center">
+                <div className="flex-1 p-4 bg-white rounded-lg border border-gray-200">
                   <h4 className="font-medium text-gray-900 mb-2">Master</h4>
-                  <p className="text-sm text-gray-600">System configurations</p>
+                  <p className="text-sm text-gray-600">Roles, Cities, Clients</p>
                   <div className="mt-2 text-xs text-orange-600">→ Controls all dropdowns</div>
+                </div>
+                <div className="hidden md:block text-gray-400">→</div>
+                <div className="flex-1 p-4 bg-white rounded-lg border border-gray-200">
+                  <h4 className="font-medium text-gray-900 mb-2">Customer Report</h4>
+                  <p className="text-sm text-gray-600">Client ledger</p>
+                  <div className="mt-2 text-xs text-purple-600">→ Aggregates all modules</div>
                 </div>
               </div>
             </div>

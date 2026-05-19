@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { Button } from '@/components/ui/button';
 import { Calendar } from 'lucide-react';
+import ScrollToTop from '@/components/ScrollToTop';
 
 export default function LayoutWrapper({
   children,
@@ -32,6 +33,24 @@ export default function LayoutWrapper({
   const [activeAccountingTab, setActiveAccountingTab] = useState<'accounts' | 'category' | 'reports'>('accounts');
   const [reportDropdownOpen, setReportDropdownOpen] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const reportDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close report dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (reportDropdownRef.current && !reportDropdownRef.current.contains(event.target as Node)) {
+        setReportDropdownOpen(false);
+      }
+    };
+
+    if (reportDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [reportDropdownOpen]);
 
   // Global keyboard shortcuts
   useKeyboardShortcuts([
@@ -343,7 +362,7 @@ export default function LayoutWrapper({
       <div className={`hidden lg:flex bg-white border-r border-gray-200 flex-col h-screen fixed left-0 top-0 transition-all duration-300 ${
         isSidebarCollapsed ? 'w-16' : 'w-1/5'
       }`}>
-        <div className={`flex items-center justify-center h-20 bg-white border-b border-gray-200 flex-shrink-0 ${isSidebarCollapsed ? 'px-2' : ''}`}>
+        <div className={`flex items-center justify-center h-20 bg-white/80 backdrop-blur-md border-b border-orange-200/50 shadow-inner shadow-orange-400 flex-shrink-0 ${isSidebarCollapsed ? 'px-2' : ''}`}>
           {isSidebarCollapsed ? (
             <Image src="/images/logo.png" alt="Angadiya Logo" width={50} height={50} className="object-contain" priority />
           ) : (
@@ -359,8 +378,8 @@ export default function LayoutWrapper({
                 href={item.href}
                 className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
                   pathname === item.href
-                    ? 'bg-blue-500 text-white border border-white'
-                    : 'text-gray-700 hover:bg-blue-500 hover:text-white'
+                    ? 'bg-orange-500 text-white border border-white'
+                    : 'text-gray-700 hover:bg-orange-500 hover:text-white'
                 } ${isSidebarCollapsed ? 'justify-center' : ''}`}
                 title={isSidebarCollapsed ? item.name : ''}
               >
@@ -373,31 +392,31 @@ export default function LayoutWrapper({
                   <>
                     <span className="ml-3 truncate">{item.name}</span>
                     {item.name === 'Dashboard' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+D ]</span>
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+D ]</span>
                     )}
                     {item.name === 'Transactions' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+X ]</span>
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+T ]</span>
                     )}
                     {item.name === 'Accounting' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+A ]</span>
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+A ]</span>
                     )}
                     {item.name === 'Hawala' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+H ]</span>
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+H ]</span>
                     )}
                     {item.name === 'Special Entry' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+S ]</span>
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+S ]</span>
                     )}
                     {item.name === 'Reports' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+R ]</span>
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+R ]</span>
                     )}
                     {item.name === 'Balance Sheet' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+B ]</span>
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+B ]</span>
                     )}
                     {item.name === 'Master Data' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+M ]</span>
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+M ]</span>
                     )}
                     {item.name === 'Help' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+P ]</span>
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+P ]</span>
                     )}
                   </>
                 )}
@@ -406,7 +425,7 @@ export default function LayoutWrapper({
           </div>
         </nav>
 
-        <div className={`p-4 border-t border-gray-200 flex-shrink-0 ${isSidebarCollapsed ? 'px-2' : ''}`}>
+        <div className={`p-4  shadow-inner shadow-orange-400 border border-orange-200 flex-shrink-0 ${isSidebarCollapsed ? 'px-2' : ''}`}>
           {isSidebarCollapsed ? (
             <div className="flex flex-col items-center space-y-3">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-medium shadow-lg">
@@ -476,8 +495,8 @@ export default function LayoutWrapper({
         isSidebarCollapsed ? 'lg:ml-16' : 'lg:ml-[20%]'
       }`}>
         {/* Top Bar */}
-        <div className="bg-white border-b border-gray-200 shadow-sm flex-shrink-0" style={{ zIndex: 9999999 }}>
-          <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16 fixed w-full top-0 bg-white z-50">
+        <div className="bg-white/30 backdrop-blur-md border-b border-gray-200/50 shadow-inner shadow-gray-400 flex-shrink-0 fixed w-full top-0 z-50" style={{ zIndex: 9999999 }}>
+          <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-20 bg-white/30 backdrop-blur-md">
             <div className="flex items-center space-x-4">
               <Button
                 variant="ghost"
@@ -493,7 +512,7 @@ export default function LayoutWrapper({
   variant="ghost"
   size="sm"
   onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-  className="hidden lg:flex relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000"
+  className="hidden lg:flex relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 bg-gradient-to-br from-orange-500 via-orange-400 to-orange-500 text-white backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000"
   title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
 >
   <svg
@@ -521,10 +540,10 @@ export default function LayoutWrapper({
                         const event = new CustomEvent('setTransactionTab', { detail: 'outward' });
                         window.dispatchEvent(event);
                       }}
-                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                         activeTransactionTab === 'outward'
-                          ? 'bg-blue-600 border-blue-400 text-white'
-                          : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
+                          ? 'bg-orange-600 border-orange-400 text-white'
+                          : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
                       }`}
                     >
                       <span className="relative z-10">Booking</span>
@@ -538,10 +557,10 @@ export default function LayoutWrapper({
                         const event = new CustomEvent('setTransactionTab', { detail: 'inward' });
                         window.dispatchEvent(event);
                       }}
-                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                         activeTransactionTab === 'inward'
-                          ? 'bg-blue-600 border-blue-400 text-white'
-                          : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
+                          ? 'bg-orange-600 border-orange-400 text-white'
+                          : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
                       }`}
                     >
                       <span className="relative z-10">Cutting</span>
@@ -560,10 +579,10 @@ export default function LayoutWrapper({
                       const event = new CustomEvent('setMasterTab', { detail: 'users' });
                       window.dispatchEvent(event);
                     }}
-                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                       activeMasterTab === 'users'
-                        ? 'bg-blue-600 border-blue-400 text-white'
-                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
+                        ? 'bg-orange-600 border-orange-400 text-white'
+                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
                     }`}
                   >
                     <span className="relative z-10">Users</span>
@@ -575,10 +594,10 @@ export default function LayoutWrapper({
                       const event = new CustomEvent('setMasterTab', { detail: 'roles' });
                       window.dispatchEvent(event);
                     }}
-                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                       activeMasterTab === 'roles'
-                        ? 'bg-blue-600 border-blue-400 text-white'
-                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
+                        ? 'bg-orange-600 border-orange-400 text-white'
+                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
                     }`}
                   >
                     <span className="relative z-10">Roles</span>
@@ -590,10 +609,10 @@ export default function LayoutWrapper({
                       const event = new CustomEvent('setMasterTab', { detail: 'centers' });
                       window.dispatchEvent(event);
                     }}
-                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                       activeMasterTab === 'centers'
-                        ? 'bg-blue-600 border-blue-400 text-white'
-                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
+                        ? 'bg-orange-600 border-orange-400 text-white'
+                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
                     }`}
                   >
                     <span className="relative z-10">Centers</span>
@@ -605,10 +624,10 @@ export default function LayoutWrapper({
                       const event = new CustomEvent('setMasterTab', { detail: 'clients' });
                       window.dispatchEvent(event);
                     }}
-                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                       activeMasterTab === 'clients'
-                        ? 'bg-blue-600 border-blue-400 text-white'
-                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
+                        ? 'bg-orange-600 border-orange-400 text-white'
+                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
                     }`}
                   >
                     <span className="relative z-10">Clients</span>
@@ -626,10 +645,10 @@ export default function LayoutWrapper({
                       const event = new CustomEvent('setBalanceSheetTab', { detail: 'final' });
                       window.dispatchEvent(event);
                     }}
-                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 mr-4 font-medium text-sm ${
+                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 mr-4 font-medium text-sm ${
                       activeBalanceSheetTab === 'final'
-                        ? 'bg-blue-600 border-blue-400 text-white'
-                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
+                        ? 'bg-orange-600 border-orange-400 text-white'
+                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
                     }`}
                   >
                     <span className="relative z-10">Final Balance Sheet</span>
@@ -640,7 +659,7 @@ export default function LayoutWrapper({
                         const event = new CustomEvent('exportBalanceSheet', { detail: 'excel' });
                         window.dispatchEvent(event);
                       }}
-                      className="relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-3 py-1.5 font-medium text-xs"
+                      className="relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-3 py-1.5 font-medium text-xs"
                     >
                       <span className="relative z-10">Export Excel</span>
                     </button>
@@ -649,7 +668,7 @@ export default function LayoutWrapper({
                         const event = new CustomEvent('exportBalanceSheet', { detail: 'pdf' });
                         window.dispatchEvent(event);
                       }}
-                      className="relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-3 py-1.5 font-medium text-xs"
+                      className="relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-3 py-1.5 font-medium text-xs"
                     >
                       <span className="relative z-10">Export PDF</span>
                     </button>
@@ -667,10 +686,10 @@ export default function LayoutWrapper({
                       const event = new CustomEvent('setAccountingTab', { detail: 'accounts' });
                       window.dispatchEvent(event);
                     }}
-                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                       activeAccountingTab === 'accounts'
-                        ? 'bg-blue-600 border-blue-400 text-white'
-                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
+                        ? 'bg-orange-600 border-orange-400 text-white'
+                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
                     }`}
                   >
                     <span className="relative z-10">Accounts</span>
@@ -682,10 +701,10 @@ export default function LayoutWrapper({
                       const event = new CustomEvent('setAccountingTab', { detail: 'category' });
                       window.dispatchEvent(event);
                     }}
-                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                       activeAccountingTab === 'category'
-                        ? 'bg-blue-600 border-blue-400 text-white'
-                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black'
+                        ? 'bg-orange-600 border-orange-400 text-white'
+                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
                     }`}
                   >
                     <span className="relative z-10">Category</span>
@@ -697,11 +716,11 @@ export default function LayoutWrapper({
               {pathname === '/dashboard' && (
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-200 pointer-events-none" />
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-orange-200 pointer-events-none" />
                     <input
                       type="date"
                       defaultValue={new Date().toISOString().split('T')[0]}
-                      className="pl-10 pr-4 py-2 bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 border border-blue-500/30 rounded-2xl text-blue-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black transition-all duration-300"
+                      className="pl-10 pr-4 py-2 bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 border border-orange-500/30 rounded-2xl text-orange-200 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 cursor-pointer hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black transition-all duration-300"
                       onChange={(e) => {
                         // Dispatch event for dashboard page
                         const event = new CustomEvent('setDashboardDate', { detail: e.target.value });
@@ -714,10 +733,10 @@ export default function LayoutWrapper({
               
               {/* Reports Dropdown - Only show on reports page */}
               {pathname === '/reports' && (
-                <div className="relative">
+                <div className="relative" ref={reportDropdownRef}>
                   <button
                     onClick={() => setReportDropdownOpen(!reportDropdownOpen)}
-                    className="relative overflow-hidden items-center justify-center rounded-2xl border border-blue-500/30 bg-gradient-to-br from-gray-900 via-gray-800 to-blue-950 text-blue-200 backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-blue-400/60 hover:text-white hover:from-blue-900 hover:via-gray-900 hover:to-black active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(59,130,246,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm flex space-x-2"
+                    className="relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 bg-gradient-to-br from-orange-500 via-orange-400 to-orange-500 text-white backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm flex space-x-2"
                   >
                     <span className="relative z-10">{activeReport.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())} Report</span>
                     <svg className="w-4 h-4 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -726,7 +745,7 @@ export default function LayoutWrapper({
                   </button>
                   
                   {reportDropdownOpen && (
-                    <div className="absolute top-full left-0 mt-2 w-64 bg-gradient-to-br from-gray-100/95 via-blue-100/90 to-purple-100/85 backdrop-blur-md border border-gray-300/50 rounded-2xl shadow-xl z-50">
+                    <div className="absolute top-full left-0 mt-2 w-64 bg-white/90 backdrop-blur-2xl border-2 border-orange-300 rounded-2xl shadow-inner shadow-orange-300 z-50">
                       <div className="py-2">
                         {[
                           { id: 'outward', name: 'Outward Report', permission: 'report_1' },
@@ -751,8 +770,8 @@ export default function LayoutWrapper({
                             }}
                             className={`w-full text-left px-4 py-2 text-sm transition-all duration-200 ${
                               activeReport === report.id
-                                ? 'bg-blue-500 text-white font-medium'
-                                : 'text-gray-800 hover:bg-blue-500/20'
+                                ? 'bg-orange-500 text-white font-medium'
+                                : 'text-gray-800 hover:bg-orange-500/20'
                             }`}
                           >
                             {report.name}
@@ -761,20 +780,6 @@ export default function LayoutWrapper({
                       </div>
                     </div>
                   )}
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center space-x-4">
-              {user?.branch && (
-                <div className="hidden sm:flex items-center space-x-2">
-                  <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <span className="text-sm font-medium text-gray-700">
-                    {user.branch.name}
-                  </span>
                 </div>
               )}
             </div>
@@ -807,43 +812,43 @@ export default function LayoutWrapper({
                   href={item.href}
                   className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
                     pathname === item.href
-                      ? 'bg-blue-50 text-blue-600 border border-blue-200'
+                      ? 'bg-orange-50 text-orange-600 border border-orange-200'
                       : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                   }`}
                   onClick={() => setSidebarOpen(false)}
                 >
                   <span className={`mr-3 transition-transform duration-200 group-hover:scale-110 ${
-                    pathname === item.href ? 'text-blue-600' : 'text-gray-500 group-hover:text-gray-600'
+                    pathname === item.href ? 'text-orange-600' : 'text-gray-500 group-hover:text-gray-600'
                   }`}>
                     {item.icon}
                   </span>
                   <span className="truncate">{item.name}</span>
                 {item.name === 'Dashboard' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+D ]</span>
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden">[ Ctrl+D ]</span>
                 )}
                 {item.name === 'Transactions' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+T ]</span>
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden">[ Ctrl+T ]</span>
                 )}
                 {item.name === 'Accounting' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+A ]</span>
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden">[ Ctrl+A ]</span>
                 )}
                 {item.name === 'Hawala' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+H ]</span>
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden">[ Ctrl+H ]</span>
                 )}
                 {item.name === 'Special Entry' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+S ]</span>
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden">[ Ctrl+S ]</span>
                 )}
                 {item.name === 'Reports' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+R ]</span>
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden">[ Ctrl+R ]</span>
                 )}
                 {item.name === 'Balance Sheet' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+B ]</span>
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden">[ Ctrl+B ]</span>
                 )}
                 {item.name === 'Master Data' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+M ]</span>
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden">[ Ctrl+M ]</span>
                 )}
                 {item.name === 'Help' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md">[ Ctrl+P ]</span>
+                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden">[ Ctrl+P ]</span>
                 )}
                 </Link>
               ))}
@@ -897,6 +902,7 @@ export default function LayoutWrapper({
           </div>
         </div>
       </div>
+      <ScrollToTop />
     </div>
   );
 }

@@ -516,7 +516,7 @@ app.use(cors({
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:3002',
-      'https://acc-kiya-611-pma.vercel.app/',
+      'https://acc-kiya-611-pma.vercel.app',
       'https://accounting-app-ttqe.onrender.com'
     ];
     

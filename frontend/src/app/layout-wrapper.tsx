@@ -659,7 +659,7 @@ export default function LayoutWrapper({
                         const event = new CustomEvent('exportBalanceSheet', { detail: 'excel' });
                         window.dispatchEvent(event);
                       }}
-                      className="relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-3 py-1.5 font-medium text-xs"
+                      className="relative overflow-hidden items-center justify-center rounded-2xl border border-green-500/30 bg-gradient-to-br from-green-500 via-green-600 to-green-700 text-white backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-green-400/60 hover:text-white hover:from-green-400 hover:via-green-500 hover:to-green-600 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(34,197,94,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-3 py-1.5 font-medium text-xs"
                     >
                       <span className="relative z-10">Export Excel</span>
                     </button>
@@ -668,7 +668,7 @@ export default function LayoutWrapper({
                         const event = new CustomEvent('exportBalanceSheet', { detail: 'pdf' });
                         window.dispatchEvent(event);
                       }}
-                      className="relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-3 py-1.5 font-medium text-xs"
+                      className="relative overflow-hidden items-center justify-center rounded-2xl border border-red-500/30 bg-gradient-to-br from-red-500 via-red-600 to-red-700 text-white backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-red-400/60 hover:text-white hover:from-red-400 hover:via-red-500 hover:to-red-600 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(239,68,68,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-3 py-1.5 font-medium text-xs"
                     >
                       <span className="relative z-10">Export PDF</span>
                     </button>
@@ -745,7 +745,7 @@ export default function LayoutWrapper({
                   </button>
                   
                   {reportDropdownOpen && (
-                    <div className="absolute top-full left-0 mt-2 w-64 bg-white/90 backdrop-blur-2xl border-2 border-orange-300 rounded-2xl shadow-inner shadow-orange-300 z-50">
+                    <div className="absolute top-full left-0 mt-2 w-64 bg-white backdrop-blur-2xl border-2 border-orange-300 rounded-2xl shadow-inner shadow-orange-300 z-50">
                       <div className="py-2">
                         {[
                           { id: 'outward', name: 'Outward Report', permission: 'report_1' },

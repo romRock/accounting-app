@@ -62,11 +62,23 @@ export default function BalanceSheetPage() {
 
           if (receiverName === clientName || senderName === clientName) {
             if (txn.type === 'OUTWARD') {
-              // OUTWARD: Receiver gets credit (money coming to them), we collect
-              totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
+              // OUTWARD: Check amountType to determine debit/credit
+              if (txn.amountType === 'CREDIT' && senderName === clientName) {
+                // CREDIT + Sender is client: Client owes us money (DEBIT)
+                totalDebit += (txn.amount || 0) + (txn.commission || 0);
+              } else {
+                // CASH or Receiver is client: Normal outward (credit to receiver)
+                totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
+              }
             } else if (txn.type === 'INWARD') {
-              // INWARD: Sender pays debit (money going from them), we pay
-              totalDebit += (txn.amount || 0);
+              // INWARD: Check amountType to determine debit/credit
+              if (txn.amountType === 'CREDIT' && receiverName === clientName) {
+                // CREDIT + Receiver is client: We receive money for client (CREDIT)
+                totalCredit += (txn.amount || 0);
+              } else {
+                // CASH or Sender is client: Normal inward (debit to sender)
+                totalDebit += (txn.amount || 0);
+              }
             }
           }
         });
@@ -99,12 +111,12 @@ export default function BalanceSheetPage() {
           const partyB = entry.partyB?.toLowerCase() || '';
 
           if (partyA === clientName) {
-            // Party A gives money (debit)
-            totalDebit += entry.amount || 0;
+            // Party A (receiver) gets credit (income)
+            totalCredit += entry.amount || 0;
           }
           if (partyB === clientName) {
-            // Party B receives money (credit)
-            totalCredit += entry.amount || 0;
+            // Party B (sender) gets debit (expense)
+            totalDebit += entry.amount || 0;
           }
         });
       } catch (error) {
@@ -120,13 +132,21 @@ export default function BalanceSheetPage() {
           const partyC = entry.partyC?.toLowerCase() || '';
 
           if (partyA === clientName) {
+            // Party A: Expense/Debit (-)
             totalDebit += entry.amountA || 0;
           }
           if (partyB === clientName) {
-            totalDebit += entry.amountB || 0;
+            // Party B: Income/Credit (+)
+            totalCredit += entry.amountB || 0;
           }
           if (partyC === clientName) {
-            totalCredit += entry.amountC || 0;
+            // Party C: Dynamic based on amountC sign
+            const amountC = entry.amountC || 0;
+            if (amountC > 0) {
+              totalCredit += amountC;
+            } else {
+              totalDebit += Math.abs(amountC);
+            }
           }
         });
       } catch (error) {
@@ -417,37 +437,18 @@ export default function BalanceSheetPage() {
     <div className="bg-white min-h-screen w-full">
       <div className="pt-16 space-y-4 sm:space-y-6">
 
-        {/* Summary Card */}
-        <Card className="shadow-sm border-gray-200 bg-gray-100">
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-              <div>
-                <div className="text-sm text-gray-600">Total Income</div>
-                <div className="text-xl font-bold text-blue-600">
-                  {formatCurrency(totals.totalIncome)}
-                </div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-600">Total Expense</div>
-                <div className="text-xl font-bold text-red-600">
-                  {formatCurrency(totals.totalExpense)}
-                </div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-600">Net Payable</div>
-                <div className={`text-xl font-bold ${
-                  totals.netPayable > 0
-                    ? 'text-green-600'
-                    : totals.netPayable < 0
-                      ? 'text-red-600'
-                      : 'text-gray-900'
-                }`}>
-                  {formatCurrency(totals.netPayable)}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Summary Card - Net Payable Only */}
+        <div className="flex justify-center">
+          <div className={`px-8 py-4 rounded-2xl font-bold text-3xl shadow-2xl border-2 backdrop-blur-md ${
+            totals.netPayable > 0
+              ? 'bg-gradient-to-r from-green-400/80 to-green-600/80 border-green-700 text-white'
+              : totals.netPayable < 0
+                ? 'bg-gradient-to-r from-red-400/80 to-red-600/80 border-red-700 text-white'
+                : 'bg-gradient-to-r from-gray-400/80 to-gray-600/80 border-gray-700 text-white'
+          }`}>
+            Net Payable: {formatCurrency(totals.netPayable)}
+          </div>
+        </div>
 
         {/* Balance Sheet Table */}
         <Card className="shadow-sm border-gray-200 bg-gray-100">

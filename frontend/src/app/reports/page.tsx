@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/store';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { CityTypeahead } from '@/components/ui/typeahead';
+import AccountingLoader from '@/components/ui/accounting-loader';
 import { transactionApi, Transaction } from '@/lib/transactions';
 import { accountingApi, AccountingEntry } from '@/lib/accounting';
 import { getHawalaEntries, HawalaEntry } from '@/lib/hawala';
@@ -376,6 +377,7 @@ export default function ReportsPage() {
           if (txn.remark) descParts.push(`Remark: ${txn.remark}`);
           ledgerEntries.push({
             date: txn.date,
+            time: txn.time ? new Date(txn.time).toTimeString().slice(0, 5) : '',
             module: 'Transaction',
             description: descParts.join(' - '),
             debit: debitAmount,
@@ -397,6 +399,7 @@ export default function ReportsPage() {
           const descParts = [entry.type, entry.category || 'General'];
           ledgerEntries.push({
             date: entry.date,
+            time: entry.time ? new Date(entry.time).toTimeString().slice(0, 5) : '',
             module: 'Accounting',
             description: descParts.join(' - '),
             debit: isCredit ? 0 : (entry.debitAmount || entry.amount || 0),
@@ -420,6 +423,7 @@ export default function ReportsPage() {
           if (entry.remark) descParts.push(`Remark: ${entry.remark}`);
           ledgerEntries.push({
             date: entry.date,
+            time: entry.time ? new Date(entry.time).toTimeString().slice(0, 5) : '',
             module: 'Hawala',
             description: descParts.join(' - '),
             debit: isCredit ? 0 : (entry.amount || 0),
@@ -464,6 +468,7 @@ export default function ReportsPage() {
           if (entry.remark) descParts.push(`Remark: ${entry.remark}`);
           ledgerEntries.push({
             date: entry.date,
+            time: entry.time ? new Date(entry.time).toTimeString().slice(0, 5) : '',
             module: 'Special Entry',
             description: descParts.join(' - '),
             debit: isCredit ? 0 : amount,
@@ -561,42 +566,49 @@ export default function ReportsPage() {
 
     if (filteredClientLedger.length === 0) return groups;
 
-    // Group by date
+    // Group by date using Indian timezone (12:00 AM cutoff)
     const dateGroups: Record<string, any[]> = {};
     filteredClientLedger.forEach(entry => {
-      const dateKey = new Date(entry.date).toISOString().split('T')[0];
+      // Convert to Indian timezone (UTC+5:30)
+      const entryDate = new Date(entry.date);
+      const indianDate = new Date(entryDate.getTime() + (5.5 * 60 * 60 * 1000)); // Add 5.5 hours for IST
+      const dateKey = indianDate.toISOString().split('T')[0];
+      
       if (!dateGroups[dateKey]) {
         dateGroups[dateKey] = [];
       }
       dateGroups[dateKey].push(entry);
     });
 
-    // Convert to array and sort by date ascending (oldest first)
-    const sortedDates = Object.keys(dateGroups).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    // Convert to array and sort by date ascending (oldest first) for correct opening balance calculation
+    const sortedDatesAsc = Object.keys(dateGroups).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
-    // Calculate opening balance for each day
-    // Entries are already sorted ascending
+    // Calculate opening balance for each day chronologically
     let runningBalance = 0;
+    const balanceMap: Record<string, number> = {};
 
-    sortedDates.forEach((date) => {
+    sortedDatesAsc.forEach((date) => {
       const entries = dateGroups[date];
       // Opening balance for this day is the running balance before processing this day's entries
-      const openingBalance = runningBalance;
+      // This carries forward the previous day's closing balance
+      balanceMap[date] = runningBalance;
 
       // Update running balance with this day's entries
       entries.forEach(entry => {
         runningBalance += (entry.credit || 0) - (entry.debit || 0);
       });
-
-      groups.push({
-        date,
-        openingBalance,
-        entries,
-      });
     });
 
-    // Sort groups by date ascending for display
-    groups.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // Create groups with calculated opening balances, sorted descending for display
+    const sortedDatesDesc = Object.keys(dateGroups).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
+    sortedDatesDesc.forEach((date) => {
+      groups.push({
+        date,
+        openingBalance: balanceMap[date],
+        entries: dateGroups[date],
+      });
+    });
 
     return groups;
   })();
@@ -2244,10 +2256,7 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <span className="ml-2 text-gray-600">Loading report data...</span>
-                </div>
+                <AccountingLoader message="Loading report data..." />
               ) : txnReportFilteredRows.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-gray-500">No data found for today. Toggle modules or check back later.</p>
@@ -2328,10 +2337,7 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <span className="ml-2 text-gray-600">Loading client data...</span>
-                </div>
+                <AccountingLoader message="Loading client data..." />
               ) : clients.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-gray-500">No clients found.</p>
@@ -2358,6 +2364,11 @@ export default function ReportsPage() {
                           const searchLower = searchTerm.toLowerCase();
                           return client.name?.toLowerCase().includes(searchLower) ||
                             client.mobileNumber?.toLowerCase().includes(searchLower);
+                        })
+                        .sort((a, b) => {
+                          const balanceA = clientBalances[a.id]?.balance || 0;
+                          const balanceB = clientBalances[b.id]?.balance || 0;
+                          return balanceA - balanceB; // Ascending order: most negative first
                         })
                         .map((client) => {
                           const balanceData = clientBalances[client.id] || { balance: 0, credit: 0, debit: 0 };
@@ -2397,10 +2408,7 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <span className="ml-2 text-gray-600">Loading refund report data...</span>
-                </div>
+                <AccountingLoader message="Loading refund report data..." />
               ) : refundReportData.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-gray-500">No deleted records found for the selected date.</p>
@@ -2568,14 +2576,18 @@ export default function ReportsPage() {
             `}</style>
             <div className="fixed top-0 inset-0 bg-white z-[1000000000] flex flex-col overflow-hidden" style={{ marginTop: 0 }}>
               {/* Compact Header */}
-              <div className="border-b border-gray-200 bg-gray-50 px-4 py-2 flex items-center justify-between flex-shrink-0">
-                <div className="flex items-center space-x-4">
+              <div className="border-b border-gray-200 bg-gradient-to-r from-gray-50 via-blue-50 to-gray-50 px-4 py-2 flex items-center justify-between flex-shrink-0 relative">
+                <div className="flex items-center space-x-3">
                   <h1 className="text-lg font-bold text-gray-900">{selectedClient.name} - Ledger</h1>
                   <span className="text-xs text-gray-500">From {formatDate(selectedClient.createdAt)}</span>
                   {filteredClientLedger.length > 0 && (
-                    <span className={`text-sm font-bold ${filteredClientLedger[filteredClientLedger.length - 1].balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <div className={`px-6 py-1 rounded-lg font-bold text-xl shadow-lg border-2 ${
+                      filteredClientLedger[filteredClientLedger.length - 1].balance >= 0 
+                        ? 'bg-gradient-to-r from-green-400 to-green-600 border-green-700 text-white' 
+                        : 'bg-gradient-to-r from-red-400 to-red-600 border-red-700 text-white'
+                    }`}>
                       Balance: {formatCurrency(filteredClientLedger[filteredClientLedger.length - 1].balance)}
-                    </span>
+                    </div>
                   )}
                 </div>
                 <button
@@ -2728,10 +2740,7 @@ export default function ReportsPage() {
                   </div>
                   <div className="flex-1 overflow-auto">
                     {loading ? (
-                      <div className="flex items-center justify-center py-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                        <span className="ml-2 text-gray-600">Loading ledger...</span>
-                      </div>
+                      <AccountingLoader message="Loading ledger..." />
                     ) : filteredClientLedger.length === 0 ? (
                       <div className="text-center py-8">
                         <p className="text-gray-500">No ledger entries found. Please try adjusting your filters.</p>
@@ -2743,6 +2752,7 @@ export default function ReportsPage() {
                             <tr>
                               <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 w-10">Check</th>
                               <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Date</th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Time</th>
                               <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Module</th>
                               <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Description</th>
                               <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Expense</th>
@@ -2755,11 +2765,13 @@ export default function ReportsPage() {
                               <React.Fragment key={`group-${groupIndex}`}>
                                 {/* Day header with opening balance */}
                                 <tr className={`${group.openingBalance >= 0 ? 'bg-green-300 border-b-2 border-green-200' : 'bg-red-300 border-b-2 border-red-200'}`}>
-                                  <td colSpan={4} className="px-3 py-2 text-sm font-bold text-gray-900">
+                                  <td colSpan={5} className="px-3 py-2 text-sm font-bold text-gray-900">
                                     {formatDate(group.date)}
                                   </td>
                                   <td colSpan={3} className={`px-3 py-2 text-sm font-bold text-right ${group.openingBalance >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                                    Opening Balance: {formatCurrency(group.openingBalance)}
+                                    <span className={group.openingBalance < 0 ? 'animate-pulse' : ''}>
+                                      Opening Balance: {formatCurrency(group.openingBalance)}
+                                    </span>
                                   </td>
                                 </tr>
                                 {/* Entries for this day */}
@@ -2781,6 +2793,7 @@ export default function ReportsPage() {
                                         />
                                       </td>
                                       <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200">{formatDate(entry.date)}</td>
+                                      <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200">{entry.time || '-'}</td>
                                       <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200">{entry.module}</td>
                                       <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200">{entry.description}</td>
                                       <td className={`px-3 py-2 text-sm text-right border-r border-gray-200 ${entry.debit > 0 ? 'text-red-600' : 'text-gray-900'}`}>
@@ -2798,7 +2811,7 @@ export default function ReportsPage() {
                                 })}
                                 {/* Day separator line */}
                                 <tr className="border-b-2 border-gray-300">
-                                  <td colSpan={7} className="py-1"></td>
+                                  <td colSpan={8} className="py-1"></td>
                                 </tr>
                               </React.Fragment>
                             ))}

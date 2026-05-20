@@ -1,0 +1,54 @@
+[
+  {
+    "id": "cat-1",
+    "name": "Cash",
+    "type": "INCOME",
+    "description": "Cash income entries",
+    "parentId": null,
+    "gstApplicable": false,
+    "tdsApplicable": false,
+    "isActive": true,
+    "isDeleted": false,
+    "createdAt": "2026-05-14T11:04:14.157Z",
+    "updatedAt": "2026-05-14T11:04:14.157Z"
+  },
+  {
+    "id": "cat-2",
+    "name": "LBL",
+    "type": "INCOME",
+    "description": "LBL income entries (Label/Entry/Token)",
+    "parentId": null,
+    "gstApplicable": false,
+    "tdsApplicable": false,
+    "isActive": true,
+    "isDeleted": false,
+    "createdAt": "2026-05-14T11:04:14.157Z",
+    "updatedAt": "2026-05-14T11:04:14.157Z"
+  },
+  {
+    "id": "cat-3",
+    "name": "LBL",
+    "type": "EXPENSE",
+    "description": "LBL expense entries (Label/Entry/Token)",
+    "parentId": null,
+    "gstApplicable": false,
+    "tdsApplicable": false,
+    "isActive": true,
+    "isDeleted": false,
+    "createdAt": "2026-05-14T11:04:14.157Z",
+    "updatedAt": "2026-05-14T11:04:14.157Z"
+  },
+  {
+    "id": "cat-4",
+    "name": "Money Transfer",
+    "type": "EXPENSE",
+    "description": "Money transfer expenses",
+    "parentId": null,
+    "gstApplicable": false,
+    "tdsApplicable": false,
+    "isActive": true,
+    "isDeleted": false,
+    "createdAt": "2026-05-14T11:04:14.157Z",
+    "updatedAt": "2026-05-14T11:04:14.157Z"
+  }
+]

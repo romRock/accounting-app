@@ -1,0 +1,22 @@
+[
+  {
+    "id": "cmopyrrpn000212z6jsobhj14",
+    "name": "reports",
+    "description": null,
+    "permissions": "{\"dashboard\":{\"view\":false},\"transactions\":{\"outward\":true,\"inward\":false},\"accounting\":\"none\",\"hawala\":\"none\",\"specialEntry\":\"none\",\"reports\":{\"report_1\":true,\"report_2\":false,\"report_3\":false,\"report_4\":true,\"report_5\":false,\"report_6\":false,\"report_7\":false},\"balanceSheet\":\"none\",\"masterData\":\"none\"}",
+    "isActive": true,
+    "isDeleted": false,
+    "createdAt": "2026-05-03T16:07:23.147Z",
+    "updatedAt": "2026-05-03T20:07:08.755Z"
+  },
+  {
+    "id": "cmojuobmm0000zlvhomp5999j",
+    "name": "Admin",
+    "description": "Full system administrator",
+    "permissions": "{\"users\":{\"read\":true,\"write\":true,\"delete\":true},\"roles\":{\"read\":true,\"write\":true,\"delete\":true},\"cities\":{\"read\":true,\"write\":true,\"delete\":true},\"parties\":{\"read\":true,\"write\":true,\"delete\":true},\"branches\":{\"read\":true,\"write\":true,\"delete\":true},\"transactions\":{\"read\":true,\"write\":true,\"delete\":true,\"outward\":true,\"inward\":true},\"accounting\":\"all\",\"reports\":{\"read\":true,\"write\":true,\"report_1\":true,\"report_2\":true,\"report_3\":true,\"report_4\":true,\"report_5\":true,\"report_6\":true,\"report_7\":true},\"dashboard\":{\"view\":true},\"hawala\":\"all\",\"specialEntry\":\"all\",\"balanceSheet\":\"all\",\"masterData\":\"full_access\"}",
+    "isActive": true,
+    "isDeleted": false,
+    "createdAt": "2026-04-29T09:26:06.815Z",
+    "updatedAt": "2026-05-20T03:08:46.472Z"
+  }
+]

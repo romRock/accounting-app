@@ -182,9 +182,11 @@ export const createTransaction = async (req: Request, res: Response) => {
       },
     });
 
-    // Create corresponding ledger entries for credit transactions
+    // Create corresponding ledger entries for credit transactions - fire and forget (non-blocking)
     if (amountType === 'CREDIT' && senderClientId) {
-      await createClientLedgerEntries(transaction);
+      createClientLedgerEntries(transaction).catch(() => {
+        // Ignore ledger errors - transaction is already created
+      });
     }
 
     res.status(201).json({

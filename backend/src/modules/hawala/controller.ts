@@ -20,7 +20,6 @@ async function generateHawalaTransactionId(): Promise<string> {
 
     return 'HWL001';
   } catch (error) {
-    console.error('Error generating hawala transaction ID:', error);
     return 'HWL001';
   }
 }
@@ -43,7 +42,6 @@ async function generateHawalaTokenNo(date?: string): Promise<number> {
     
     return todayEntries + 1;
   } catch (error) {
-    console.error('Error generating hawala token number:', error);
     return 1;
   }
 }
@@ -104,85 +102,78 @@ export const createHawala = async (req: Request, res: Response) => {
       }
     });
 
-    // Create client ledger entries for Hawala
-    // Hawala: Credit receiver (partyA), Debit sender (partyB)
-    // partyA = receiver (first input), partyB = sender
+    // Create client ledger entries for Hawala - BATCHED for performance
     try {
-      // Find partyA (receiver) by name
-      const partyAEntity = await prisma.party.findFirst({
-        where: { name: partyA }
-      });
+      const [partyAEntity, partyBEntity] = await Promise.all([
+        prisma.party.findFirst({ where: { name: partyA } }),
+        prisma.party.findFirst({ where: { name: partyB } })
+      ]);
 
-      // Find partyB (sender) by name
-      const partyBEntity = await prisma.party.findFirst({
-        where: { name: partyB }
-      });
+      const ledgerPromises = [];
 
-      // Create ledger entry for receiver (partyA) - CREDIT (INCOME)
       if (partyAEntity) {
-        const receiverClientLedger = await prisma.clientLedger.findUnique({
-          where: { clientId: partyAEntity.id }
-        });
-
-        if (receiverClientLedger) {
-          await prisma.ledgerEntry.create({
-            data: {
-              date: new Date(date),
-              accountId: partyAEntity.id,
-              accountType: 'CLIENT',
-              description: `Hawala ${hawala.transactionId} - Income from ${partyB} - Amount: ${amount}`,
-              debitAmount: 0,
-              creditAmount: parseInt(amount),
-              balance: 0,
-              transactionId: hawala.id,
-              createdBy,
-            },
-          });
-        }
+        ledgerPromises.push(
+          prisma.clientLedger.findUnique({ where: { clientId: partyAEntity.id } })
+            .then(receiverClientLedger => {
+              if (receiverClientLedger) {
+                return prisma.ledgerEntry.create({
+                  data: {
+                    date: new Date(date),
+                    accountId: partyAEntity.id,
+                    accountType: 'CLIENT',
+                    description: `Hawala ${hawala.transactionId} - Income from ${partyB} - Amount: ${amount}`,
+                    debitAmount: 0,
+                    creditAmount: parseInt(amount),
+                    balance: 0,
+                    transactionId: hawala.id,
+                    createdBy,
+                  },
+                });
+              }
+            })
+        );
       }
 
-      // Create ledger entry for sender (partyB) - DEBIT (EXPENSE)
       if (partyBEntity) {
-        const senderClientLedger = await prisma.clientLedger.findUnique({
-          where: { clientId: partyBEntity.id }
-        });
-
-        if (senderClientLedger) {
-          await prisma.ledgerEntry.create({
-            data: {
-              date: new Date(date),
-              accountId: partyBEntity.id,
-              accountType: 'CLIENT',
-              description: `Hawala ${hawala.transactionId} - Expense to ${partyA} - Amount: ${amount}`,
-              debitAmount: parseInt(amount),
-              creditAmount: 0,
-              balance: 0,
-              transactionId: hawala.id,
-              createdBy,
-            },
-          });
-        }
+        ledgerPromises.push(
+          prisma.clientLedger.findUnique({ where: { clientId: partyBEntity.id } })
+            .then(senderClientLedger => {
+              if (senderClientLedger) {
+                return prisma.ledgerEntry.create({
+                  data: {
+                    date: new Date(date),
+                    accountId: partyBEntity.id,
+                    accountType: 'CLIENT',
+                    description: `Hawala ${hawala.transactionId} - Expense to ${partyA} - Amount: ${amount}`,
+                    debitAmount: parseInt(amount),
+                    creditAmount: 0,
+                    balance: 0,
+                    transactionId: hawala.id,
+                    createdBy,
+                  },
+                });
+              }
+            })
+        );
       }
+
+      await Promise.all(ledgerPromises);
     } catch (ledgerError) {
-      // Log error but don't fail the hawala entry creation
-      console.error('Error creating client ledger entries for hawala:', ledgerError);
+      // Don't fail the hawala entry creation if ledger fails
     }
 
-    // Generate audit log - handle foreign key constraint gracefully
-    try {
-      await generateAuditLog({
-        entity: 'Hawala',
-        entityId: hawala.id,
-        action: 'CREATE',
-        newValues: JSON.stringify(hawala),
-        ipAddress: req.ip,
-        userAgent: req.get('User-Agent'),
-        createdBy
-      });
-    } catch (auditError) {
-      console.warn('Audit log creation failed, but hawala entry was created:', auditError);
-      // Don't fail the entire operation if audit log fails
-    }
+    // Generate audit log - fire and forget (non-blocking)
+    generateAuditLog({
+      entity: 'Hawala',
+      entityId: hawala.id,
+      action: 'CREATE',
+      newValues: JSON.stringify(hawala),
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+      createdBy
+    }).catch(() => {
+      // Ignore audit log errors
+    });
 
     res.status(201).json({
       success: true,
@@ -190,7 +181,6 @@ export const createHawala = async (req: Request, res: Response) => {
       data: hawala
     });
   } catch (error) {
-    console.error('Error creating hawala entry:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to create hawala entry',
@@ -202,8 +192,6 @@ export const createHawala = async (req: Request, res: Response) => {
 // Get all hawala entries
 export const getHawalaEntries = async (req: Request, res: Response) => {
   try {
-    console.log('🔍 HAWALA API DEBUG: getHawalaEntries called');
-    console.log('🔍 HAWALA API DEBUG: Query params:', req.query);
     
     const { page = 1, limit = 100, search, dateFrom, dateTo, partyA, partyB } = req.query;
 
@@ -215,7 +203,6 @@ export const getHawalaEntries = async (req: Request, res: Response) => {
       isDeleted: false
     };
 
-    console.log('🔍 HAWALA API DEBUG: About to query hawala table...');
 
     // Add search filter
     if (search) {
@@ -252,8 +239,6 @@ export const getHawalaEntries = async (req: Request, res: Response) => {
       prisma.hawala.count({ where })
     ]);
 
-    console.log('🔍 HAWALA API DEBUG: Query successful, found entries:', hawalaEntries.length);
-    console.log('🔍 HAWALA API DEBUG: Total count:', total);
 
     res.status(200).json({
       success: true,
@@ -267,12 +252,6 @@ export const getHawalaEntries = async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('❌ HAWALA API DEBUG: Error getting hawala entries:', error);
-    console.error('❌ HAWALA API DEBUG: Error details:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      code: (error as any).code,
-      meta: (error as any).meta
-    });
     res.status(500).json({
       success: false,
       message: 'Failed to retrieve hawala entries',
@@ -308,7 +287,6 @@ export const getHawalaById = async (req: Request, res: Response) => {
       data: hawala
     });
   } catch (error) {
-    console.error('Error getting hawala entry:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to retrieve hawala entry',
@@ -380,7 +358,6 @@ export const updateHawala = async (req: Request, res: Response) => {
       data: updatedHawala
     });
   } catch (error) {
-    console.error('Error updating hawala entry:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to update hawala entry',
@@ -428,7 +405,6 @@ export const getHawalaNextIds = async (req: Request, res: Response) => {
       nextTokenNo
     });
   } catch (error) {
-    console.error('Error getting next hawala IDs:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to get next hawala IDs'
@@ -473,28 +449,24 @@ export const deleteHawala = async (req: Request, res: Response) => {
       }
     });
 
-    // Generate audit log - handle foreign key constraint gracefully
-    try {
-      await generateAuditLog({
-        entity: 'Hawala',
-        entityId: existingHawala.id,
-        action: 'DELETE',
-        oldValues,
-        ipAddress: req.ip,
-        userAgent: req.get('User-Agent'),
-        createdBy: existingHawala.createdBy
-      });
-    } catch (auditError) {
-      console.warn('Audit log creation failed, but hawala entry was deleted:', auditError);
-      // Don't fail the entire operation if audit log fails
-    }
+    // Generate audit log - fire and forget (non-blocking)
+    generateAuditLog({
+      entity: 'Hawala',
+      entityId: existingHawala.id,
+      action: 'DELETE',
+      oldValues,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+      createdBy: existingHawala.createdBy
+    }).catch(() => {
+      // Ignore audit log errors
+    });
 
     res.status(200).json({
       success: true,
       message: 'Hawala entry deleted successfully'
     });
   } catch (error) {
-    console.error('Error deleting hawala entry:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to delete hawala entry',

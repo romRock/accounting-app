@@ -20,7 +20,6 @@ async function generateSpecialEntryId(): Promise<string> {
 
     return 'SPL001';
   } catch (error) {
-    console.error('Error generating special entry ID:', error);
     return 'SPL001';
   }
 }
@@ -28,8 +27,6 @@ async function generateSpecialEntryId(): Promise<string> {
 // Get all special entries
 export const getSpecialEntries = async (req: Request, res: Response) => {
   try {
-    console.log('🔍 SPECIAL ENTRY API DEBUG: getSpecialEntries called');
-    console.log('🔍 SPECIAL ENTRY API DEBUG: Query params:', req.query);
     
     const { page = 1, limit = 100, search, dateFrom, dateTo, partyA, partyB, status } = req.query;
 
@@ -63,7 +60,6 @@ export const getSpecialEntries = async (req: Request, res: Response) => {
     if (partyB) where.partyB = { contains: partyB as string, mode: 'insensitive' };
     if (status) where.status = status as string;
 
-    console.log('🔍 SPECIAL ENTRY API DEBUG: About to query specialEntry table...');
 
     const [specialEntries, total] = await Promise.all([
       prisma.specialEntry.findMany({
@@ -78,8 +74,6 @@ export const getSpecialEntries = async (req: Request, res: Response) => {
       prisma.specialEntry.count({ where })
     ]);
 
-    console.log('🔍 SPECIAL ENTRY API DEBUG: Query successful, found entries:', specialEntries.length);
-    console.log('🔍 SPECIAL ENTRY API DEBUG: Total count:', total);
 
     res.status(200).json({
       success: true,
@@ -93,12 +87,6 @@ export const getSpecialEntries = async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('❌ SPECIAL ENTRY API DEBUG: Error getting special entries:', error);
-    console.error('❌ SPECIAL ENTRY API DEBUG: Error details:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      code: (error as any).code,
-      meta: (error as any).meta
-    });
     res.status(500).json({
       success: false,
       message: 'Failed to retrieve special entries',
@@ -133,7 +121,6 @@ export const getSpecialEntryById = async (req: Request, res: Response) => {
       data: specialEntry
     });
   } catch (error) {
-    console.error('Error getting special entry:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to retrieve special entry',
@@ -196,104 +183,98 @@ export const createSpecialEntry = async (req: Request, res: Response) => {
       }
     });
 
-    // Create client ledger entries for Special Entry
-    // Party A: Expense/Debit (-)
-    // Party B: Income/Credit (+)
-    // Party C: Dynamic based on amountC sign
+    // Create client ledger entries for Special Entry - BATCHED for performance
     try {
-      // Find partyA by name
-      const partyAEntity = await prisma.party.findFirst({
-        where: { name: partyA }
-      });
+      const [partyAEntity, partyBEntity, partyCEntity] = await Promise.all([
+        prisma.party.findFirst({ where: { name: partyA } }),
+        prisma.party.findFirst({ where: { name: partyB } }),
+        partyC ? prisma.party.findFirst({ where: { name: partyC } }) : Promise.resolve(null)
+      ]);
 
-      // Find partyB by name
-      const partyBEntity = await prisma.party.findFirst({
-        where: { name: partyB }
-      });
-
-      // Find partyC by name (if provided)
-      const partyCEntity = partyC ? await prisma.party.findFirst({
-        where: { name: partyC }
-      }) : null;
+      const ledgerPromises = [];
 
       // Create ledger entry for partyA - DEBIT (EXPENSE)
       if (partyAEntity) {
-        const partyAClientLedger = await prisma.clientLedger.findUnique({
-          where: { clientId: partyAEntity.id }
-        });
-
-        if (partyAClientLedger) {
-          await prisma.ledgerEntry.create({
-            data: {
-              date: new Date(date),
-              accountId: partyAEntity.id,
-              accountType: 'CLIENT',
-              description: `Special Entry ${specialEntry.transactionId} - Expense to ${partyB} - Amount A: ${amountA}`,
-              debitAmount: parseFloat(amountA),
-              creditAmount: 0,
-              balance: 0,
-              transactionId: specialEntry.id,
-              createdBy: createdBy || req.user?.id || 'system',
-            },
-          });
-        }
+        ledgerPromises.push(
+          prisma.clientLedger.findUnique({ where: { clientId: partyAEntity.id } })
+            .then(partyAClientLedger => {
+              if (partyAClientLedger) {
+                return prisma.ledgerEntry.create({
+                  data: {
+                    date: new Date(date),
+                    accountId: partyAEntity.id,
+                    accountType: 'CLIENT',
+                    description: `Special Entry ${specialEntry.transactionId} - Expense to ${partyB} - Amount A: ${amountA}`,
+                    debitAmount: parseFloat(amountA),
+                    creditAmount: 0,
+                    balance: 0,
+                    transactionId: specialEntry.id,
+                    createdBy: createdBy || req.user?.id || 'system',
+                  },
+                });
+              }
+            })
+        );
       }
 
       // Create ledger entry for partyB - CREDIT (INCOME)
       if (partyBEntity) {
-        const partyBClientLedger = await prisma.clientLedger.findUnique({
-          where: { clientId: partyBEntity.id }
-        });
-
-        if (partyBClientLedger) {
-          await prisma.ledgerEntry.create({
-            data: {
-              date: new Date(date),
-              accountId: partyBEntity.id,
-              accountType: 'CLIENT',
-              description: `Special Entry ${specialEntry.transactionId} - Income from ${partyA} - Amount B: ${amountB}`,
-              debitAmount: 0,
-              creditAmount: parseFloat(amountB),
-              balance: 0,
-              transactionId: specialEntry.id,
-              createdBy: createdBy || req.user?.id || 'system',
-            },
-          });
-        }
+        ledgerPromises.push(
+          prisma.clientLedger.findUnique({ where: { clientId: partyBEntity.id } })
+            .then(partyBClientLedger => {
+              if (partyBClientLedger) {
+                return prisma.ledgerEntry.create({
+                  data: {
+                    date: new Date(date),
+                    accountId: partyBEntity.id,
+                    accountType: 'CLIENT',
+                    description: `Special Entry ${specialEntry.transactionId} - Income from ${partyA} - Amount B: ${amountB}`,
+                    debitAmount: 0,
+                    creditAmount: parseFloat(amountB),
+                    balance: 0,
+                    transactionId: specialEntry.id,
+                    createdBy: createdBy || req.user?.id || 'system',
+                  },
+                });
+              }
+            })
+        );
       }
 
       // Create ledger entry for partyC - DYNAMIC based on amountC sign
       if (partyCEntity && amountC) {
-        const partyCClientLedger = await prisma.clientLedger.findUnique({
-          where: { clientId: partyCEntity.id }
-        });
+        ledgerPromises.push(
+          prisma.clientLedger.findUnique({ where: { clientId: partyCEntity.id } })
+            .then(partyCClientLedger => {
+              if (partyCClientLedger) {
+                const amountCValue = parseFloat(amountC);
+                const isCredit = amountCValue > 0;
 
-        if (partyCClientLedger) {
-          const amountCValue = parseFloat(amountC);
-          const isCredit = amountCValue > 0;
-
-          await prisma.ledgerEntry.create({
-            data: {
-              date: new Date(date),
-              accountId: partyCEntity.id,
-              accountType: 'CLIENT',
-              description: `Special Entry ${specialEntry.transactionId} - ${isCredit ? 'Income' : 'Expense'} (Remaining A-B) - Amount C: ${amountC}`,
-              debitAmount: isCredit ? 0 : Math.abs(amountCValue),
-              creditAmount: isCredit ? amountCValue : 0,
-              balance: 0,
-              transactionId: specialEntry.id,
-              createdBy: createdBy || req.user?.id || 'system',
-            },
-          });
-        }
+                return prisma.ledgerEntry.create({
+                  data: {
+                    date: new Date(date),
+                    accountId: partyCEntity.id,
+                    accountType: 'CLIENT',
+                    description: `Special Entry ${specialEntry.transactionId} - ${isCredit ? 'Income' : 'Expense'} (Remaining A-B) - Amount C: ${amountC}`,
+                    debitAmount: isCredit ? 0 : Math.abs(amountCValue),
+                    creditAmount: isCredit ? amountCValue : 0,
+                    balance: 0,
+                    transactionId: specialEntry.id,
+                    createdBy: createdBy || req.user?.id || 'system',
+                  },
+                });
+              }
+            })
+        );
       }
+
+      await Promise.all(ledgerPromises);
     } catch (ledgerError) {
-      // Log error but don't fail the special entry creation
-      console.error('Error creating client ledger entries for special entry:', ledgerError);
+      // Don't fail the special entry creation if ledger fails
     }
 
-    // Generate audit log
-    await generateAuditLog({
+    // Generate audit log - fire and forget (non-blocking)
+    generateAuditLog({
       entity: 'SpecialEntry',
       entityId: specialEntry.id,
       action: 'CREATE',
@@ -301,6 +282,8 @@ export const createSpecialEntry = async (req: Request, res: Response) => {
       ipAddress: req.ip,
       userAgent: req.get('User-Agent'),
       createdBy: createdBy || req.user?.id || 'system'
+    }).catch(() => {
+      // Ignore audit log errors
     });
 
     res.status(201).json({
@@ -309,7 +292,6 @@ export const createSpecialEntry = async (req: Request, res: Response) => {
       data: specialEntry
     });
   } catch (error) {
-    console.error('Error creating special entry:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to create special entry',
@@ -399,7 +381,6 @@ export const updateSpecialEntry = async (req: Request, res: Response) => {
       data: updatedEntry
     });
   } catch (error) {
-    console.error('Error updating special entry:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to update special entry',
@@ -442,7 +423,8 @@ export const deleteSpecialEntry = async (req: Request, res: Response) => {
     });
 
     // Generate audit log
-    await generateAuditLog({
+    // Generate audit log - fire and forget (non-blocking)
+    generateAuditLog({
       entity: 'SpecialEntry',
       entityId: existingEntry.id,
       action: 'DELETE',
@@ -450,6 +432,8 @@ export const deleteSpecialEntry = async (req: Request, res: Response) => {
       ipAddress: req.ip,
       userAgent: req.get('User-Agent'),
       createdBy: userId || 'system'
+    }).catch(() => {
+      // Ignore audit log errors
     });
 
     res.status(200).json({
@@ -457,7 +441,6 @@ export const deleteSpecialEntry = async (req: Request, res: Response) => {
       message: 'Special entry deleted successfully'
     });
   } catch (error) {
-    console.error('Error deleting special entry:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to delete special entry',

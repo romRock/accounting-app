@@ -211,8 +211,8 @@ export const updateLedgerEntry = async (req: Request, res: Response) => {
       },
     });
 
-    // Create audit log
-    await prisma.auditLog.create({
+    // Create audit log - fire and forget (non-blocking)
+    prisma.auditLog.create({
       data: {
         entity: 'LedgerEntry',
         entityId: id as string,
@@ -223,6 +223,8 @@ export const updateLedgerEntry = async (req: Request, res: Response) => {
         userAgent: req.get('User-Agent'),
         createdBy: userId!,
       },
+    }).catch(() => {
+      // Ignore audit log errors
     });
 
     res.json({
@@ -262,7 +264,7 @@ export const deleteLedgerEntry = async (req: Request, res: Response) => {
     });
 
     // Create audit log
-    await prisma.auditLog.create({
+    prisma.auditLog.create({
       data: {
         entity: 'LedgerEntry',
         entityId: id as string,
@@ -272,6 +274,8 @@ export const deleteLedgerEntry = async (req: Request, res: Response) => {
         userAgent: req.get('User-Agent'),
         createdBy: userId!,
       },
+    }).catch(() => {
+      // Ignore audit log errors
     });
 
     res.json({ message: 'Ledger entry deleted successfully' });
@@ -512,7 +516,6 @@ export const getAccountCategories = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Get account categories error:', error);
     throw error;
   }
 };
@@ -596,7 +599,6 @@ export const createAccountEntry = async (req: Request, res: Response) => {
       const availableCategories = await prisma.accountCategory.findMany({
         select: { id: true, name: true, type: true },
       });
-      console.log('Available categories:', availableCategories);
       throw createError(
         `Category with ID '${categoryId}' not found. Available categories: ${availableCategories.map(c => `${c.id} (${c.name})`).join(', ')}`,
         400
@@ -763,7 +765,6 @@ export const createAccountEntry = async (req: Request, res: Response) => {
       entry: accountEntry,
     });
   } catch (error) {
-    console.error('Create account entry error:', error);
     throw error;
   }
 };
@@ -1084,8 +1085,8 @@ export const updateAccountEntry = async (req: Request, res: Response) => {
       },
     });
 
-    // Create audit log
-    await prisma.auditLog.create({
+    // Create audit log - fire and forget (non-blocking)
+    prisma.auditLog.create({
       data: {
         entity: 'AccountEntry',
         entityId: id as string,
@@ -1096,6 +1097,8 @@ export const updateAccountEntry = async (req: Request, res: Response) => {
         userAgent: req.get('User-Agent'),
         createdBy: userId!,
       },
+    }).catch(() => {
+      // Ignore audit log errors
     });
 
     res.json({
@@ -1103,7 +1106,6 @@ export const updateAccountEntry = async (req: Request, res: Response) => {
       entry: updatedEntry,
     });
   } catch (error) {
-    console.error('Update account entry error:', error);
     throw error;
   }
 };
@@ -1167,7 +1169,6 @@ export const deleteAccountEntry = async (req: Request, res: Response) => {
       entry: existingEntry,
     });
   } catch (error) {
-    console.error('Delete account entry error:', error);
     throw error;
   }
 };

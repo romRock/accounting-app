@@ -423,7 +423,7 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
           isDeleted: false,
           ...(dateFrom || dateTo ? dateFilter : {})
         },
-        take: 1000, // Keep high limit for accurate balance calculations
+        take: 1000,
         orderBy: { date: 'desc' }
       }),
       prisma.accountEntry.findMany({
@@ -433,7 +433,7 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
           ...(dateFrom || dateTo ? dateFilter : {})
         },
         include: { party: true },
-        take: 1000, // Keep high limit for accurate balance calculations
+        take: 1000,
         orderBy: { date: 'desc' }
       }),
       prisma.hawala.findMany({
@@ -442,7 +442,7 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
           isDeleted: false,
           ...(dateFrom || dateTo ? dateFilter : {})
         },
-        take: 1000, // Keep high limit for accurate balance calculations
+        take: 1000,
         orderBy: { date: 'desc' }
       }),
       prisma.specialEntry.findMany({
@@ -451,7 +451,7 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
           isDeleted: false,
           ...(dateFrom || dateTo ? dateFilter : {})
         },
-        take: 1000, // Keep high limit for accurate balance calculations
+        take: 1000,
         orderBy: { date: 'desc' }
       })
     ]);
@@ -463,7 +463,7 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
       clientBalanceMap.set(client.name.toLowerCase(), { totalCredit: 0, totalDebit: 0 });
     });
 
-    // Process transactions - O(n) instead of O(n*m)
+    // Process transactions - O(n)
     transactions.forEach(txn => {
       const receiverName = txn.receiverName?.toLowerCase();
       const senderName = txn.senderName?.toLowerCase();
@@ -587,19 +587,16 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
     const totalIncome = incomeSide.reduce((sum, c) => sum + Math.abs(c.netBalance), 0);
     const totalExpense = expenseSide.reduce((sum, c) => sum + c.netBalance, 0);
 
-    res.set('Cache-Control', 'public, max-age=300'); // Cache for 5 minutes
+    res.set('Cache-Control', 'public, max-age=300');
     res.json({
-      incomeSide, // Negative balances (clients who owe money)
-      expenseSide, // Positive balances (money owed to clients)
+      incomeSide,
+      expenseSide,
       summary: {
         totalIncome,
         totalExpense,
         netBalance: totalExpense - totalIncome
       },
-      dataRange: dateFilter.date ? {
-        from: dateFilter.date.gte?.toISOString(),
-        to: dateFilter.date.lte?.toISOString()
-      } : 'Last 30 days'
+      dataRange: dateFilter.date ? 'Custom date range' : 'Last 30 days'
     });
   } catch (error) {
     throw error;

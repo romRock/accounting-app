@@ -554,18 +554,75 @@ export const deleteTransaction = async (req: Request, res: Response) => {
   }
 };
 
+export const getTransactionStats = async (req: Request, res: Response) => {
+  try {
+    const { dateFrom, dateTo } = req.query;
+    const userBranchId = req.user?.branchId;
+    const userRole = req.user?.role.name;
+
+    const where: any = {
+      isActive: true,
+      isDeleted: false,
+    };
+
+    if (dateFrom || dateTo) {
+      where.date = {};
+      if (dateFrom) where.date.gte = new Date(dateFrom as string);
+      if (dateTo) where.date.lte = new Date(dateTo as string);
+    }
+
+    const [
+      totalTransactions,
+      totalAmount,
+      totalCommission,
+      inwardTransactions,
+      outwardTransactions,
+      pendingTransactions,
+      completedTransactions,
+    ] = await Promise.all([
+      prisma.transaction.count({ where }),
+      prisma.transaction.aggregate({
+        where,
+        _sum: { amount: true },
+      }),
+      prisma.transaction.aggregate({
+        where,
+        _sum: { commission: true },
+      }),
+      prisma.transaction.count({
+        where: { ...where, type: TransactionType.INWARD },
+      }),
+      prisma.transaction.count({
+        where: { ...where, type: TransactionType.OUTWARD },
+      }),
+      prisma.transaction.count({
+        where: { ...where, status: false },
+      }),
+      prisma.transaction.count({
+        where: { ...where, status: true },
+      }),
+    ]);
+
+    res.json({
+      totalTransactions,
+      totalAmount: totalAmount._sum.amount || 0,
+      totalCommission: totalCommission._sum.commission || 0,
+      inwardTransactions,
+      outwardTransactions,
+      pendingTransactions,
+      completedTransactions,
+    });
+  } catch (error) {
+    throw error;
+  }
+};
+
 export const getNextTransactionIds = async (req: Request, res: Response) => {
   try {
     const { date, type } = req.query;
-    console.log('=== GET NEXT TRANSACTION IDS DEBUG ===');
-    console.log('Query params:', { date, type });
     
-    // Generate next transaction ID for the specific type (outward/inward)
     const nextTransactionId = await generateTransactionIdByType(type as string || 'OUTWARD');
-    
-    // Generate next token number for the given date and type
     const nextTokenNo = await generateTokenNumberByType(date as string || new Date().toISOString().split('T')[0], type as string || 'OUTWARD');
-
 
     res.json({
       nextTransactionId,
@@ -614,16 +671,14 @@ async function generateTransactionIdByType(type: string): Promise<string> {
 // Helper function to generate token number by type (separate for outward/inward, daily reset at 12:00 AM IST)
 export const generateTokenNumberByType = async (date: string, type: string) => {
   try {
-    
     const targetDate = new Date(date);
-    // Set time to start of day in IST (UTC+5:30)
     targetDate.setHours(0, 0, 0, 0);
     const nextDay = new Date(targetDate);
     nextDay.setDate(nextDay.getDate() + 1);
 
     const lastTransaction = await prisma.transaction.findFirst({
       where: {
-        type: type, // Direct string comparison
+        type: type,
         date: {
           gte: targetDate,
           lt: nextDay,
@@ -633,12 +688,10 @@ export const generateTokenNumberByType = async (date: string, type: string) => {
       select: { tokenNo: true },
     });
 
-
     const nextTokenNo = lastTransaction?.tokenNo ? lastTransaction.tokenNo + 1 : 1;
 
     return nextTokenNo;
   } catch (error) {
-    // If there's an error, start from 1
     return 1;
   }
 }

@@ -390,69 +390,216 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
     const {
       dateFrom,
       dateTo,
-      accountType,
     } = req.query;
 
     const userRole = req.user?.role.name;
 
-    const where: any = {
-      isActive: true,
-      isDeleted: false,
-    };
-
-    // Apply role-based filtering
-    if (userRole !== 'Super Admin' && userRole !== 'Admin') {
-      // No branch-based filtering - using centers only
-    }
-
+    // Build date filter
+    const dateFilter: any = {};
     if (dateFrom || dateTo) {
-      where.date = {};
-      if (dateFrom) where.date.gte = new Date(dateFrom as string);
-      if (dateTo) where.date.lte = new Date(dateTo as string);
+      dateFilter.date = {};
+      if (dateFrom) dateFilter.date.gte = new Date(dateFrom as string);
+      if (dateTo) dateFilter.date.lte = new Date(dateTo as string);
     }
 
-    if (accountType) {
-      where.accountType = accountType as string;
+    // Default to last 30 days if no date range provided for performance
+    if (!dateFrom && !dateTo) {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      dateFilter.date = { gte: thirtyDaysAgo };
     }
 
-    // Get balance summary by account type
-    const balanceSummary = await prisma.ledgerEntry.groupBy({
-      by: ['accountType', 'accountId'],
-      where,
-      _max: {
-        balance: true,
-      },
-      _sum: {
-        debitAmount: true,
-        creditAmount: true,
-      },
-      _count: {
-        id: true,
-      },
+    // Fetch all clients/parties
+    const clients = await prisma.party.findMany({
+      where: { isActive: true, isDeleted: false },
+      select: { id: true, name: true, city: true }
     });
 
-    // Calculate totals
-    const totalDebits = balanceSummary.reduce((sum: number, entry: any) => 
-      sum + (entry._sum.debitAmount || 0), 0
-    );
-    const totalCredits = balanceSummary.reduce((sum: number, entry: any) => 
-      sum + (entry._sum.creditAmount || 0), 0
-    );
+    // Fetch data from all modules in parallel with sufficient limits for accurate calculations
+    const [transactions, accountEntries, hawalaEntries, specialEntries] = await Promise.all([
+      prisma.transaction.findMany({
+        where: {
+          isActive: true,
+          isDeleted: false,
+          ...(dateFrom || dateTo ? dateFilter : {})
+        },
+        take: 1000, // Keep high limit for accurate balance calculations
+        orderBy: { date: 'desc' }
+      }),
+      prisma.accountEntry.findMany({
+        where: {
+          isActive: true,
+          isDeleted: false,
+          ...(dateFrom || dateTo ? dateFilter : {})
+        },
+        include: { party: true },
+        take: 1000, // Keep high limit for accurate balance calculations
+        orderBy: { date: 'desc' }
+      }),
+      prisma.hawala.findMany({
+        where: {
+          isActive: true,
+          isDeleted: false,
+          ...(dateFrom || dateTo ? dateFilter : {})
+        },
+        take: 1000, // Keep high limit for accurate balance calculations
+        orderBy: { date: 'desc' }
+      }),
+      prisma.specialEntry.findMany({
+        where: {
+          isActive: true,
+          isDeleted: false,
+          ...(dateFrom || dateTo ? dateFilter : {})
+        },
+        take: 1000, // Keep high limit for accurate balance calculations
+        orderBy: { date: 'desc' }
+      })
+    ]);
 
+    // Create a Map for O(1) client lookups
+    const clientBalanceMap = new Map<string, { totalCredit: number; totalDebit: number }>();
+    
+    clients.forEach(client => {
+      clientBalanceMap.set(client.name.toLowerCase(), { totalCredit: 0, totalDebit: 0 });
+    });
+
+    // Process transactions - O(n) instead of O(n*m)
+    transactions.forEach(txn => {
+      const receiverName = txn.receiverName?.toLowerCase();
+      const senderName = txn.senderName?.toLowerCase();
+
+      if (receiverName) {
+        const balance = clientBalanceMap.get(receiverName);
+        if (balance) {
+          if (txn.type === 'OUTWARD') {
+            if (txn.amountType === 'CREDIT' && senderName === receiverName) {
+              balance.totalDebit += (txn.amount || 0) + (txn.commission || 0);
+            } else {
+              balance.totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
+            }
+          } else if (txn.type === 'INWARD') {
+            if (txn.amountType === 'CREDIT') {
+              balance.totalCredit += (txn.amount || 0);
+            } else {
+              balance.totalDebit += (txn.amount || 0);
+            }
+          }
+        }
+      }
+
+      if (senderName && senderName !== receiverName) {
+        const balance = clientBalanceMap.get(senderName);
+        if (balance) {
+          if (txn.type === 'OUTWARD') {
+            if (txn.amountType === 'CREDIT') {
+              balance.totalDebit += (txn.amount || 0) + (txn.commission || 0);
+            }
+          } else if (txn.type === 'INWARD') {
+            if (txn.amountType !== 'CREDIT') {
+              balance.totalDebit += (txn.amount || 0);
+            }
+          }
+        }
+      }
+    });
+
+    // Process accounting entries - O(n)
+    accountEntries.forEach(entry => {
+      const partyName = (entry as any).party?.name?.toLowerCase();
+      if (partyName) {
+        const balance = clientBalanceMap.get(partyName);
+        if (balance) {
+          if ((entry as any).type === 'INCOME') {
+            balance.totalCredit += (entry as any).creditAmount || (entry as any).amount || 0;
+          } else if ((entry as any).type === 'EXPENSE') {
+            balance.totalDebit += (entry as any).debitAmount || (entry as any).amount || 0;
+          }
+        }
+      }
+    });
+
+    // Process hawala entries - O(n)
+    hawalaEntries.forEach(entry => {
+      const partyA = entry.partyA?.toLowerCase();
+      const partyB = entry.partyB?.toLowerCase();
+      
+      if (partyA) {
+        const balance = clientBalanceMap.get(partyA);
+        if (balance) balance.totalCredit += entry.amount || 0;
+      }
+      
+      if (partyB) {
+        const balance = clientBalanceMap.get(partyB);
+        if (balance) balance.totalDebit += entry.amount || 0;
+      }
+    });
+
+    // Process special entries - O(n)
+    specialEntries.forEach(entry => {
+      const partyA = entry.partyA?.toLowerCase();
+      const partyB = entry.partyB?.toLowerCase();
+      const partyC = entry.partyC?.toLowerCase();
+      
+      if (partyA) {
+        const balance = clientBalanceMap.get(partyA);
+        if (balance) balance.totalDebit += entry.amountA || 0;
+      }
+      
+      if (partyB) {
+        const balance = clientBalanceMap.get(partyB);
+        if (balance) balance.totalCredit += entry.amountB || 0;
+      }
+      
+      if (partyC) {
+        const balance = clientBalanceMap.get(partyC);
+        if (balance) {
+          const amountC = entry.amountC || 0;
+          if (amountC > 0) balance.totalCredit += amountC;
+          else balance.totalDebit += Math.abs(amountC);
+        }
+      }
+    });
+
+    // Convert Map to array and calculate net balances
+    const clientBalances = clients.map(client => {
+      const balance = clientBalanceMap.get(client.name.toLowerCase()) || { totalCredit: 0, totalDebit: 0 };
+      const netBalance = balance.totalCredit - balance.totalDebit;
+
+      return {
+        clientId: client.id,
+        clientName: client.name,
+        city: client.city,
+        totalCredit: balance.totalCredit,
+        totalDebit: balance.totalDebit,
+        netBalance
+      };
+    });
+
+    // Filter out clients with 0 balance and sort by net balance (negative to positive)
+    const filteredClients = clientBalances
+      .filter(client => client.netBalance !== 0)
+      .sort((a, b) => a.netBalance - b.netBalance);
+
+    // Separate into income (negative/credit) and expense (positive/debit) sides
+    const incomeSide = filteredClients.filter(c => c.netBalance < 0);
+    const expenseSide = filteredClients.filter(c => c.netBalance > 0);
+
+    const totalIncome = incomeSide.reduce((sum, c) => sum + Math.abs(c.netBalance), 0);
+    const totalExpense = expenseSide.reduce((sum, c) => sum + c.netBalance, 0);
+
+    res.set('Cache-Control', 'public, max-age=300'); // Cache for 5 minutes
     res.json({
-      balanceSummary: balanceSummary.map((entry: any) => ({
-        accountType: entry.accountType,
-        accountId: entry.accountId,
-        currentBalance: entry._max.balance || 0,
-        totalDebits: entry._sum.debitAmount || 0,
-        totalCredits: entry._sum.creditAmount || 0,
-        entryCount: entry._count.id || 0,
-      })),
+      incomeSide, // Negative balances (clients who owe money)
+      expenseSide, // Positive balances (money owed to clients)
       summary: {
-        totalDebits,
-        totalCredits,
-        netBalance: totalDebits - totalCredits,
+        totalIncome,
+        totalExpense,
+        netBalance: totalExpense - totalIncome
       },
+      dataRange: dateFilter.date ? {
+        from: dateFilter.date.gte?.toISOString(),
+        to: dateFilter.date.lte?.toISOString()
+      } : 'Last 30 days'
     });
   } catch (error) {
     throw error;

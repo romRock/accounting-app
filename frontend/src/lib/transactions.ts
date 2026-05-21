@@ -123,7 +123,6 @@ export const transactionApi = {
 
     // If local API fails, fallback to live API
     if (!response.ok) {
-      console.log("Local API failed, trying live API for transaction creation...");
       response = await fetch(`${LIVE_API_URL}/api/transactions`, {
         method: 'POST',
         headers: {
@@ -202,9 +201,6 @@ export const transactionApi = {
 
   async addCity(name: string, code: string, state: string, number?: string): Promise<City> {
     const { accessToken } = useAuthStore.getState();
-    console.log('=== ADD CITY API DEBUG ===');
-    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
-    console.log('Token length:', accessToken?.length || 0);
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -212,9 +208,7 @@ export const transactionApi = {
     
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
-      console.log('Authorization header set');
-    } else {
-      console.log('WARNING: No token found in auth store, proceeding without Authorization header');
+      } else {
     }
     
     const response = await fetch(`${API_BASE_URL}/api/cities/add`, {
@@ -234,9 +228,6 @@ export const transactionApi = {
 
   async updateCity(id: string, name: string, code: string, state: string, number?: string): Promise<City> {
     const { accessToken } = useAuthStore.getState();
-    console.log('=== UPDATE CITY API DEBUG ===');
-    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
-    console.log('Token length:', accessToken?.length || 0);
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -244,9 +235,7 @@ export const transactionApi = {
     
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
-      console.log('Authorization header set');
-    } else {
-      console.log('WARNING: No token found in auth store, proceeding without Authorization header');
+      } else {
     }
     
     const response = await fetch(`${API_BASE_URL}/api/cities/update`, {
@@ -266,9 +255,6 @@ export const transactionApi = {
 
   async deleteCity(id: string): Promise<void> {
     const { accessToken } = useAuthStore.getState();
-    console.log('=== DELETE CITY API DEBUG ===');
-    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
-    console.log('Token length:', accessToken?.length || 0);
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -276,9 +262,7 @@ export const transactionApi = {
     
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
-      console.log('Authorization header set');
-    } else {
-      console.log('WARNING: No token found in auth store, proceeding without Authorization header');
+      } else {
     }
     
     const response = await fetch(`${API_BASE_URL}/api/cities/delete`, {
@@ -297,7 +281,6 @@ export const transactionApi = {
   async addClient(name: string, mobileNumber: string, city: string, notes?: string): Promise<Client> {
     const { accessToken } = useAuthStore.getState();
     console.log('=== ADD CLIENT API DEBUG ===');
-    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
     console.log('Token length:', accessToken?.length || 0);
     
     const headers: HeadersInit = {
@@ -306,9 +289,7 @@ export const transactionApi = {
     
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
-      console.log('Authorization header set');
-    } else {
-      console.log('WARNING: No token found in auth store, proceeding without Authorization header');
+      } else {
     }
     
     const response = await fetch(`${API_BASE_URL}/api/clients/add`, {
@@ -328,9 +309,6 @@ export const transactionApi = {
 
   async updateClient(id: string, name: string, mobileNumber: string, city: string, notes?: string): Promise<Client> {
     const { accessToken } = useAuthStore.getState();
-    console.log('=== UPDATE CLIENT API DEBUG ===');
-    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
-    console.log('Token length:', accessToken?.length || 0);
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -338,9 +316,7 @@ export const transactionApi = {
     
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
-      console.log('Authorization header set');
-    } else {
-      console.log('WARNING: No token found in auth store, proceeding without Authorization header');
+      } else {
     }
     
     const response = await fetch(`${API_BASE_URL}/api/clients/update`, {
@@ -361,7 +337,6 @@ export const transactionApi = {
   async deleteClient(id: string): Promise<void> {
     const { accessToken } = useAuthStore.getState();
     console.log('=== DELETE CLIENT API DEBUG ===');
-    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
     console.log('Token length:', accessToken?.length || 0);
     
     const headers: HeadersInit = {
@@ -370,9 +345,7 @@ export const transactionApi = {
     
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
-      console.log('Authorization header set');
-    } else {
-      console.log('WARNING: No token found in auth store, proceeding without Authorization header');
+      } else {
     }
     
     const response = await fetch(`${API_BASE_URL}/api/clients/delete`, {
@@ -388,7 +361,6 @@ export const transactionApi = {
   },
 
   async getClients(): Promise<Client[]> {
-    console.log('=== GET CLIENTS API DEBUG ===');
     
     const response = await fetch(`${API_BASE_URL}/api/clients`, {
       method: 'GET',
@@ -428,8 +400,6 @@ export const transactionApi = {
 
   async addRole(name: string, permissions: any): Promise<any> {
     const { accessToken } = useAuthStore.getState();
-    console.log('=== ADD ROLE API DEBUG ===');
-    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -455,7 +425,6 @@ export const transactionApi = {
 
   async updateRole(id: string, name: string, permissions: any): Promise<any> {
     const { accessToken } = useAuthStore.getState();
-    console.log('=== UPDATE ROLE API DEBUG ===');
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -505,8 +474,6 @@ export const transactionApi = {
 
   async getUsers(): Promise<any[]> {
     const { accessToken } = useAuthStore.getState();
-    console.log('=== GET USERS API DEBUG ===');
-    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -532,8 +499,6 @@ export const transactionApi = {
 
   async addUser(fullName: string, mobileNumber: string, email: string, password: string, roleId: string): Promise<any> {
     const { accessToken } = useAuthStore.getState();
-    console.log('=== ADD USER API DEBUG ===');
-    console.log('Token from auth store:', accessToken ? 'EXISTS' : 'MISSING');
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -610,7 +575,6 @@ export const transactionApi = {
   // Transaction Refund Report API
   async getTransactionRefundReport(date?: string): Promise<any> {
     const { accessToken } = useAuthStore.getState();
-    console.log('=== TRANSACTION REFUND REPORT API DEBUG ===');
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',

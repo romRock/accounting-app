@@ -73,7 +73,6 @@ interface AuthResponse {
 
 export const authApi = {
   async login(email: string, password: string): Promise<AuthResponse> {
-    console.log("API BASE URL:", API_BASE_URL);
     
     // Try local API first
     let response = await fetch(`${API_BASE_URL}/api/auth/login`, {
@@ -86,8 +85,6 @@ export const authApi = {
 
     // If local API fails (401, 500, network errors), fallback to live API
     if (!response.ok) {
-      console.log("Local API failed, trying live API...");
-      console.log("LIVE API URL:", LIVE_API_URL);
       
       response = await fetch(`${LIVE_API_URL}/api/auth/login`, {
         method: 'POST',

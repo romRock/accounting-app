@@ -5,7 +5,6 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
   const { method, url, ip } = req;
   const userAgent = req.get('User-Agent') || '';
 
-  console.log(`[${timestamp}] ${method} ${url} - IP: ${ip} - User-Agent: ${userAgent}`);
   
   // Store request start time for response time calculation
   req.startTime = Date.now();
@@ -13,7 +12,6 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
   // Log response when finished
   res.on('finish', () => {
     const responseTime = Date.now() - (req.startTime || Date.now());
-    console.log(`[${timestamp}] ${method} ${url} - Status: ${res.statusCode} - Response Time: ${responseTime}ms`);
   });
 
   next();

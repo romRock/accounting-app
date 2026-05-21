@@ -489,9 +489,6 @@ export const getTransactionRefundReport = async (req: Request, res: Response) =>
   try {
     const { date } = req.query;
 
-    console.log('=== TRANSACTION REFUND REPORT DEBUG ===');
-    console.log('Date query parameter:', date);
-    console.log('Date type:', typeof date);
 
     // Default to last 7 days if no date provided
     let startOfDay: Date;
@@ -500,26 +497,20 @@ export const getTransactionRefundReport = async (req: Request, res: Response) =>
     if (date) {
       // If specific date provided, use that date
       const targetDate = new Date(date as string);
-      console.log('Target date:', targetDate);
-      console.log('Target date ISO:', targetDate.toISOString());
 
       startOfDay = new Date(targetDate);
       startOfDay.setHours(0, 0, 0, 0);
-      console.log('Start of day:', startOfDay.toISOString());
 
       endOfDay = new Date(targetDate);
       endOfDay.setHours(23, 59, 59, 999);
-      console.log('End of day:', endOfDay.toISOString());
     } else {
       // Default to last 7 days
       endOfDay = new Date();
       endOfDay.setHours(23, 59, 59, 999);
-      console.log('End of day (last 7 days):', endOfDay.toISOString());
 
       startOfDay = new Date();
-      startOfDay.setDate(startOfDay.getDate() - 6); // Go back 6 days to include today (total 7 days)
+      startOfDay.setDate(startOfDay.getDate() - 6);
       startOfDay.setHours(0, 0, 0, 0);
-      console.log('Start of day (last 7 days):', startOfDay.toISOString());
     }
 
     // Query deleted entries from all 4 modules
@@ -580,10 +571,6 @@ export const getTransactionRefundReport = async (req: Request, res: Response) =>
       }),
     ]);
 
-    console.log('Deleted transactions count:', deletedTransactions.length);
-    console.log('Deleted account entries count:', deletedAccountEntries.length);
-    console.log('Deleted hawalas count:', deletedHawalas.length);
-    console.log('Deleted special entries count:', deletedSpecialEntries.length);
 
     // Get all unique user IDs who deleted entries
     const allDeletedByIds = [
@@ -718,7 +705,6 @@ export const getTransactionRefundReport = async (req: Request, res: Response) =>
       date: date ? date : startOfDay.toISOString(),
     });
   } catch (error) {
-    console.error('Error in getTransactionRefundReport:', error);
     throw error;
   }
 };

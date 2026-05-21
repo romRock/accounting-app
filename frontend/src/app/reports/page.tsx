@@ -163,7 +163,6 @@ export default function ReportsPage() {
       setClients(allClients);
       return allClients;
     } catch (error) {
-      console.error('Failed to fetch clients:', error);
       setClients([]);
       return [];
     }
@@ -214,7 +213,7 @@ export default function ReportsPage() {
           }
         });
       } catch (error) {
-        console.error(`Error fetching transactions for ${client.name}:`, error);
+        // Error fetching transactions for client
       }
 
       // 2. Accounting Module - reduced limit for production compatibility
@@ -231,7 +230,7 @@ export default function ReportsPage() {
           }
         });
       } catch (error) {
-        console.error(`Error fetching accounting entries for ${client.name}:`, error);
+        // Error fetching accounting entries for client
       }
 
       // 3. Hawala Module - reduced limit for production compatibility
@@ -251,7 +250,7 @@ export default function ReportsPage() {
           }
         });
       } catch (error) {
-        console.error(`Error fetching hawala entries for ${client.name}:`, error);
+        // Error fetching hawala entries for client
       }
 
       // 4. Special Entry Module - reduced limit for production compatibility
@@ -281,61 +280,142 @@ export default function ReportsPage() {
           }
         });
       } catch (error) {
-        console.error(`Error fetching special entries for ${client.name}:`, error);
+        // Error fetching special entries for client
       }
 
     } catch (error) {
-      console.error('Error calculating balance for client:', client.name, error);
+      // Error calculating balance for client
     }
 
     const balance = totalCredit - totalDebit;
     return { balance, credit: totalCredit, debit: totalDebit };
   };
 
-  // Fetch all client balances
+  // Fetch all client balances - OPTIMIZED: Batch fetch all data upfront instead of N+1 queries
   const fetchAllClientBalances = async (clientList: any[]) => {
     const balances: Record<string, { balance: number; credit: number; debit: number }> = {};
 
-    for (const client of clientList) {
-      const balanceData = await calculateClientBalance(client);
-      balances[client.id] = balanceData;
-    }
+    try {
+      // Fetch all data from all 4 modules ONCE (instead of per-client)
+      const [outwardTxns, inwardTxns, accEntries, hawalaEntries, splEntries] = await Promise.all([
+        transactionApi.getTransactions({ type: 'OUTWARD', page: 1, limit: 500 }),
+        transactionApi.getTransactions({ type: 'INWARD', page: 1, limit: 500 }),
+        accountingApi.getAccountEntries({ page: 1, limit: 500 }),
+        getHawalaEntries({ page: 1, limit: 500 }),
+        getSpecialEntries({ page: 1, limit: 500 })
+      ]);
 
-    setClientBalances(balances);
-    return balances;
+      const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];
+      const allAccEntries = accEntries.entries || [];
+      const allHawalaEntries = hawalaEntries.data || [];
+      const allSplEntries = splEntries.data || [];
+
+      // Calculate balances for all clients in memory
+      for (const client of clientList) {
+        const clientName = client.name.toLowerCase();
+        let totalCredit = 0;
+        let totalDebit = 0;
+
+        // Process transactions
+        allTxns.forEach(txn => {
+          const receiverName = txn.receiverName?.toLowerCase() || '';
+          const senderName = txn.senderName?.toLowerCase() || '';
+
+          if (receiverName === clientName || senderName === clientName) {
+            if (txn.type === 'OUTWARD') {
+              if (txn.amountType === 'CREDIT' && senderName === clientName) {
+                totalDebit += (txn.amount || 0) + (txn.commission || 0);
+              } else {
+                totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
+              }
+            } else if (txn.type === 'INWARD') {
+              if (txn.amountType === 'CREDIT' && receiverName === clientName) {
+                totalCredit += (txn.amount || 0);
+              } else {
+                totalDebit += (txn.amount || 0);
+              }
+            }
+          }
+        });
+
+        // Process accounting entries
+        allAccEntries.forEach(entry => {
+          const partyName = entry.party?.name?.toLowerCase() || '';
+          if (partyName === clientName) {
+            if (entry.type === 'INCOME') {
+              totalCredit += entry.creditAmount || entry.amount || 0;
+            } else if (entry.type === 'EXPENSE') {
+              totalDebit += entry.debitAmount || entry.amount || 0;
+            }
+          }
+        });
+
+        // Process hawala entries
+        allHawalaEntries.forEach(entry => {
+          const partyA = entry.partyA?.toLowerCase() || '';
+          const partyB = entry.partyB?.toLowerCase() || '';
+          if (partyA === clientName) {
+            totalCredit += entry.amount || 0;
+          }
+          if (partyB === clientName) {
+            totalDebit += entry.amount || 0;
+          }
+        });
+
+        // Process special entries
+        allSplEntries.forEach(entry => {
+          const partyA = entry.partyA?.toLowerCase() || '';
+          const partyB = entry.partyB?.toLowerCase() || '';
+          const partyC = entry.partyC?.toLowerCase() || '';
+          if (partyA === clientName) {
+            totalDebit += entry.amountA || 0;
+          }
+          if (partyB === clientName) {
+            totalCredit += entry.amountB || 0;
+          }
+          if (partyC === clientName) {
+            const amountC = entry.amountC || 0;
+            if (amountC > 0) {
+              totalCredit += amountC;
+            } else {
+              totalDebit += Math.abs(amountC);
+            }
+          }
+        });
+
+        balances[client.id] = { balance: totalCredit - totalDebit, credit: totalCredit, debit: totalDebit };
+      }
+
+      setClientBalances(balances);
+      return balances;
+    } catch (error) {
+      setClientBalances({});
+      return {};
+    }
   };
 
   // Fetch ledger entries for a specific client from all modules
   const fetchClientLedger = async (client: any) => {
-    console.log('=== fetchClientLedger called ===');
-    console.log('Client:', client);
     setLoading(true);
     const ledgerEntries: any[] = [];
     const clientName = client.name.toLowerCase();
     const clientCreatedDate = new Date(client.createdAt);
-    console.log('Client name:', clientName);
-    console.log('Client created date:', clientCreatedDate);
 
     try {
-      // 1. Transactions Module
+      // 1. Transactions Module - reduced limit for performance
       const [outwardTxns, inwardTxns] = await Promise.all([
-        transactionApi.getTransactions({ type: 'OUTWARD', page: 1, limit: 1000 }),
-        transactionApi.getTransactions({ type: 'INWARD', page: 1, limit: 1000 })
+        transactionApi.getTransactions({ type: 'OUTWARD', page: 1, limit: 500 }),
+        transactionApi.getTransactions({ type: 'INWARD', page: 1, limit: 500 })
       ]);
 
       const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];
-      console.log('Total transactions fetched:', allTxns.length);
 
       allTxns.forEach(txn => {
         const receiverName = txn.receiverName?.toLowerCase() || '';
         const senderName = txn.senderName?.toLowerCase() || '';
         const txnDate = new Date(txn.date);
 
-        // Log all transactions for debugging
-        console.log('Transaction:', txn.transactionId, 'Sender:', senderName, 'Receiver:', receiverName, 'Date:', txnDate);
-
         if (receiverName === clientName || senderName === clientName) {
-          console.log('Matching transaction:', txn.transactionId, 'Type:', txn.type, 'AmountType:', txn.amountType, 'Sender:', senderName, 'Receiver:', receiverName);
           let isCredit = false;
           let debitAmount = 0;
           let creditAmount = 0;
@@ -388,8 +468,8 @@ export default function ReportsPage() {
         }
       });
 
-      // 2. Accounting Module
-      const accEntries = await accountingApi.getAccountEntries({ page: 1, limit: 1000 });
+      // 2. Accounting Module - reduced limit for performance
+      const accEntries = await accountingApi.getAccountEntries({ page: 1, limit: 500 });
       (accEntries.entries || []).forEach(entry => {
         const partyName = entry.party?.name?.toLowerCase() || '';
         const entryDate = new Date(entry.date);
@@ -410,8 +490,8 @@ export default function ReportsPage() {
         }
       });
 
-      // 3. Hawala Module - Use ledger entries created by backend
-      const hawalaEntries = await getHawalaEntries({ page: 1, limit: 1000 });
+      // 3. Hawala Module - reduced limit for performance
+      const hawalaEntries = await getHawalaEntries({ page: 1, limit: 500 });
       (hawalaEntries.data || []).forEach(entry => {
         const partyA = entry.partyA?.toLowerCase() || '';
         const partyB = entry.partyB?.toLowerCase() || '';
@@ -434,8 +514,8 @@ export default function ReportsPage() {
         }
       });
 
-      // 4. Special Entry Module
-      const splEntries = await getSpecialEntries({ page: 1, limit: 1000 });
+      // 4. Special Entry Module - reduced limit for performance
+      const splEntries = await getSpecialEntries({ page: 1, limit: 500 });
       (splEntries.data || []).forEach(entry => {
         const partyA = entry.partyA?.toLowerCase() || '';
         const partyB = entry.partyB?.toLowerCase() || '';
@@ -489,7 +569,6 @@ export default function ReportsPage() {
 
       setClientLedger(ledgerEntries);
     } catch (error) {
-      console.error('Error fetching client ledger:', error);
       setClientLedger([]);
     } finally {
       setLoading(false);
@@ -498,8 +577,6 @@ export default function ReportsPage() {
 
   // Handle client row click
   const handleClientClick = (client: any) => {
-    console.log('=== handleClientClick called ===');
-    console.log('Client:', client);
     setSelectedClient(client);
     fetchClientLedger(client);
   };
@@ -648,7 +725,6 @@ export default function ReportsPage() {
         generateClientLedgerPDF();
       }
     } catch (error) {
-      console.error('Export failed:', error);
       alert('Export failed');
     } finally {
       setLedgerExporting(false);
@@ -878,9 +954,7 @@ export default function ReportsPage() {
         setReportData([]); // unified table renders from txnReportRows
       } else if (activeReport === 'transaction-refund') {
         // Transaction Refund Report - fetch deleted entries (defaults to last 7 days)
-        console.log('=== TRANSACTION REFUND REPORT FRONTEND DEBUG ===');
         const refundData = await transactionApi.getTransactionRefundReport(); // No date parameter - uses default 7-day range
-        console.log('Refund API response:', refundData);
         setRefundReportData(refundData.deletedEntries || []);
         setRefundSummary(refundData.summary || null);
         setReportData([]); // no regular data for this report
@@ -899,7 +973,6 @@ export default function ReportsPage() {
 
       // Calculate summary will be done in filteredData useEffect
     } catch (error) {
-      console.error('Failed to fetch transactions:', error);
       setReportData([]);
       setSummary(null);
     } finally {
@@ -1143,7 +1216,6 @@ export default function ReportsPage() {
       rows.sort((a, b) => a.sortTs - b.sortTs);
       setTxnReportRows(rows);
     } catch (err) {
-      console.error('Failed to fetch transaction report:', err);
       setTxnReportRows([]);
     }
   };

@@ -86,9 +86,6 @@ const getAuthToken = () => {
 export const createHawala = async (data: CreateHawalaData): Promise<HawalaResponse> => {
   try {
     const token = getAuthToken();
-    console.log('=== CREATE HAWALA API DEBUG ===');
-    console.log('Token from auth store:', token ? 'EXISTS' : 'MISSING');
-    console.log('Token length:', token?.length || 0);
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -96,9 +93,7 @@ export const createHawala = async (data: CreateHawalaData): Promise<HawalaRespon
     
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
-      console.log('Authorization header set');
     } else {
-      console.log('WARNING: No token found in auth store, proceeding without Authorization header');
     }
     
     const response = await fetch(`${API_URL}/api/hawala`, {
@@ -115,7 +110,6 @@ export const createHawala = async (data: CreateHawalaData): Promise<HawalaRespon
 
     return result;
   } catch (error) {
-    console.error('Error creating hawala entry:', error);
     throw error;
   }
 };
@@ -149,7 +143,6 @@ export const getHawalaEntries = async (filters: HawalaFilters = {}): Promise<Haw
 
     return result;
   } catch (error) {
-    console.error('Error fetching hawala entries:', error);
     throw error;
   }
 };
@@ -173,7 +166,6 @@ export const getHawalaById = async (id: string): Promise<HawalaResponse> => {
 
     return result;
   } catch (error) {
-    console.error('Error fetching hawala entry:', error);
     throw error;
   }
 };
@@ -199,7 +191,6 @@ export const updateHawala = async (id: string, data: UpdateHawalaData): Promise<
 
     return result;
   } catch (error) {
-    console.error('Error updating hawala entry:', error);
     throw error;
   }
 };
@@ -225,7 +216,6 @@ export const deleteHawala = async (id: string, createdBy: string): Promise<Hawal
 
     return result;
   } catch (error) {
-    console.error('Error deleting hawala entry:', error);
     throw error;
   }
 };

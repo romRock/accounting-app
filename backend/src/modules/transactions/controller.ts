@@ -23,12 +23,6 @@ const prisma = new PrismaClient();
 
 export const createTransaction = async (req: Request, res: Response) => {
   try {
-    console.log('=== CREATE TRANSACTION DEBUG ===');
-    console.log('Request body:', req.body);
-    console.log('User:', req.user);
-    console.log('Environment:', process.env.NODE_ENV);
-    console.log('Database URL:', process.env.DATABASE_URL?.substring(0, 20) + '...');
-    
     const {
       date,
       time,
@@ -65,7 +59,6 @@ export const createTransaction = async (req: Request, res: Response) => {
         select: { id: true }
       });
       actualCenterId = center?.id || centerId;
-      console.log('Center lookup:', { input: centerId, found: actualCenterId });
     }
 
     // Generate unique transaction ID based on type (book_001 for outward, cut_001 for inward)
@@ -199,10 +192,6 @@ export const createTransaction = async (req: Request, res: Response) => {
       transaction,
     });
   } catch (error) {
-    console.error('=== TRANSACTION CREATION ERROR ===');
-    console.error('Error details 1:', error);
-    console.error('Error message:', error instanceof Error ? error.message : 'Unknown error');
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     
     // Handle specific database errors
     if (error instanceof Error) {
@@ -577,113 +566,19 @@ export const getNextTransactionIds = async (req: Request, res: Response) => {
     // Generate next token number for the given date and type
     const nextTokenNo = await generateTokenNumberByType(date as string || new Date().toISOString().split('T')[0], type as string || 'OUTWARD');
 
-    console.log('Generated IDs:', { nextTransactionId, nextTokenNo });
 
     res.json({
       nextTransactionId,
       nextTokenNo,
     });
   } catch (error) {
-    console.error('Error in getNextTransactionIds:', error);
     throw error;
   }
 };
-
-export const getTransactionStats = async (req: Request, res: Response) => {
-  try {
-    const { dateFrom, dateTo } = req.query;
-    const userBranchId = req.user?.branchId;
-    const userRole = req.user?.role.name;
-
-    const where: any = {
-      isActive: true,
-      isDeleted: false,
-    };
-
-    // No branch-based filtering needed - using centers only
-
-    if (dateFrom || dateTo) {
-      where.date = {};
-      if (dateFrom) where.date.gte = new Date(dateFrom as string);
-      if (dateTo) where.date.lte = new Date(dateTo as string);
-    }
-
-    // Get statistics
-    const [
-      totalTransactions,
-      totalAmount,
-      totalCommission,
-      inwardTransactions,
-      outwardTransactions,
-      pendingTransactions,
-      completedTransactions,
-    ] = await Promise.all([
-      prisma.transaction.count({ where }),
-      prisma.transaction.aggregate({
-        where,
-        _sum: { amount: true },
-      }),
-      prisma.transaction.aggregate({
-        where,
-        _sum: { commission: true },
-      }),
-      prisma.transaction.count({
-        where: { ...where, type: TransactionType.INWARD },
-      }),
-      prisma.transaction.count({
-        where: { ...where, type: TransactionType.OUTWARD },
-      }),
-      prisma.transaction.count({
-        where: { ...where, status: false },
-      }),
-      prisma.transaction.count({
-        where: { ...where, status: true },
-      }),
-    ]);
-
-    res.json({
-      totalTransactions,
-      totalAmount: totalAmount._sum.amount || 0,
-      totalCommission: totalCommission._sum.commission || 0,
-      inwardTransactions,
-      outwardTransactions,
-      pendingTransactions,
-      completedTransactions,
-    });
-  } catch (error) {
-    throw error;
-  }
-};
-
-// Helper function to generate transaction ID (PM2_001, PM2_002...)
-async function generateTransactionId(): Promise<string> {
-  try {
-    // Get the last transaction ID
-    const lastTransaction = await prisma.transaction.findFirst({
-      orderBy: { createdAt: 'desc' },
-      select: { transactionId: true },
-    });
-
-    let nextNumber = 1;
-    if (lastTransaction && lastTransaction.transactionId) {
-      // Extract number from PM2_XXX format
-      const match = lastTransaction.transactionId.match(/PM2_(\d+)/);
-      if (match) {
-        nextNumber = parseInt(match[1]) + 1;
-      }
-    }
-
-    return `PM2_${nextNumber.toString().padStart(3, '0')}`;
-  } catch (error) {
-    // If there's an error, start from 1
-    return 'PM2_001';
-  }
-}
 
 // Helper function to generate transaction ID by type (separate for outward/inward)
 async function generateTransactionIdByType(type: string): Promise<string> {
   try {
-    // Get the last transaction ID for the specific type
     const lastTransaction = await prisma.transaction.findFirst({
       where: { type: type as TransactionType },
       orderBy: { createdAt: 'desc' },
@@ -692,24 +587,20 @@ async function generateTransactionIdByType(type: string): Promise<string> {
 
     let nextNumber = 1;
     if (lastTransaction && lastTransaction.transactionId) {
-      // Extract number from book_XXX or cut_XXX format
       const match = lastTransaction.transactionId.match(/(book|cut)_(\d+)/);
       if (match) {
         nextNumber = parseInt(match[2]) + 1;
       }
     }
 
-    // Generate ID based on transaction type
     if (type === 'OUTWARD') {
       return `book_${nextNumber.toString().padStart(3, '0')}`;
     } else if (type === 'INWARD') {
       return `cut_${nextNumber.toString().padStart(3, '0')}`;
     } else {
-      // Fallback to PM2 format for any other type
       return `PM2_${nextNumber.toString().padStart(3, '0')}`;
     }
   } catch (error) {
-    // If there's an error, start from 1
     if (type === 'OUTWARD') {
       return 'book_001';
     } else if (type === 'INWARD') {
@@ -720,12 +611,9 @@ async function generateTransactionIdByType(type: string): Promise<string> {
   }
 }
 
-
 // Helper function to generate token number by type (separate for outward/inward, daily reset at 12:00 AM IST)
-async function generateTokenNumberByType(date: string, type: string): Promise<number> {
+export const generateTokenNumberByType = async (date: string, type: string) => {
   try {
-    console.log('=== GENERATE TOKEN NUMBER BY TYPE DEBUG ===');
-    console.log('Input params:', { date, type });
     
     const targetDate = new Date(date);
     // Set time to start of day in IST (UTC+5:30)
@@ -733,30 +621,6 @@ async function generateTokenNumberByType(date: string, type: string): Promise<nu
     const nextDay = new Date(targetDate);
     nextDay.setDate(nextDay.getDate() + 1);
 
-    console.log('Date range:', { targetDate, nextDay });
-
-    // First, let's see all transactions for this date and type
-    const allTransactions = await prisma.transaction.findMany({
-      where: {
-        date: {
-          gte: targetDate,
-          lt: nextDay,
-        },
-      },
-      select: { 
-        id: true,
-        transactionId: true,
-        tokenNo: true,
-        type: true,
-        date: true
-      },
-      orderBy: { tokenNo: 'asc' }
-    });
-
-    console.log('All transactions for date:', allTransactions);
-
-    // Get the last token number for the given date and type
-    console.log('Querying for type:', type);
     const lastTransaction = await prisma.transaction.findFirst({
       where: {
         type: type, // Direct string comparison
@@ -769,14 +633,11 @@ async function generateTokenNumberByType(date: string, type: string): Promise<nu
       select: { tokenNo: true },
     });
 
-    console.log('Last transaction found for type', type, ':', lastTransaction);
 
     const nextTokenNo = lastTransaction?.tokenNo ? lastTransaction.tokenNo + 1 : 1;
-    console.log('Next token number:', nextTokenNo);
 
     return nextTokenNo;
   } catch (error) {
-    console.error('Error in generateTokenNumberByType:', error);
     // If there's an error, start from 1
     return 1;
   }
@@ -829,7 +690,6 @@ async function createClientLedgerEntries(transaction: any) {
       });
     }
   } catch (error) {
-    console.error('Error creating ledger entries:', error);
     // Don't throw error to avoid failing the transaction
   }
 }

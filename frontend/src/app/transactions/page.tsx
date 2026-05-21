@@ -91,7 +91,6 @@ export default function TransactionsPage() {
   // Force form update when editingTransaction changes
   useEffect(() => {
     if (editingTransaction) {
-      console.log('=== FORM UPDATE EFFECT TRIGGERED ===');
       setValue('transactionId', editingTransaction.transactionId);
       setValue('tokenNo', editingTransaction.tokenNo);
       setValue('date', new Date(editingTransaction.date).toISOString().split('T')[0]);
@@ -158,7 +157,6 @@ export default function TransactionsPage() {
     try {
       const { accessToken } = useAuthStore.getState();
       const type = transactionType || activeTab.toUpperCase();
-      console.log('Fetching next IDs with:', { date, type, activeTab });
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/transactions/next-ids?date=${date}&type=${type}`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -166,13 +164,10 @@ export default function TransactionsPage() {
       });
       if (response.ok) {
         const data = await response.json();
-        console.log('Next IDs fetched:', data);
         return data;
       } else {
-        console.error('Failed to fetch next IDs:', response.status, response.statusText);
       }
     } catch (error) {
-      console.error('Failed to fetch next IDs:', error);
     }
     return { nextTransactionId: 'PM2_001', nextTokenNo: 1 };
   };
@@ -196,7 +191,6 @@ export default function TransactionsPage() {
 
   // Commission calculation for preview (backend is source of truth)
   useEffect(() => {
-    console.log('Commission effect triggered:', { autoCommission, amount, activeTab });
     if (autoCommission && amount > 0) {
       if (activeTab === 'outward') {
         // OUTWARD commission calculation - same logic as inward but with 33%/67% split
@@ -231,7 +225,6 @@ export default function TransactionsPage() {
         const bookingCommission = Math.floor(calculatedCommission * 0.35);
         const centerCommission = calculatedCommission - bookingCommission;
         
-        console.log('Setting outward commission values:', { calculatedCommission, bookingCommission, centerCommission });
         
         setValue('commission', calculatedCommission);
         setValue('bookingCommission', bookingCommission);
@@ -269,14 +262,12 @@ export default function TransactionsPage() {
         // Use Math.floor to apply rounding to center side
         const cuttingCommission = Math.floor(calculatedCommission * 0.35);
         
-        console.log('Setting inward cutting commission:', { calculatedCommission, cuttingCommission });
         
         setValue('cuttingCommission', cuttingCommission);
         setValue('commission', calculatedCommission); // Total commission
       }
     } else if (amount === 0) {
       // Reset commissions when amount is 0
-      console.log('Resetting commission values to 0');
       if (activeTab === 'outward') {
         setValue('commission', 0);
         setValue('bookingCommission', 0);
@@ -294,7 +285,6 @@ export default function TransactionsPage() {
       const bookingCommission = watch('bookingCommission') || 0;
       const centerCommission = watch('centerCommission') || 0;
       const totalCommission = bookingCommission + centerCommission;
-      console.log('Manual mode - calculating total commission:', { bookingCommission, centerCommission, totalCommission });
       setValue('commission', totalCommission);
     }
   }, [watch('bookingCommission'), watch('centerCommission'), autoCommission, setValue]);
@@ -305,7 +295,6 @@ export default function TransactionsPage() {
       if (!editingTransaction) {
         const currentTime = new Date().toTimeString().slice(0, 5);
         setValue('time', currentTime);
-        console.log('Time updated:', currentTime);
       }
     };
 
@@ -329,15 +318,12 @@ export default function TransactionsPage() {
   const fetchTransactions = async () => {
     try {
       setLoading(true);
-      console.log('Fetching transactions with type:', activeTab.toUpperCase());
       const data = await transactionApi.getTransactions({
         page: currentPage,
         type: activeTab.toUpperCase(),
       });
-      console.log('Transactions received:', data);
       setTransactions(data.transactions);
     } catch (error) {
-      console.error('Failed to fetch transactions:', error);
     } finally {
       setLoading(false);
     }
@@ -457,11 +443,6 @@ export default function TransactionsPage() {
 
   // Handle row click to edit transaction
   const handleRowClick = (transaction: Transaction) => {
-    console.log('=== EDIT TRANSACTION DEBUG ===');
-    console.log('Transaction data:', transaction);
-    console.log('Transaction.center:', transaction.center);
-    console.log('Transaction.receiverName:', transaction.receiverName);
-    console.log('Transaction.senderName:', transaction.senderName);
     
     setEditingTransaction(transaction);
     setActiveTab(transaction.type.toLowerCase() as 'outward' | 'inward');
@@ -489,11 +470,9 @@ export default function TransactionsPage() {
     
     // Set selectedCity for editing
     if (transaction.center) {
-      console.log('Setting selectedCity to:', transaction.center);
       setSelectedCity(transaction.center);
     }
     
-    console.log('=== EDIT TRANSACTION SET VALUES COMPLETE ===');
   };
 
   // Filter transactions
@@ -518,7 +497,6 @@ export default function TransactionsPage() {
     const transactionDate = new Date(transaction.date);
     // Check if date is valid before calling toISOString()
     if (isNaN(transactionDate.getTime())) {
-      console.warn('Invalid date value:', transaction.date);
       return false; // Skip this transaction if date is invalid
     }
     const transactionDateString = transactionDate.toISOString().split('T')[0];
@@ -654,7 +632,6 @@ export default function TransactionsPage() {
                     label="Center"
                     value={selectedCity?.name || watch('centerId') || ''}
                     onChange={(value, city) => {
-                      console.log('CityTypeahead onChange - value:', value, 'city:', city);
                       setValue('centerId', city?.id || value);
                       setSelectedCity(city);
                     }}
@@ -675,7 +652,6 @@ export default function TransactionsPage() {
                       onChange={(e) => {
                         const value = parseInt(e.target.value) || 0;
                         setValue('amount', value);
-                        console.log('Amount changed to:', value);
                       }}
                       autoComplete="off"
                       className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-black text-lg placeholder:text-gray-600"
@@ -785,7 +761,6 @@ export default function TransactionsPage() {
                         label="Receiver Name"
                         value={watch('receiverName') || ''}
                         onChange={(value: string, client?: Client) => {
-                          console.log('ReceiverTypeahead onChange - value:', value, 'client:', client);
                           setValue('receiverName', value);
                           if (client) {
                             setSelectedReceiverClient(client);
@@ -830,7 +805,6 @@ export default function TransactionsPage() {
                         label="Sender Name"
                         value={watch('senderName') || ''}
                         onChange={(value: string, client?: Client) => {
-                          console.log('SenderTypeahead onChange - value:', value, 'client:', client);
                           setValue('senderName', value);
                           if (client) {
                             setSelectedSenderClient(client);

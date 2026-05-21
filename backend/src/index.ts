@@ -81,22 +81,29 @@ async function initializeDatabase() {
       }
       
       // Create admin user
-      const hashedPassword = await bcrypt.hash('admin@1234', 10);
-      const adminUser = await prisma.user.create({
-        data: {
-          email: 'admin@mail.com',
-          username: 'admin',
-          password: hashedPassword,
-          firstName: 'System',
-          lastName: 'Administrator',
-          phone: '+91-9876543210',
-          roleId: adminRole.id,
-          isActive: true,
-        },
-      });
-      
-      console.log('✅ Admin user created successfully');
-      console.log('📋 Login credentials: admin@mail.com / admin@1234');
+      try {
+        const hashedPassword = await bcrypt.hash('admin@1234', 10);
+        const adminUser = await prisma.user.create({
+          data: {
+            email: 'admin@mail.com',
+            username: 'admin',
+            password: hashedPassword,
+            firstName: 'System',
+            lastName: 'Administrator',
+            phone: '+91-9876543210',
+            roleId: adminRole.id,
+            isActive: true,
+          },
+        });
+        console.log('✅ Admin user created successfully');
+        console.log('📋 Login credentials: admin@mail.com / admin@1234');
+      } catch (error: any) {
+        if (error.code === 'P2002') {
+          console.log('⚠️  Admin user or username already exists, skipping creation');
+        } else {
+          throw error;
+        }
+      }
     } else {
       console.log('✅ Admin user already exists');
     }

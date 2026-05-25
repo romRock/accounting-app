@@ -66,26 +66,35 @@ export default function BalanceSheetPage() {
 
       const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];
 
-      setCachedData({
+      const moduleData = {
         transactions: allTxns,
         accounting: accEntries.entries || [],
         hawala: hawalaEntries.data || [],
         specialEntry: splEntries.data || []
-      });
+      };
+
+      setCachedData(moduleData);
+      return moduleData;
     } catch (error) {
       console.error('Error fetching module data:', error);
+      return {
+        transactions: [],
+        accounting: [],
+        hawala: [],
+        specialEntry: []
+      };
     }
   };
 
-  // Calculate client balance from cached data (same logic as customer report)
-  const calculateClientBalance = (client: any) => {
+  // Calculate client balance from provided data (same logic as customer report)
+  const calculateClientBalance = (client: any, moduleData: any) => {
     let totalCredit = 0;
     let totalDebit = 0;
     const clientName = client.name.toLowerCase();
 
     try {
-      // 1. Transactions Module - use cached data
-      cachedData.transactions.forEach((txn: any) => {
+      // 1. Transactions Module - use provided data
+      moduleData.transactions.forEach((txn: any) => {
         const receiverName = txn.receiverName?.toLowerCase() || '';
         const senderName = txn.senderName?.toLowerCase() || '';
 
@@ -112,8 +121,8 @@ export default function BalanceSheetPage() {
         }
       });
 
-      // 2. Accounting Module - use cached data
-      cachedData.accounting.forEach((entry: any) => {
+      // 2. Accounting Module - use provided data
+      moduleData.accounting.forEach((entry: any) => {
         const partyName = entry.party?.name?.toLowerCase() || '';
         if (partyName === clientName) {
           if (entry.type === 'INCOME') {
@@ -124,8 +133,8 @@ export default function BalanceSheetPage() {
         }
       });
 
-      // 3. Hawala Module - use cached data
-      cachedData.hawala.forEach((entry: any) => {
+      // 3. Hawala Module - use provided data
+      moduleData.hawala.forEach((entry: any) => {
         const partyA = entry.partyA?.toLowerCase() || '';
         const partyB = entry.partyB?.toLowerCase() || '';
 
@@ -139,8 +148,8 @@ export default function BalanceSheetPage() {
         }
       });
 
-      // 4. Special Entry Module - use cached data
-      cachedData.specialEntry.forEach((entry: any) => {
+      // 4. Special Entry Module - use provided data
+      moduleData.specialEntry.forEach((entry: any) => {
         const partyA = entry.partyA?.toLowerCase() || '';
         const partyB = entry.partyB?.toLowerCase() || '';
         const partyC = entry.partyC?.toLowerCase() || '';
@@ -177,15 +186,15 @@ export default function BalanceSheetPage() {
     setLoading(true);
     try {
       // First, fetch all module data once (5 API calls total)
-      await fetchAllModuleData();
+      const moduleData = await fetchAllModuleData();
 
-      // Then get clients and calculate balances using cached data
+      // Then get clients and calculate balances using fetched data
       const allClients = await transactionApi.getClients();
       const incomeEntries: BalanceSheetEntry[] = [];
       const expenseEntries: BalanceSheetEntry[] = [];
 
       for (const client of allClients) {
-        const balanceData = calculateClientBalance(client);
+        const balanceData = calculateClientBalance(client, moduleData);
         const balance = balanceData.balance;
 
         if (balance < 0) {
@@ -194,14 +203,21 @@ export default function BalanceSheetPage() {
             accountName: client.name,
             amount: Math.abs(balance)
           });
-        } else {
-          // Positive or zero balance = money to pay = expense side
+        } else if (balance > 0) {
+          // Positive balance = money to pay = expense side
           expenseEntries.push({
             accountName: client.name,
             amount: balance
           });
         }
+        // Zero balance clients are not shown (as per customer report behavior)
       }
+
+      console.log('Balance sheet calculated:', {
+        incomeCount: incomeEntries.length,
+        expenseCount: expenseEntries.length,
+        totalClients: allClients.length
+      });
 
       setBalanceSheetData({
         incomeEntries,

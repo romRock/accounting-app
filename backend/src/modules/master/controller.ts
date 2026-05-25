@@ -1,9 +1,13 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { createError } from '../../middlewares/errorHandler';
+import { invalidateCachePattern } from '../../middlewares/cache';
 import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
+// PrismaClient singleton pattern to prevent connection exhaustion
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
+const prisma = globalForPrisma.prisma || new PrismaClient();
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 // Helper function to handle query parameters that can be arrays
 const getFirstValue = (value: any): string | undefined => {
@@ -1103,6 +1107,9 @@ export const createParty = async (req: Request, res: Response) => {
       },
     });
 
+    // Invalidate parties cache after successful creation
+    invalidateCachePattern('/api/parties');
+
     res.status(201).json({
       message: 'Party created successfully',
       party,
@@ -1157,6 +1164,9 @@ export const updateParty = async (req: Request, res: Response) => {
         city,
       },
     });
+
+    // Invalidate parties cache after successful update
+    invalidateCachePattern('/api/parties');
 
     // Create audit log
     await prisma.auditLog.create({
@@ -1225,6 +1235,9 @@ export const deleteParty = async (req: Request, res: Response) => {
         isDeleted: true,
       },
     });
+
+    // Invalidate parties cache after successful deletion
+    invalidateCachePattern('/api/parties');
 
     // Create audit log
     await prisma.auditLog.create({

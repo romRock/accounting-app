@@ -18,10 +18,15 @@ import { authenticateToken, requireRole } from './modules/auth/middleware';
 import { requireAdmin } from './middlewares/rbac';
 import { errorHandler } from './middlewares/errorHandler';
 import { requestLogger } from './middlewares/requestLogger';
+import { cacheMiddleware, invalidateCachePattern } from './middlewares/cache';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
-const prisma = new PrismaClient();
+
+// PrismaClient singleton pattern to prevent connection exhaustion
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
+const prisma = globalForPrisma.prisma || new PrismaClient();
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 async function doesColumnExist(tableName: string, columnName: string) {
   const result = await prisma.$queryRaw<{ column_name: string }[]>`
@@ -548,6 +553,9 @@ app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
+app.use('/api/cities', cacheMiddleware(1800)); // Cache cities for 30 minutes
+app.use('/api/roles', cacheMiddleware(1800)); // Cache roles for 30 minutes
+app.use('/api/parties', cacheMiddleware(1800)); // Cache parties for 30 minutes
 
 // Health check
 app.get('/health', (req, res) => {
@@ -572,7 +580,6 @@ app.get('/api/cities', async (req, res) => {
 app.post('/api/seed/cities', async (req, res) => {
   try {
     const { seedCities } = await import('./seedCities');
-    const prisma = new PrismaClient();
     
     console.log("=== MANUAL PRODUCTION SEEDING TRIGGERED ===");
     
@@ -742,13 +749,7 @@ app.post('/api/cities/add', authenticateToken, requireRole(['Admin', 'Super Admi
       });
     }
 
-    // Add debug info
-    console.log('Creating PrismaClient...');
-    const prisma = new PrismaClient();
-    console.log('PrismaClient created successfully');
-    
     // Check if city with same name or code already exists
-    console.log('Checking for existing city...');
     const existingCity = await prisma.city.findFirst({
       where: {
         OR: [
@@ -783,6 +784,9 @@ app.post('/api/cities/add', authenticateToken, requireRole(['Admin', 'Super Admi
       }
     });
     console.log('City created successfully');
+
+    // Invalidate cities cache after successful addition
+    invalidateCachePattern('/api/cities');
 
     console.log(`=== CITY ADDED: ${newCity.name} (${newCity.code}) by ${req.user?.username} ===`);
 
@@ -829,8 +833,6 @@ app.post('/api/cities/add-test', async (req, res) => {
       });
     }
 
-    const prisma = new PrismaClient();
-    
     // Check if city with same name or code already exists
     const existingCity = await prisma.city.findFirst({
       where: {
@@ -912,8 +914,6 @@ app.post('/api/cities/update', authenticateToken, requireRole(['Admin', 'Super A
       });
     }
 
-    const prisma = new PrismaClient();
-    
     // Check if city exists
     const existingCity = await prisma.city.findFirst({
       where: {
@@ -963,6 +963,9 @@ app.post('/api/cities/update', authenticateToken, requireRole(['Admin', 'Super A
         updatedAt: new Date()
       }
     });
+
+    // Invalidate cities cache after successful update
+    invalidateCachePattern('/api/cities');
 
     console.log(`=== CITY UPDATED: ${updatedCity.name} (${updatedCity.code}) by ${req.user?.username} ===`);
 
@@ -1035,6 +1038,10 @@ app.post('/api/cities/delete', authenticateToken, requireRole(['Admin', 'Super A
     });
 
     console.log('Database update result:', result);
+
+    // Invalidate cities cache after successful deletion
+    invalidateCachePattern('/api/cities');
+
     console.log(`=== CITY DELETED: ${existingCity.name} (${existingCity.code}) by ${req.user?.username} ===`);
 
     res.json({
@@ -1360,9 +1367,7 @@ app.post('/api/clients/delete', authenticateToken, requireRole(['Admin', 'Super 
 app.get('/api/roles', async (req, res) => {
   try {
     console.log('=== GET ROLES API CALLED ===');
-    
-    const prisma = new PrismaClient();
-    
+
     // Get all roles from database
     const roles = await prisma.role.findMany({
       where: { isActive: true, isDeleted: false },
@@ -1415,9 +1420,7 @@ app.post('/api/roles/add', authenticateToken, requireRole(['Admin', 'Super Admin
         message: 'Permissions are required'
       });
     }
-    
-    const prisma = new PrismaClient();
-    
+
     // Check if role already exists
     const existingRole = await prisma.role.findFirst({
       where: {
@@ -1443,9 +1446,12 @@ app.post('/api/roles/add', authenticateToken, requireRole(['Admin', 'Super Admin
         isDeleted: false
       }
     });
-    
+
+    // Invalidate roles cache after successful addition
+    invalidateCachePattern('/api/roles');
+
     console.log('Role created successfully:', newRole.id);
-    
+
     res.json({
       success: true,
       message: 'Role created successfully',
@@ -1494,9 +1500,7 @@ app.post('/api/roles/update', authenticateToken, requireRole(['Admin', 'Super Ad
         message: 'Permissions are required'
       });
     }
-    
-    const prisma = new PrismaClient();
-    
+
     // Check if role exists
     const existingRole = await prisma.role.findFirst({
       where: {
@@ -1538,7 +1542,10 @@ app.post('/api/roles/update', authenticateToken, requireRole(['Admin', 'Super Ad
         permissions: JSON.stringify(permissions)
       }
     });
-    
+
+    // Invalidate roles cache after successful update
+    invalidateCachePattern('/api/roles');
+
     console.log('Role updated successfully:', updatedRole.id);
     
     res.json({
@@ -1575,9 +1582,7 @@ app.post('/api/roles/delete', authenticateToken, requireRole(['Admin', 'Super Ad
         message: 'Role ID is required'
       });
     }
-    
-    const prisma = new PrismaClient();
-    
+
     // Check if role exists
     const existingRole = await prisma.role.findFirst({
       where: {
@@ -1618,9 +1623,12 @@ app.post('/api/roles/delete', authenticateToken, requireRole(['Admin', 'Super Ad
         isActive: false
       }
     });
-    
+
+    // Invalidate roles cache after successful deletion
+    invalidateCachePattern('/api/roles');
+
     console.log('Role deleted successfully:', id);
-    
+
     res.json({
       success: true,
       message: 'Role deleted successfully'
@@ -2019,9 +2027,7 @@ process.on('SIGINT', async () => {
 app.post('/api/seed/clients', async (req, res) => {
   try {
     console.log("=== MANUAL PRODUCTION CLIENT SEEDING TRIGGERED ===");
-    
-    const prisma = new PrismaClient();
-    
+
     // Real clients data from local database - client city is separate from cities
     const clients = [
       { name: 'PM 3 YARD', phone: '9099916309', city: 'JND95V', address: 'YARD ' },
@@ -2118,9 +2124,7 @@ app.post('/api/seed/clients', async (req, res) => {
 app.post('/api/temp-seed-clients', async (req, res) => {
   try {
     console.log("=== TEMPORARY CLIENT SEEDING TRIGGERED ===");
-    
-    const prisma = new PrismaClient();
-    
+
     // Real clients data from local database - client city is separate from cities
     const clients = [
       { name: 'PM 3 YARD', phone: '9099916309', city: 'JND95V', address: 'YARD ' },

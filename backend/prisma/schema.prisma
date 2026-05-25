@@ -116,6 +116,7 @@ model City {
 
   @@index([code])
   @@index([name])
+  @@index([isActive, isDeleted])
   @@map("cities")
 }
 
@@ -138,6 +139,7 @@ model Party {
   @@index([name])
   @@index([city])
   @@index([createdAt])
+  @@index([isActive, isDeleted])
   @@map("parties")
 }
 
@@ -197,6 +199,11 @@ model Transaction {
   @@index([date])
   @@index([centerId])
   @@index([createdBy])
+  @@index([date, type])
+  @@index([centerId, date])
+  @@index([isActive, isDeleted])
+  @@index([type, status])
+  @@index([date, type, status])
   @@map("Transaction")
 }
 

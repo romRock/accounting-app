@@ -596,10 +596,17 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
         totalExpense,
         netBalance: totalExpense - totalIncome
       },
-      dataRange: dateFilter.date ? 'Custom date range' : 'Last 30 days'
+      dataRange: dateFilter.date ? 'Custom date range' : 'Last 30 days',
+      recordsProcessed: {
+        transactions: transactions.length,
+        accountEntries: accountEntries.length,
+        hawalaEntries: hawalaEntries.length,
+        specialEntries: specialEntries.length
+      }
     });
   } catch (error) {
-    throw error;
+    console.error('Balance sheet error:', error);
+    res.status(500).json({ error: 'Failed to load balance sheet', message: error instanceof Error ? error.message : 'Unknown error' });
   }
 };
 

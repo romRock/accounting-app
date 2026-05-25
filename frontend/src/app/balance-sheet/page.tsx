@@ -40,118 +40,129 @@ export default function BalanceSheetPage() {
   const [exporting, setExporting] = useState(false);
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
 
-  // Calculate client balance from all modules (same logic as customer report)
-  const calculateClientBalance = async (client: any) => {
+  // Cache for all module data to avoid repeated API calls
+  const [cachedData, setCachedData] = useState<{
+    transactions: any[];
+    accounting: any[];
+    hawala: any[];
+    specialEntry: any[];
+  }>({
+    transactions: [],
+    accounting: [],
+    hawala: [],
+    specialEntry: []
+  });
+
+  // Fetch all module data once (4 API calls total)
+  const fetchAllModuleData = async () => {
+    try {
+      const [outwardTxns, inwardTxns, accEntries, hawalaEntries, splEntries] = await Promise.all([
+        transactionApi.getTransactions({ type: 'OUTWARD', page: 1, limit: 1000 }),
+        transactionApi.getTransactions({ type: 'INWARD', page: 1, limit: 1000 }),
+        accountingApi.getAccountEntries({ page: 1, limit: 1000 }),
+        getHawalaEntries({ page: 1, limit: 1000 }),
+        getSpecialEntries({ page: 1, limit: 1000 })
+      ]);
+
+      const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];
+
+      setCachedData({
+        transactions: allTxns,
+        accounting: accEntries.entries || [],
+        hawala: hawalaEntries.data || [],
+        specialEntry: splEntries.data || []
+      });
+    } catch (error) {
+      console.error('Error fetching module data:', error);
+    }
+  };
+
+  // Calculate client balance from cached data (same logic as customer report)
+  const calculateClientBalance = (client: any) => {
     let totalCredit = 0;
     let totalDebit = 0;
     const clientName = client.name.toLowerCase();
 
     try {
-      // 1. Transactions Module - reduced limit for production compatibility
-      try {
-        const [outwardTxns, inwardTxns] = await Promise.all([
-          transactionApi.getTransactions({ type: 'OUTWARD', page: 1, limit: 100 }),
-          transactionApi.getTransactions({ type: 'INWARD', page: 1, limit: 100 })
-        ]);
+      // 1. Transactions Module - use cached data
+      cachedData.transactions.forEach((txn: any) => {
+        const receiverName = txn.receiverName?.toLowerCase() || '';
+        const senderName = txn.senderName?.toLowerCase() || '';
 
-        const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];
-
-        allTxns.forEach((txn: any) => {
-          const receiverName = txn.receiverName?.toLowerCase() || '';
-          const senderName = txn.senderName?.toLowerCase() || '';
-
-          if (receiverName === clientName || senderName === clientName) {
-            if (txn.type === 'OUTWARD') {
-              // OUTWARD: Check amountType to determine debit/credit
-              if (txn.amountType === 'CREDIT' && senderName === clientName) {
-                // CREDIT + Sender is client: Client owes us money (DEBIT)
-                totalDebit += (txn.amount || 0) + (txn.commission || 0);
-              } else {
-                // CASH or Receiver is client: Normal outward (credit to receiver)
-                totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
-              }
-            } else if (txn.type === 'INWARD') {
-              // INWARD: Check amountType to determine debit/credit
-              if (txn.amountType === 'CREDIT' && receiverName === clientName) {
-                // CREDIT + Receiver is client: We receive money for client (CREDIT)
-                totalCredit += (txn.amount || 0);
-              } else {
-                // CASH or Sender is client: Normal inward (debit to sender)
-                totalDebit += (txn.amount || 0);
-              }
-            }
-          }
-        });
-      } catch (error) {
-        console.error(`Error fetching transactions for ${client.name}:`, error);
-      }
-
-      // 2. Accounting Module - reduced limit for production compatibility
-      try {
-        const accEntries = await accountingApi.getAccountEntries({ page: 1, limit: 100 });
-        (accEntries.entries || []).forEach((entry: any) => {
-          const partyName = entry.party?.name?.toLowerCase() || '';
-          if (partyName === clientName) {
-            if (entry.type === 'INCOME') {
-              totalCredit += entry.creditAmount || entry.amount || 0;
-            } else if (entry.type === 'EXPENSE') {
-              totalDebit += entry.debitAmount || entry.amount || 0;
-            }
-          }
-        });
-      } catch (error) {
-        console.error(`Error fetching accounting entries for ${client.name}:`, error);
-      }
-
-      // 3. Hawala Module - reduced limit for production compatibility
-      try {
-        const hawalaEntries = await getHawalaEntries({ page: 1, limit: 100 });
-        (hawalaEntries.data || []).forEach((entry: any) => {
-          const partyA = entry.partyA?.toLowerCase() || '';
-          const partyB = entry.partyB?.toLowerCase() || '';
-
-          if (partyA === clientName) {
-            // Party A (receiver) gets credit (income)
-            totalCredit += entry.amount || 0;
-          }
-          if (partyB === clientName) {
-            // Party B (sender) gets debit (expense)
-            totalDebit += entry.amount || 0;
-          }
-        });
-      } catch (error) {
-        console.error(`Error fetching hawala entries for ${client.name}:`, error);
-      }
-
-      // 4. Special Entry Module - reduced limit for production compatibility
-      try {
-        const splEntries = await getSpecialEntries({ page: 1, limit: 100 });
-        (splEntries.data || []).forEach((entry: any) => {
-          const partyA = entry.partyA?.toLowerCase() || '';
-          const partyB = entry.partyB?.toLowerCase() || '';
-          const partyC = entry.partyC?.toLowerCase() || '';
-
-          if (partyA === clientName) {
-            // Party A: Expense/Debit (-)
-            totalDebit += entry.amountA || 0;
-          }
-          if (partyB === clientName) {
-            // Party B: Income/Credit (+)
-            totalCredit += entry.amountB || 0;
-          }
-          if (partyC === clientName) {
-            // Party C: Dynamic based on amountC sign
-            const amountC = entry.amountC || 0;
-            if (amountC > 0) {
-              totalCredit += amountC;
+        if (receiverName === clientName || senderName === clientName) {
+          if (txn.type === 'OUTWARD') {
+            // OUTWARD: Check amountType to determine debit/credit
+            if (txn.amountType === 'CREDIT' && senderName === clientName) {
+              // CREDIT + Sender is client: Client owes us money (DEBIT)
+              totalDebit += (txn.amount || 0) + (txn.commission || 0);
             } else {
-              totalDebit += Math.abs(amountC);
+              // CASH or Receiver is client: Normal outward (credit to receiver)
+              totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
+            }
+          } else if (txn.type === 'INWARD') {
+            // INWARD: Check amountType to determine debit/credit
+            if (txn.amountType === 'CREDIT' && receiverName === clientName) {
+              // CREDIT + Receiver is client: We receive money for client (CREDIT)
+              totalCredit += (txn.amount || 0);
+            } else {
+              // CASH or Sender is client: Normal inward (debit to sender)
+              totalDebit += (txn.amount || 0);
             }
           }
-        });
-      } catch (error) {
-        console.error(`Error fetching special entries for ${client.name}:`, error);
-      }
+        }
+      });
+
+      // 2. Accounting Module - use cached data
+      cachedData.accounting.forEach((entry: any) => {
+        const partyName = entry.party?.name?.toLowerCase() || '';
+        if (partyName === clientName) {
+          if (entry.type === 'INCOME') {
+            totalCredit += entry.creditAmount || entry.amount || 0;
+          } else if (entry.type === 'EXPENSE') {
+            totalDebit += entry.debitAmount || entry.amount || 0;
+          }
+        }
+      });
+
+      // 3. Hawala Module - use cached data
+      cachedData.hawala.forEach((entry: any) => {
+        const partyA = entry.partyA?.toLowerCase() || '';
+        const partyB = entry.partyB?.toLowerCase() || '';
+
+        if (partyA === clientName) {
+          // Party A (receiver) gets credit (income)
+          totalCredit += entry.amount || 0;
+        }
+        if (partyB === clientName) {
+          // Party B (sender) gets debit (expense)
+          totalDebit += entry.amount || 0;
+        }
+      });
+
+      // 4. Special Entry Module - use cached data
+      cachedData.specialEntry.forEach((entry: any) => {
+        const partyA = entry.partyA?.toLowerCase() || '';
+        const partyB = entry.partyB?.toLowerCase() || '';
+        const partyC = entry.partyC?.toLowerCase() || '';
+
+        if (partyA === clientName) {
+          // Party A: Expense/Debit (-)
+          totalDebit += entry.amountA || 0;
+        }
+        if (partyB === clientName) {
+          // Party B: Income/Credit (+)
+          totalCredit += entry.amountB || 0;
+        }
+        if (partyC === clientName) {
+          // Party C: Dynamic based on amountC sign
+          const amountC = entry.amountC || 0;
+          if (amountC > 0) {
+            totalCredit += amountC;
+          } else {
+            totalDebit += Math.abs(amountC);
+          }
+        }
+      });
 
     } catch (error) {
       console.error(`Error calculating balance for ${client.name}:`, error);
@@ -165,12 +176,16 @@ export default function BalanceSheetPage() {
   const fetchBalanceSheet = async () => {
     setLoading(true);
     try {
+      // First, fetch all module data once (5 API calls total)
+      await fetchAllModuleData();
+
+      // Then get clients and calculate balances using cached data
       const allClients = await transactionApi.getClients();
       const incomeEntries: BalanceSheetEntry[] = [];
       const expenseEntries: BalanceSheetEntry[] = [];
 
       for (const client of allClients) {
-        const balanceData = await calculateClientBalance(client);
+        const balanceData = calculateClientBalance(client);
         const balance = balanceData.balance;
 
         if (balance < 0) {

@@ -515,10 +515,12 @@ export default function HawalaPage() {
                   id="amount"
                   ref={amountInputRef}
                   type="number"
+                  placeholder=""
                   value={formData.amount}
                   onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
-                  className="bg-white border-gray-300 rounded-md font-bold text-black text-lg placeholder:text-gray-600"
-                  placeholder="0.00"
+                  min="0"
+                  onWheel={(e) => e.currentTarget.blur()}
+                  className="bg-white border-gray-300 rounded-md font-bold text-black text-lg placeholder:text-gray-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
               </div>
               <div>

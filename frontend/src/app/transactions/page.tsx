@@ -647,14 +647,16 @@ export default function TransactionsPage() {
                     <Input
                       id="amount"
                       type="number"
-                      placeholder="0"
+                      placeholder=""
                       value={watch('amount') || ''}
                       onChange={(e) => {
                         const value = parseInt(e.target.value) || 0;
                         setValue('amount', value);
                       }}
                       autoComplete="off"
-                      className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-black text-lg placeholder:text-gray-600"
+                      min="0"
+                      onWheel={(e) => e.currentTarget.blur()}
+                      className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-black text-lg placeholder:text-gray-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       ref={firstInputRef}
                     />
                   </div>
@@ -678,11 +680,13 @@ export default function TransactionsPage() {
                       id="commission"
                       type="number"
                       step="0.01"
-                      placeholder="0.00"
+                      placeholder=""
                       value={watch('commission') || 0}
                       readOnly={autoCommission}
                       autoComplete="off"
-                      className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-lg placeholder:text-gray-600 ${
+                      min="0"
+                      onWheel={(e) => e.currentTarget.blur()}
+                      className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-lg placeholder:text-gray-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
                         autoCommission ? 'bg-gray-100 text-gray-500' : 'bg-white text-black'
                       }`}
                     />
@@ -694,12 +698,14 @@ export default function TransactionsPage() {
                       id="cuttingCommission"
                       type="number"
                       step="0.01"
-                      placeholder="0.00"
+                      placeholder=""
                       value={watch('cuttingCommission') || 0}
                       onChange={(e) => setValue('cuttingCommission', Number(e.target.value))}
                       readOnly={autoCommission}
                       autoComplete="off"
-                      className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-lg placeholder:text-gray-600 ${
+                      min="0"
+                      onWheel={(e) => e.currentTarget.blur()}
+                      className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-lg placeholder:text-gray-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
                         autoCommission ? 'bg-gray-100 text-gray-500' : 'bg-white text-black'
                       }`}
                     />

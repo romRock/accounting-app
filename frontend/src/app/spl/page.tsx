@@ -392,10 +392,12 @@ export default function SPLPage() {
                   id="amountA"
                   ref={amountInputRef}
                   type="number"
+                  placeholder=""
                   value={formData.amountA}
                   onChange={(e) => setFormData(prev => ({ ...prev, amountA: e.target.value }))}
-                  className="bg-white border-gray-300 mt-1 font-bold text-red-700 text-lg placeholder:text-red-700"
-                  placeholder="0.00"
+                  min="0"
+                  onWheel={(e) => e.currentTarget.blur()}
+                  className="bg-white border-gray-300 mt-1 font-bold text-red-700 text-lg placeholder:text-red-700 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
               </div>
               <div>
@@ -421,10 +423,12 @@ export default function SPLPage() {
                 <Input
                   id="amountB"
                   type="number"
+                  placeholder=""
                   value={formData.amountB}
                   onChange={(e) => setFormData(prev => ({ ...prev, amountB: e.target.value }))}
-                  className="bg-white border-gray-300 mt-1 font-bold text-green-700 text-lg placeholder:text-green-700"
-                  placeholder="0.00"
+                  min="0"
+                  onWheel={(e) => e.currentTarget.blur()}
+                  className="bg-white border-gray-300 mt-1 font-bold text-green-700 text-lg placeholder:text-green-700 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
               </div>
               <div>
@@ -448,14 +452,15 @@ export default function SPLPage() {
                 <Input
                   id="amountC"
                   type="number"
+                  placeholder=""
                   value={parseFloat(formData.amountA || '0') - parseFloat(formData.amountB || '0')}
                   readOnly
-                  className={`bg-white border-gray-300 mt-1 font-bold text-lg placeholder:text-gray-500 ${
-                    (parseFloat(formData.amountA || '0') - parseFloat(formData.amountB || '0')) >= 0 
-                      ? 'text-green-700' 
+                  onWheel={(e) => e.currentTarget.blur()}
+                  className={`bg-white border-gray-300 mt-1 font-bold text-lg placeholder:text-gray-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                    (parseFloat(formData.amountA || '0') - parseFloat(formData.amountB || '0')) >= 0
+                      ? 'text-green-700'
                       : 'text-red-700'
                   }`}
-                  placeholder="0.00"
                 />
               </div>
               <div>

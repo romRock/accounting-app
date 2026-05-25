@@ -529,18 +529,18 @@ export default function AccountingPage() {
                       id="amount"
                       ref={amountInputRef}
                       type="number"
+                      placeholder=""
                       value={transactionForm.amount}
                       onChange={(e) => {
                         const value = e.target.value;
-                        // Only allow integers
+                        // Only allow positive integers
                         if (value === '' || /^\d+$/.test(value)) {
                           setTransactionForm(prev => ({ ...prev, amount: parseInt(value) || 0 }));
                         }
                       }}
-                      className="bg-white border-gray-300 mt-1 font-bold text-black text-lg placeholder:text-gray-600"
-                      placeholder="0"
                       min="0"
-                      step="1"
+                      onWheel={(e) => e.currentTarget.blur()}
+                      className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-black text-lg placeholder:text-gray-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   </div>
                   <div>

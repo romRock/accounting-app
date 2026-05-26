@@ -63,6 +63,7 @@ export const createHawala = async (req: Request, res: Response) => {
     // Get authenticated user from JWT token
     const authenticatedUser = (req as any).user;
     const createdBy = authenticatedUser?.email || authenticatedUser?.id || 'system';
+    const userBranchId = authenticatedUser?.branchId;
 
     // Validate required fields
     if (!transactionId || !date || !time || !partyA || !partyB || !amount) {
@@ -98,7 +99,8 @@ export const createHawala = async (req: Request, res: Response) => {
         amount: parseInt(amount),
         remark: remark || null,
         statusTime: new Date(),
-        createdBy
+        createdBy,
+        branchId: userBranchId
       }
     });
 
@@ -192,10 +194,14 @@ export const createHawala = async (req: Request, res: Response) => {
 // Get all hawala entries
 export const getHawalaEntries = async (req: Request, res: Response) => {
   try {
-    
+
     const { page = 1, limit = 100, search, dateFrom, dateTo, partyA, partyB } = req.query;
 
     const skip = (Number(page) - 1) * Number(limit);
+
+    const userBranchId = req.user?.branchId;
+    const userPermissions = req.user?.role?.permissions as any;
+    const isSuperAdmin = userPermissions?.masterData === 'full_access';
 
     // Build where clause
     const where: any = {
@@ -203,6 +209,15 @@ export const getHawalaEntries = async (req: Request, res: Response) => {
       isDeleted: false
     };
 
+    // Filter by branch if user is not Super Admin
+    if (!isSuperAdmin) {
+      if (userBranchId) {
+        where.branchId = userBranchId;
+      } else {
+        // User has no branch assigned - return empty results
+        where.branchId = 'non-existent-branch-id-to-return-empty';
+      }
+    }
 
     // Add search filter
     if (search) {

@@ -80,11 +80,11 @@ router.put('/parties/:id', requirePermission('parties.update'), validateUpdatePa
 router.delete('/parties/:id', requirePermission('parties.delete'), deleteParty);
 
 // Branch management
-router.get('/branches', requirePermission('branches.read'), getBranches);
-router.get('/branches/:id', requirePermission('branches.read'), getBranchById);
-router.post('/branches', requirePermission('branches.create'), validateCreateBranch, createBranch);
-router.put('/branches/:id', requirePermission('branches.update'), validateUpdateBranch, updateBranch);
-router.delete('/branches/:id', requirePermission('branches.delete'), deleteBranch);
+router.get('/branches', requireAdmin, getBranches);
+router.get('/branches/:id', requireAdmin, getBranchById);
+router.post('/branches', requireAdmin, validateCreateBranch, createBranch);
+router.put('/branches/:id', requireAdmin, validateUpdateBranch, updateBranch);
+router.delete('/branches/:id', requireAdmin, deleteBranch);
 
 // Commission rate management
 router.get('/commission-rates', requirePermission('commission_rates.read'), getCommissionRates);

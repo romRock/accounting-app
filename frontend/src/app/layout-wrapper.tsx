@@ -28,7 +28,7 @@ export default function LayoutWrapper({
   }, []);
   const [activeTransactionTab, setActiveTransactionTab] = useState<'outward' | 'inward'>('outward');
   const [activeReport, setActiveReport] = useState<'outward' | 'inward' | 'combo' | 'outward-centerwise' | 'inward-centerwise' | 'amount-type' | 'customer' | 'transaction-refund'>('outward');
-  const [activeMasterTab, setActiveMasterTab] = useState<'users' | 'roles' | 'centers' | 'clients'>('users');
+  const [activeMasterTab, setActiveMasterTab] = useState<'users' | 'roles' | 'centers' | 'clients' | 'branches'>('users');
   const [activeBalanceSheetTab, setActiveBalanceSheetTab] = useState<'final' | 'statutory'>('final');
   const [activeAccountingTab, setActiveAccountingTab] = useState<'accounts' | 'category' | 'reports'>('accounts');
   const [reportDropdownOpen, setReportDropdownOpen] = useState(false);
@@ -631,6 +631,21 @@ export default function LayoutWrapper({
                     }`}
                   >
                     <span className="relative z-10">Clients</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveMasterTab('branches');
+                      // Dispatch event for master page
+                      const event = new CustomEvent('setMasterTab', { detail: 'branches' });
+                      window.dispatchEvent(event);
+                    }}
+                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                      activeMasterTab === 'branches'
+                        ? 'bg-orange-600 border-orange-400 text-white'
+                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
+                    }`}
+                  >
+                    <span className="relative z-10">Branches</span>
                   </button>
                 </div>
               )}

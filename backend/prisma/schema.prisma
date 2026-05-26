@@ -109,13 +109,17 @@ model City {
   state     String?
   address   String?
   number    String?
+  branchId  String?
   isActive  Boolean  @default(true)
   isDeleted Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  branch    Branch?  @relation(fields: [branchId], references: [id])
+
   @@index([code])
   @@index([name])
+  @@index([branchId])
   @@index([isActive, isDeleted])
   @@map("cities")
 }
@@ -129,15 +133,18 @@ model Party {
   city      String?
   panNumber String?
   gstNumber String?
+  branchId  String?
   isActive  Boolean  @default(true)
   isDeleted Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   accountEntries AccountEntry[]
   clientLedger   ClientLedger?
+  branch         Branch?  @relation(fields: [branchId], references: [id])
 
   @@index([name])
   @@index([city])
+  @@index([branchId])
   @@index([createdAt])
   @@index([isActive, isDeleted])
   @@map("parties")
@@ -157,6 +164,8 @@ model Branch {
   balanceSheets BalanceSheet[]
   ledgerEntries LedgerEntry[]
   users         User[]
+  cities        City[]
+  parties       Party[]
 
   @@index([code])
   @@index([createdAt])

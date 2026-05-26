@@ -788,6 +788,19 @@ export const getCities = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
+    // Filter by branch if user is not Super Admin
+    const userPermissions = req.user?.role?.permissions as any;
+    const isSuperAdmin = userPermissions?.masterData === 'full_access';
+
+    if (!isSuperAdmin) {
+      if (req.user?.branchId) {
+        where.branchId = req.user.branchId;
+      } else {
+        // User has no branch assigned - return empty results
+        where.branchId = 'non-existent-branch-id-to-return-empty';
+      }
+    }
+
     if (search) {
       where.OR = [
         { name: { contains: search as string, mode: 'insensitive' } },
@@ -837,7 +850,7 @@ export const getCityById = async (req: Request, res: Response) => {
 
 export const createCity = async (req: Request, res: Response) => {
   try {
-    const { name, code, state } = req.body;
+    const { name, code, state, branchId } = req.body;
     const userId = req.user?.id;
 
     // Check if city already exists
@@ -856,11 +869,15 @@ export const createCity = async (req: Request, res: Response) => {
       throw createError('City with this name or code already exists', 409);
     }
 
+    // If branchId not provided, use user's branchId
+    const cityBranchId = branchId || req.user?.branchId;
+
     const city = await prisma.city.create({
       data: {
         name,
         code,
         state,
+        branchId: cityBranchId,
       },
     });
 
@@ -877,9 +894,9 @@ export const updateCity = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const cityId = getFirstValue(id);
-    const { name, code, state } = req.body;
+    const { name, code, state, branchId } = req.body;
     const userId = req.user?.id;
-    
+
     if (!cityId) {
       throw createError('City ID is required', 400);
     }
@@ -926,20 +943,7 @@ export const updateCity = async (req: Request, res: Response) => {
         name,
         code,
         state,
-      },
-    });
-
-    // Create audit log
-    await prisma.auditLog.create({
-      data: {
-        entity: 'City',
-        entityId: cityId,
-        action: 'UPDATE',
-        oldValues: JSON.stringify(existingCity),
-        newValues: JSON.stringify(city),
-        ipAddress: req.ip,
-        userAgent: req.get('User-Agent'),
-        createdBy: userId!,
+        branchId,
       },
     });
 
@@ -1035,6 +1039,19 @@ export const getParties = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
+    // Filter by branch if user is not Super Admin
+    const userPermissions = req.user?.role?.permissions as any;
+    const isSuperAdmin = userPermissions?.masterData === 'full_access';
+
+    if (!isSuperAdmin) {
+      if (req.user?.branchId) {
+        where.branchId = req.user.branchId;
+      } else {
+        // User has no branch assigned - return empty results
+        where.branchId = 'non-existent-branch-id-to-return-empty';
+      }
+    }
+
     if (search) {
       where.OR = [
         { name: { contains: search as string, mode: 'insensitive' } },
@@ -1093,7 +1110,11 @@ export const createParty = async (req: Request, res: Response) => {
       panNumber,
       gstNumber,
       city,
+      branchId,
     } = req.body;
+
+    // If branchId not provided, use user's branchId
+    const partyBranchId = branchId || req.user?.branchId;
 
     const party = await prisma.party.create({
       data: {
@@ -1104,6 +1125,7 @@ export const createParty = async (req: Request, res: Response) => {
         panNumber,
         gstNumber,
         city,
+        branchId: partyBranchId,
       },
     });
 
@@ -1131,10 +1153,11 @@ export const updateParty = async (req: Request, res: Response) => {
       panNumber,
       gstNumber,
       city,
+      branchId,
     } = req.body;
 
     const userId = req.user?.id;
-    
+
     if (!partyId) {
       throw createError('Party ID is required', 400);
     }
@@ -1162,6 +1185,7 @@ export const updateParty = async (req: Request, res: Response) => {
         panNumber,
         gstNumber,
         city,
+        branchId,
       },
     });
 

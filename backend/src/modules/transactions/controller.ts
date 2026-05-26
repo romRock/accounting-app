@@ -230,6 +230,8 @@ export const getTransactions = async (req: Request, res: Response) => {
     const userId = req.user?.id;
     const userRole = req.user?.role.name;
     const userBranchId = req.user?.branchId;
+    const userPermissions = req.user?.role?.permissions as any;
+    const isSuperAdmin = userPermissions?.masterData === 'full_access';
 
     // Build where clause
     const where: any = {
@@ -237,7 +239,15 @@ export const getTransactions = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    // No branch-based filtering needed - using centers only
+    // Filter by branch if user is not Super Admin
+    if (!isSuperAdmin) {
+      if (userBranchId) {
+        where.branchId = userBranchId;
+      } else {
+        // User has no branch assigned - return empty results
+        where.branchId = 'non-existent-branch-id-to-return-empty';
+      }
+    }
 
     if (type) where.type = type as TransactionType;
     if (status !== undefined) where.status = status === 'true';
@@ -561,11 +571,23 @@ export const getTransactionStats = async (req: Request, res: Response) => {
     const { dateFrom, dateTo } = req.query;
     const userBranchId = req.user?.branchId;
     const userRole = req.user?.role.name;
+    const userPermissions = req.user?.role?.permissions as any;
+    const isSuperAdmin = userPermissions?.masterData === 'full_access';
 
     const where: any = {
       isActive: true,
       isDeleted: false,
     };
+
+    // Filter by branch if user is not Super Admin
+    if (!isSuperAdmin) {
+      if (userBranchId) {
+        where.branchId = userBranchId;
+      } else {
+        // User has no branch assigned - return empty results
+        where.branchId = 'non-existent-branch-id-to-return-empty';
+      }
+    }
 
     if (dateFrom || dateTo) {
       where.date = {};

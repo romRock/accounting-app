@@ -5,15 +5,26 @@ export async function seedUsers(prisma: PrismaClient) {
   console.log('👤 Seeding users...');
 
   // Get roles and branches first
+  const superAdminRole = await prisma.role.findUnique({ where: { name: 'Super Admin' } });
   const adminRole = await prisma.role.findUnique({ where: { name: 'Admin' } });
   const operatorRole = await prisma.role.findUnique({ where: { name: 'Operator' } });
   const defaultBranch = await prisma.branch.findUnique({ where: { code: 'HQ' } });
 
-  if (!adminRole || !operatorRole || !defaultBranch) {
+  if (!superAdminRole || !adminRole || !operatorRole || !defaultBranch) {
     throw new Error('Required roles or branch not found. Please seed roles and branches first.');
   }
 
   const users = [
+    {
+      email: 'superadmin@accounting.com',
+      username: 'superadmin',
+      password: 'SuperAdmin@123',
+      firstName: 'Super',
+      lastName: 'Admin',
+      phone: '+1-555-010-0000',
+      roleId: superAdminRole.id,
+      branchId: defaultBranch.id,
+    },
     {
       email: 'admin@mail.com',
       username: 'admin',

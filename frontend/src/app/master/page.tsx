@@ -22,6 +22,7 @@ interface User {
   confirmPassword?: string;
   roleId: string;
   centerId: string;
+  branchId?: string;
   status: 'Active' | 'Inactive';
   createdAt: string;
   updatedAt: string;
@@ -75,11 +76,23 @@ interface Client {
   updatedAt: string;
 }
 
+interface Branch {
+  id: string;
+  name: string;
+  code: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  status: 'Active' | 'Inactive';
+  createdAt: string;
+  updatedAt: string;
+}
+
 export default function MasterPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'users' | 'roles' | 'centers' | 'clients'>('users');
-  
+  const [activeTab, setActiveTab] = useState<'users' | 'roles' | 'centers' | 'clients' | 'branches'>('users');
+
   // Form states
   const [userForm, setUserForm] = useState<Partial<User>>({});
   const [roleForm, setRoleForm] = useState<Partial<Role>>({
@@ -104,12 +117,14 @@ export default function MasterPage() {
   });
   const [centerForm, setCenterForm] = useState<Partial<Center>>({});
   const [clientForm, setClientForm] = useState<Partial<Client>>({});
-  
+  const [branchForm, setBranchForm] = useState<Partial<Branch>>({});
+
   // Data states
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [centers, setCenters] = useState<Center[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   
   // UI states
   const [loading, setLoading] = useState(false);
@@ -214,14 +229,40 @@ export default function MasterPage() {
   const loadClients = async () => {
     try {
       console.log("=== MASTER PAGE: Loading clients ===");
-      
+
       const clientsData = await transactionApi.getClients();
       console.log("API returned clients:", clientsData.length, clientsData);
-      
+
       setClients(clientsData);
     } catch (error) {
       console.error("Error loading clients:", error);
       setClients([]); // Set empty array on error
+    }
+  };
+
+  const loadBranches = async () => {
+    try {
+      console.log("=== MASTER PAGE: Loading branches ===");
+      const { accessToken } = useAuthStore.getState();
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/master/branches`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to load branches');
+      }
+
+      const data = await response.json();
+      const branchesData = data.branches || [];
+      console.log("API returned branches:", branchesData.length, branchesData);
+
+      setBranches(branchesData);
+    } catch (error) {
+      console.error("Error loading branches:", error);
+      setBranches([]); // Set empty array on error
     }
   };
 
@@ -406,6 +447,7 @@ export default function MasterPage() {
     loadClients(); // Load real clients data
     loadRoles(); // Load real roles data
     loadUsers(); // Load real users data
+    loadBranches(); // Load real branches data
   }, [isAuthenticated, router]);
 
   // Listen for tab changes from header
@@ -421,6 +463,8 @@ export default function MasterPage() {
         loadCenters();
       } else if (newTab === 'clients') {
         loadClients();
+      } else if (newTab === 'branches') {
+        loadBranches();
       }
     };
 
@@ -439,7 +483,8 @@ export default function MasterPage() {
             userForm.mobileNumber,
             userForm.email || '',
             userForm.password,
-            userForm.roleId
+            userForm.roleId,
+            userForm.branchId
           )
           .then((response) => {
             if (response.success) {
@@ -601,6 +646,68 @@ export default function MasterPage() {
           addNewClient();
         }
         break;
+      case 'branches':
+        if (branchForm.name && branchForm.code) {
+          // Only admins can add branches
+          if (!isAdmin) {
+            showErrorToast('Only administrators can add new branches');
+            return;
+          }
+
+          const addNewBranch = async () => {
+            try {
+              setLoading(true);
+              const { accessToken } = useAuthStore.getState();
+              const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/master/branches`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${accessToken}`,
+                },
+                body: JSON.stringify({
+                  name: branchForm.name,
+                  code: branchForm.code,
+                  address: branchForm.address,
+                  phone: branchForm.phone,
+                  email: branchForm.email,
+                }),
+              });
+
+              if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to add branch');
+              }
+
+              const data = await response.json();
+              const newBranch = data.branch;
+
+              // Convert to Branch format and add to local state
+              const branchData: Branch = {
+                id: newBranch.id,
+                name: newBranch.name,
+                code: newBranch.code,
+                address: newBranch.address,
+                phone: newBranch.phone,
+                email: newBranch.email,
+                status: newBranch.isActive ? 'Active' : 'Inactive',
+                createdAt: newBranch.createdAt,
+                updatedAt: newBranch.updatedAt
+              };
+
+              setBranches([...branches, branchData]);
+              setBranchForm({});
+              showSuccessToast('Branch added successfully!');
+            } catch (error) {
+              console.error('Error adding branch:', error);
+              showErrorToast(error instanceof Error ? error.message : 'Failed to add branch');
+            } finally {
+              setLoading(false);
+            }
+          };
+
+          addNewBranch();
+        }
+        break;
     }
   };
 
@@ -623,6 +730,9 @@ export default function MasterPage() {
         break;
       case 'clients':
         setClientForm(item);
+        break;
+      case 'branches':
+        setBranchForm(item);
         break;
     }
   };
@@ -712,6 +822,41 @@ export default function MasterPage() {
 
           deleteClient();
           break;
+        case 'branches':
+          // Only admins can delete branches
+          if (!isAdmin) {
+            showErrorToast('Only administrators can delete branches');
+            return;
+          }
+
+          const deleteBranch = async () => {
+            try {
+              setLoading(true);
+              const { accessToken } = useAuthStore.getState();
+              const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/master/branches/${id}`, {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                },
+              });
+
+              if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to delete branch');
+              }
+
+              setBranches(branches.filter(b => b.id !== id));
+              showDeleteToast('Branch deleted successfully!');
+            } catch (error) {
+              console.error('Error deleting branch:', error);
+              showErrorToast(error instanceof Error ? error.message : 'Failed to delete branch');
+            } finally {
+              setLoading(false);
+            }
+          };
+
+          deleteBranch();
+          break;
       }
     }
   };
@@ -728,7 +873,8 @@ export default function MasterPage() {
           userForm.mobileNumber!,
           userForm.email || '',
           userForm.password || '',
-          userForm.roleId!
+          userForm.roleId!,
+          userForm.branchId
         )
         .then((response) => {
           if (response.success) {
@@ -869,6 +1015,67 @@ export default function MasterPage() {
 
         updateClient();
         break;
+      case 'branches':
+        // Only admins can update branches
+        if (!isAdmin) {
+          showErrorToast('Only administrators can update branches');
+          return;
+        }
+
+        const updateBranch = async () => {
+          try {
+            setLoading(true);
+            const { accessToken } = useAuthStore.getState();
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/master/branches/${editingId}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify({
+                name: branchForm.name,
+                code: branchForm.code,
+                address: branchForm.address,
+                phone: branchForm.phone,
+                email: branchForm.email,
+              }),
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.message || 'Failed to update branch');
+            }
+
+            const data = await response.json();
+            const updatedBranch = data.branch;
+
+            // Convert to Branch format and update local state
+            const branchData: Branch = {
+              id: updatedBranch.id,
+              name: updatedBranch.name,
+              code: updatedBranch.code,
+              address: updatedBranch.address,
+              phone: updatedBranch.phone,
+              email: updatedBranch.email,
+              status: updatedBranch.isActive ? 'Active' : 'Inactive',
+              createdAt: updatedBranch.createdAt,
+              updatedAt: updatedBranch.updatedAt
+            };
+
+            setBranches(branches.map(b => b.id === editingId ? branchData : b));
+            setBranchForm({});
+            setEditingId(null);
+            showUpdateToast('Branch updated successfully!');
+          } catch (error) {
+            console.error('Error updating branch:', error);
+            showErrorToast(error instanceof Error ? error.message : 'Failed to update branch');
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        updateBranch();
+        break;
     }
     setEditingId(null);
     setUserForm({});
@@ -921,10 +1128,15 @@ export default function MasterPage() {
     c.city.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredClients = () => clients.filter(c => 
+  const filteredClients = () => clients.filter(c =>
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.mobileNumber.includes(searchTerm) ||
     c.city.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredBranches = () => branches.filter(b =>
+    b.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    b.code.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getFilteredData = () => {
@@ -933,6 +1145,7 @@ export default function MasterPage() {
       case 'roles': return filteredRoles();
       case 'centers': return filteredCenters();
       case 'clients': return filteredClients();
+      case 'branches': return filteredBranches();
       default: return [];
     }
   };
@@ -1009,6 +1222,22 @@ export default function MasterPage() {
                         {roles.map((role) => (
                           <option key={role.id} value={role.id}>
                             {role.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="branchId" className="text-sm font-medium text-gray-700">Branch (Optional)</Label>
+                      <select
+                        id="branchId"
+                        value={userForm.branchId || ''}
+                        onChange={(e) => setUserForm({ ...userForm, branchId: e.target.value })}
+                        className="w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-sm mt-1 text-gray-900"
+                      >
+                        <option value="">Select Branch</option>
+                        {branches.map((branch) => (
+                          <option key={branch.id} value={branch.id}>
+                            {branch.name} ({branch.code})
                           </option>
                         ))}
                       </select>
@@ -1956,6 +2185,165 @@ export default function MasterPage() {
                                       size="sm"
                                       variant="destructive"
                                       onClick={() => handleDelete(client.id)}
+                                      className="bg-red-500 hover:bg-red-600 text-white h-7 px-2 text-xs"
+                                    >
+                                      Delete
+                                    </Button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* BRANCHES TAB */}
+            {activeTab === 'branches' && (
+              <div className="space-y-6">
+                {/* Branch Form */}
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    {editingId ? 'Edit Branch' : 'Add New Branch'}
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="branchName" className="text-sm font-medium text-gray-700">Branch Name</Label>
+                      <Input
+                        id="branchName"
+                        value={branchForm.name || ''}
+                        onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
+                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900"
+                        placeholder="Enter branch name"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="branchCode" className="text-sm font-medium text-gray-700">Branch Code</Label>
+                      <Input
+                        id="branchCode"
+                        value={branchForm.code || ''}
+                        onChange={(e) => setBranchForm({ ...branchForm, code: e.target.value })}
+                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900"
+                        placeholder="Enter branch code"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="branchAddress" className="text-sm font-medium text-gray-700">Address (Optional)</Label>
+                      <Input
+                        id="branchAddress"
+                        value={branchForm.address || ''}
+                        onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })}
+                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900"
+                        placeholder="Enter address"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="branchPhone" className="text-sm font-medium text-gray-700">Phone (Optional)</Label>
+                      <Input
+                        id="branchPhone"
+                        value={branchForm.phone || ''}
+                        onChange={(e) => setBranchForm({ ...branchForm, phone: e.target.value })}
+                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900"
+                        placeholder="Enter phone number"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="branchEmail" className="text-sm font-medium text-gray-700">Email (Optional)</Label>
+                      <Input
+                        id="branchEmail"
+                        type="email"
+                        value={branchForm.email || ''}
+                        onChange={(e) => setBranchForm({ ...branchForm, email: e.target.value })}
+                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900"
+                        placeholder="Enter email"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex space-x-2 mt-4">
+                    <Button
+                      onClick={editingId ? handleUpdate : handleAdd}
+                      disabled={loading}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      {loading ? 'Processing...' : (editingId ? 'Update Branch' : 'Add Branch')}
+                    </Button>
+                    {editingId && (
+                      <Button
+                        onClick={handleClear}
+                        variant="outline"
+                        className="bg-white hover:bg-gray-50 text-gray-700 border-gray-300"
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Branch List */}
+                <div className="bg-white rounded-lg border border-gray-200">
+                  <div className="p-4 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900">Branch List</h3>
+                  </div>
+                  {filteredBranches().length === 0 ? (
+                    <div className="p-8 text-center text-gray-500">
+                      No branches found
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                              Name
+                            </th>
+                            <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                              Code
+                            </th>
+                            <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider hidden sm:table-cell">
+                              Address
+                            </th>
+                            <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider hidden md:table-cell">
+                              Phone
+                            </th>
+                            <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-100">
+                          {filteredBranches().map((branch: Branch) => (
+                            <tr key={branch.id} className="hover:bg-blue-50 transition-colors">
+                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {branch.name}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600">
+                                {branch.code}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600 hidden sm:table-cell">
+                                {branch.address || '-'}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600 hidden md:table-cell">
+                                {branch.phone || '-'}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm">
+                                {isAdmin() && (
+                                  <div className="flex space-x-1">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleEdit(branch)}
+                                      className="bg-white hover:bg-gray-50 text-gray-700 border-gray-300 hover:border-gray-400 h-7 px-2 text-xs"
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      onClick={() => handleDelete(branch.id)}
                                       className="bg-red-500 hover:bg-red-600 text-white h-7 px-2 text-xs"
                                     >
                                       Delete

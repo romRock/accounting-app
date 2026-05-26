@@ -108,6 +108,19 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     }
 
     // Attach user to request object
+    // Parse permissions if they're stored as JSON string
+    let parsedRole = user.role;
+    if (user.role && typeof user.role.permissions === 'string') {
+      try {
+        parsedRole = {
+          ...user.role,
+          permissions: JSON.parse(user.role.permissions)
+        };
+      } catch (error) {
+        console.error('Error parsing permissions JSON:', error);
+      }
+    }
+
     req.user = {
       id: user.id,
       email: user.email,
@@ -116,7 +129,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       lastName: user.lastName,
       roleId: user.roleId,
       branchId: user.branchId || undefined,
-      role: user.role || undefined,
+      role: parsedRole || undefined,
       branch: user.branch || undefined,
     };
 

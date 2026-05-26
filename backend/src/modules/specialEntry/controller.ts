@@ -27,16 +27,30 @@ async function generateSpecialEntryId(): Promise<string> {
 // Get all special entries
 export const getSpecialEntries = async (req: Request, res: Response) => {
   try {
-    
+
     const { page = 1, limit = 100, search, dateFrom, dateTo, partyA, partyB, status } = req.query;
 
     const skip = (Number(page) - 1) * Number(limit);
+
+    const userBranchId = req.user?.branchId;
+    const userPermissions = req.user?.role?.permissions as any;
+    const isSuperAdmin = userPermissions?.masterData === 'full_access';
 
     // Build where clause
     const where: any = {
       isActive: true,
       isDeleted: false
     };
+
+    // Filter by branch if user is not Super Admin
+    if (!isSuperAdmin) {
+      if (userBranchId) {
+        where.branchId = userBranchId;
+      } else {
+        // User has no branch assigned - return empty results
+        where.branchId = 'non-existent-branch-id-to-return-empty';
+      }
+    }
 
     // Add search filter
     if (search) {
@@ -147,6 +161,8 @@ export const createSpecialEntry = async (req: Request, res: Response) => {
       createdBy
     } = req.body;
 
+    const userBranchId = req.user?.branchId;
+
     // Validation
     if (!date || !time || !partyA || !partyB || !partyC || !amountA || !amountB || !amountC) {
       return res.status(400).json({
@@ -179,7 +195,8 @@ export const createSpecialEntry = async (req: Request, res: Response) => {
         remark: remark || '',
         status: status || 'pending',
         statusTime: new Date(),
-        createdBy: createdBy || req.user?.id || 'system'
+        createdBy: createdBy || req.user?.id || 'system',
+        branchId: userBranchId
       }
     });
 

@@ -69,6 +69,8 @@ export const getLedgerEntries = async (req: Request, res: Response) => {
 
     const userRole = req.user?.role.name;
     const userBranchId = req.user?.branchId;
+    const userPermissions = req.user?.role?.permissions as any;
+    const isSuperAdmin = userPermissions?.masterData === 'full_access';
 
     // Build where clause
     const where: any = {
@@ -76,9 +78,14 @@ export const getLedgerEntries = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    // Apply role-based filtering
-    if (userRole !== 'Super Admin' && userRole !== 'Admin') {
-      // No branch-based filtering - using centers only
+    // Filter by branch if user is not Super Admin
+    if (!isSuperAdmin) {
+      if (userBranchId) {
+        where.branchId = userBranchId;
+      } else {
+        // User has no branch assigned - return empty results
+        where.branchId = 'non-existent-branch-id-to-return-empty';
+      }
     }
 
     if (accountId) where.accountId = accountId as string;
@@ -818,10 +825,24 @@ export const getAccountEntries = async (req: Request, res: Response) => {
       search,
     } = req.query;
 
+    const userBranchId = req.user?.branchId;
+    const userPermissions = req.user?.role?.permissions as any;
+    const isSuperAdmin = userPermissions?.masterData === 'full_access';
+
     const where: any = {
       isActive: true,
       isDeleted: false,
     };
+
+    // Filter by branch if user is not Super Admin
+    if (!isSuperAdmin) {
+      if (userBranchId) {
+        where.branchId = userBranchId;
+      } else {
+        // User has no branch assigned - return empty results
+        where.branchId = 'non-existent-branch-id-to-return-empty';
+      }
+    }
 
     // Map accounting params to AccountEntry fields
     if (categoryId) where.categoryId = categoryId as string;

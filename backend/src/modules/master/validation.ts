@@ -42,12 +42,14 @@ export const createCitySchema = z.object({
   name: z.string().min(1, 'City name is required'),
   code: z.string().min(1, 'City code is required'),
   state: z.string().optional(),
+  branchId: z.string().optional(),
 });
 
 export const updateCitySchema = z.object({
   name: z.string().min(1, 'City name is required').optional(),
   code: z.string().min(1, 'City code is required').optional(),
   state: z.string().optional(),
+  branchId: z.string().optional(),
 });
 
 // Party validation schemas
@@ -59,6 +61,7 @@ export const createPartySchema = z.object({
   panNumber: z.string().optional(),
   gstNumber: z.string().optional(),
   cityId: z.string().min(1, 'City is required'),
+  branchId: z.string().optional(),
 });
 
 export const updatePartySchema = z.object({
@@ -69,6 +72,7 @@ export const updatePartySchema = z.object({
   panNumber: z.string().optional(),
   gstNumber: z.string().optional(),
   cityId: z.string().min(1, 'City is required').optional(),
+  branchId: z.string().optional(),
 });
 
 // Branch validation schemas

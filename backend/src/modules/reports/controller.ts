@@ -22,7 +22,9 @@ export const getInwardReport = async (req: Request, res: Response) => {
       limit = 10,
     } = req.query;
 
-    const userRole = req.user?.role.name;
+    const userBranchId = req.user?.branchId;
+    const userPermissions = req.user?.role?.permissions as any;
+    const isSuperAdmin = userPermissions?.masterData === 'full_access';
 
     const where: any = {
       type: TransactionType.INWARD,
@@ -30,9 +32,14 @@ export const getInwardReport = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    // Apply role-based filtering
-    if (userRole !== 'Super Admin' && userRole !== 'Admin') {
-      // No branch-based filtering - using centers only
+    // Filter by branch if user is not Super Admin
+    if (!isSuperAdmin) {
+      if (userBranchId) {
+        where.branchId = userBranchId;
+      } else {
+        // User has no branch assigned - return empty results
+        where.branchId = 'non-existent-branch-id-to-return-empty';
+      }
     }
 
     if (dateFrom || dateTo) {
@@ -112,7 +119,9 @@ export const getOutwardReport = async (req: Request, res: Response) => {
       limit = 10,
     } = req.query;
 
-    const userRole = req.user?.role.name;
+    const userBranchId = req.user?.branchId;
+    const userPermissions = req.user?.role?.permissions as any;
+    const isSuperAdmin = userPermissions?.masterData === 'full_access';
 
     const where: any = {
       type: TransactionType.OUTWARD,
@@ -120,9 +129,14 @@ export const getOutwardReport = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    // Apply role-based filtering
-    if (userRole !== 'Super Admin' && userRole !== 'Admin') {
-      // No branch-based filtering - using centers only
+    // Filter by branch if user is not Super Admin
+    if (!isSuperAdmin) {
+      if (userBranchId) {
+        where.branchId = userBranchId;
+      } else {
+        // User has no branch assigned - return empty results
+        where.branchId = 'non-existent-branch-id-to-return-empty';
+      }
     }
 
     if (dateFrom || dateTo) {
@@ -200,16 +214,23 @@ export const getUserLedgerReport = async (req: Request, res: Response) => {
       limit = 10,
     } = req.query;
 
-    const userRole = req.user?.role.name;
+    const userBranchId = req.user?.branchId;
+    const userPermissions = req.user?.role?.permissions as any;
+    const isSuperAdmin = userPermissions?.masterData === 'full_access';
 
     const where: any = {
       isActive: true,
       isDeleted: false,
     };
 
-    // Apply role-based filtering
-    if (userRole !== 'Super Admin' && userRole !== 'Admin') {
-      // No branch-based filtering - using centers only
+    // Filter by branch if user is not Super Admin
+    if (!isSuperAdmin) {
+      if (userBranchId) {
+        where.branchId = userBranchId;
+      } else {
+        // User has no branch assigned - return empty results
+        where.branchId = 'non-existent-branch-id-to-return-empty';
+      }
     }
 
     if (dateFrom || dateTo) {
@@ -313,16 +334,23 @@ export const getBranchPerformanceReport = async (req: Request, res: Response) =>
       dateTo,
     } = req.query;
 
-    const userRole = req.user?.role.name;
+    const userBranchId = req.user?.branchId;
+    const userPermissions = req.user?.role?.permissions as any;
+    const isSuperAdmin = userPermissions?.masterData === 'full_access';
 
     const where: any = {
       isActive: true,
       isDeleted: false,
     };
 
-    // Apply role-based filtering
-    if (userRole !== 'Super Admin' && userRole !== 'Admin') {
-      where.branchId = req.user?.branchId;
+    // Filter by branch if user is not Super Admin
+    if (!isSuperAdmin) {
+      if (userBranchId) {
+        where.branchId = userBranchId;
+      } else {
+        // User has no branch assigned - return empty results
+        where.branchId = 'non-existent-branch-id-to-return-empty';
+      }
     }
 
     if (dateFrom || dateTo) {
@@ -392,7 +420,9 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
       dateTo,
     } = req.query;
 
-    const userRole = req.user?.role.name;
+    const userBranchId = req.user?.branchId;
+    const userPermissions = req.user?.role?.permissions as any;
+    const isSuperAdmin = userPermissions?.masterData === 'full_access';
 
     // Build date filter
     const dateFilter: any = {};
@@ -409,9 +439,24 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
       dateFilter.date = { gte: thirtyDaysAgo };
     }
 
-    // Fetch all clients/parties
+    // Build branch filter for queries
+    const branchFilter: any = {};
+    if (!isSuperAdmin) {
+      if (userBranchId) {
+        branchFilter.branchId = userBranchId;
+      } else {
+        // User has no branch assigned - return empty results
+        branchFilter.branchId = 'non-existent-branch-id-to-return-empty';
+      }
+    }
+
+    // Fetch all clients/parties filtered by branch
     const clients = await prisma.party.findMany({
-      where: { isActive: true, isDeleted: false },
+      where: { 
+        isActive: true, 
+        isDeleted: false,
+        ...branchFilter
+      },
       select: { id: true, name: true, city: true }
     });
 
@@ -421,6 +466,7 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
         where: {
           isActive: true,
           isDeleted: false,
+          ...branchFilter,
           ...(dateFrom || dateTo ? dateFilter : {})
         },
         take: 1000,
@@ -430,6 +476,7 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
         where: {
           isActive: true,
           isDeleted: false,
+          ...branchFilter,
           ...(dateFrom || dateTo ? dateFilter : {})
         },
         include: { party: true },
@@ -440,6 +487,7 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
         where: {
           isActive: true,
           isDeleted: false,
+          ...branchFilter,
           ...(dateFrom || dateTo ? dateFilter : {})
         },
         take: 1000,
@@ -449,6 +497,7 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
         where: {
           isActive: true,
           isDeleted: false,
+          ...branchFilter,
           ...(dateFrom || dateTo ? dateFilter : {})
         },
         take: 1000,
@@ -640,6 +689,9 @@ export const getTransactionRefundReport = async (req: Request, res: Response) =>
   try {
     const { date } = req.query;
 
+    const userBranchId = req.user?.branchId;
+    const userPermissions = req.user?.role?.permissions as any;
+    const isSuperAdmin = userPermissions?.masterData === 'full_access';
 
     // Default to last 7 days if no date provided
     let startOfDay: Date;
@@ -664,6 +716,17 @@ export const getTransactionRefundReport = async (req: Request, res: Response) =>
       startOfDay.setHours(0, 0, 0, 0);
     }
 
+    // Build branch filter
+    const branchFilter: any = {};
+    if (!isSuperAdmin) {
+      if (userBranchId) {
+        branchFilter.branchId = userBranchId;
+      } else {
+        // User has no branch assigned - return empty results
+        branchFilter.branchId = 'non-existent-branch-id-to-return-empty';
+      }
+    }
+
     // Query deleted entries from all 4 modules
     const [
       deletedTransactions,
@@ -674,6 +737,7 @@ export const getTransactionRefundReport = async (req: Request, res: Response) =>
       prisma.transaction.findMany({
         where: {
           isDeleted: true,
+          ...branchFilter,
           deletedAt: {
             gte: startOfDay,
             lte: endOfDay,
@@ -684,6 +748,7 @@ export const getTransactionRefundReport = async (req: Request, res: Response) =>
       prisma.accountEntry.findMany({
         where: {
           isDeleted: true,
+          ...branchFilter,
           deletedAt: {
             gte: startOfDay,
             lte: endOfDay,
@@ -703,6 +768,7 @@ export const getTransactionRefundReport = async (req: Request, res: Response) =>
       prisma.hawala.findMany({
         where: {
           isDeleted: true,
+          ...branchFilter,
           deletedAt: {
             gte: startOfDay,
             lte: endOfDay,
@@ -713,6 +779,7 @@ export const getTransactionRefundReport = async (req: Request, res: Response) =>
       prisma.specialEntry.findMany({
         where: {
           isDeleted: true,
+          ...branchFilter,
           deletedAt: {
             gte: startOfDay,
             lte: endOfDay,

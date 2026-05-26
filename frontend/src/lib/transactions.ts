@@ -497,21 +497,21 @@ export const transactionApi = {
     return result.data;
   },
 
-  async addUser(fullName: string, mobileNumber: string, email: string, password: string, roleId: string): Promise<any> {
+  async addUser(fullName: string, mobileNumber: string, email: string, password: string, roleId: string, branchId?: string): Promise<any> {
     const { accessToken } = useAuthStore.getState();
-    
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
-    
+
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
     }
-    
+
     const response = await fetch(`${API_BASE_URL}/api/users/add`, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify({ fullName, mobileNumber, email, password, roleId }),
+      body: JSON.stringify({ fullName, mobileNumber, email, password, roleId, branchId }),
     });
 
     if (!response.ok) {
@@ -522,22 +522,22 @@ export const transactionApi = {
     return await response.json();
   },
 
-  async updateUser(id: string, fullName: string, mobileNumber: string, email: string, password: string, roleId: string): Promise<any> {
+  async updateUser(id: string, fullName: string, mobileNumber: string, email: string, password: string, roleId: string, branchId?: string): Promise<any> {
     const { accessToken } = useAuthStore.getState();
     console.log('=== UPDATE USER API DEBUG ===');
-    
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
-    
+
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
     }
-    
+
     const response = await fetch(`${API_BASE_URL}/api/users/update`, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify({ id, fullName, mobileNumber, email, password, roleId }),
+      body: JSON.stringify({ id, fullName, mobileNumber, email, password, roleId, branchId }),
     });
 
     if (!response.ok) {

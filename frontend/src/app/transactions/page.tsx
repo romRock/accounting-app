@@ -501,11 +501,19 @@ export default function TransactionsPage() {
     }
     const transactionDateString = transactionDate.toISOString().split('T')[0];
     
-    // Get today's date in local timezone for comparison
-    const today = new Date();
-    const todayString = today.getFullYear() + '-' + 
-      String(today.getMonth() + 1).padStart(2, '0') + '-' + 
-      String(today.getDate()).padStart(2, '0');
+    // Get today's date in Indian timezone for comparison
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const parts = formatter.formatToParts(now);
+    const year = parts.find(p => p.type === 'year')?.value;
+    const month = parts.find(p => p.type === 'month')?.value;
+    const day = parts.find(p => p.type === 'day')?.value;
+    const todayString = `${year}-${month}-${day}`;
     
     // Default to showing current day transactions, or filter by date range
     const matchesDate = !filterByDate ? 
@@ -585,7 +593,7 @@ export default function TransactionsPage() {
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
                   <div>
-                    <Label htmlFor="transactionId" className="text-sm font-medium text-gray-700">Id No</Label>
+                    <Label htmlFor="transactionId" className="text-sm font-medium text-gray-700">Transaction ID</Label>
                     <Input
                       id="transactionId"
                       {...register('transactionId')}

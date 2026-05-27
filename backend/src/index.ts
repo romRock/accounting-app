@@ -553,9 +553,8 @@ app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
-app.use('/api/cities', cacheMiddleware(1800)); // Cache cities for 30 minutes
+// Removed cache from cities and parties since they now filter by user's branch
 app.use('/api/roles', cacheMiddleware(1800)); // Cache roles for 30 minutes
-app.use('/api/parties', cacheMiddleware(1800)); // Cache parties for 30 minutes
 
 // Health check
 app.get('/health', (req, res) => {
@@ -563,7 +562,7 @@ app.get('/health', (req, res) => {
 });
 
 // Public cities search endpoint (for typeahead dropdown)
-app.get('/api/cities', async (req, res) => {
+app.get('/api/cities', authenticateToken, async (req, res) => {
   try {
     const { searchCities } = await import('./modules/master/controller');
     return searchCities(req, res);
@@ -572,6 +571,20 @@ app.get('/api/cities', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching cities',
+    });
+  }
+});
+
+// Public parties search endpoint (for typeahead dropdown)
+app.get('/api/parties', authenticateToken, async (req, res) => {
+  try {
+    const { searchParties } = await import('./modules/master/controller');
+    return searchParties(req, res);
+  } catch (error) {
+    console.error('Error loading parties controller:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching parties',
     });
   }
 });
@@ -2000,7 +2013,7 @@ app.use('/api/specialEntry', specialEntryRoutes);
 app.use('/api/accounting', accountingRoutes);
 app.use('/api/reports', authenticateToken, reportsRoutes);
 app.use('/api/master', authenticateToken, masterRoutes);
-app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/dashboard', authenticateToken, dashboardRoutes);
 
 // Error handling
 app.use(errorHandler);

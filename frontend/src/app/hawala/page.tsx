@@ -89,14 +89,55 @@ export default function HawalaPage() {
   const [formData, setFormData] = useState({
     transactionId: '',
     tokenNo: '',
-    date: new Date().toISOString().split('T')[0],
-    time: new Date().toTimeString().slice(0, 5),
+    date: (() => {
+      // Get current date in Indian timezone (UTC+5:30)
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+      const parts = formatter.formatToParts(now);
+      const year = parts.find(p => p.type === 'year')?.value;
+      const month = parts.find(p => p.type === 'month')?.value;
+      const day = parts.find(p => p.type === 'day')?.value;
+      return `${year}-${month}-${day}`;
+    })(),
+    time: (() => {
+      // Get current time in Indian timezone (UTC+5:30)
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      return formatter.format(now);
+    })(),
     partyA: '',
     partyB: '',
     amount: '',
     remark: '',
   });
   const amountInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-refresh time every second (like accounting page)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      // Format Indian time (HH:MM)
+      const indianTime = now.toLocaleTimeString('en-IN', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Kolkata'
+      });
+      setFormData(prev => ({ ...prev, time: indianTime }));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Initialize form and fetch hawala entries
   useEffect(() => {
@@ -105,9 +146,27 @@ export default function HawalaPage() {
         // First fetch hawala entries to get latest data
         await fetchHawalaEntries();
 
-        // Then call next IDs API like transactions module
-        const today = new Date().toISOString().split('T')[0];
-        const response = await fetch(`${API_BASE_URL}/api/hawala/next-ids?date=${today}&type=INWARD`);
+        // Get current date in Indian timezone for next IDs API
+        const now = new Date();
+        const formatter = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Kolkata',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        });
+        const parts = formatter.formatToParts(now);
+        const year = parts.find(p => p.type === 'year')?.value;
+        const month = parts.find(p => p.type === 'month')?.value;
+        const day = parts.find(p => p.type === 'day')?.value;
+        const today = `${year}-${month}-${day}`;
+
+        const token = getAuthToken();
+        const response = await fetch(`${API_BASE_URL}/api/hawala/next-ids?date=${today}&type=INWARD`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
         const result = await response.json();
 
         if (result.success) {
@@ -162,23 +221,19 @@ export default function HawalaPage() {
     }
   };
 
-  // Initialize form and fetch hawala entries
-  useEffect(() => {
-    setFormData(prev => ({
-      ...prev,
-      transactionId: generateTransactionId(),
-      tokenNo: generateTokenNo(),
-    }));
-
-    fetchHawalaEntries();
-  }, []);
-
   // Filter entries
   const filteredEntries = useMemo(() => {
-    const today = new Date();
-    const todayString = today.getFullYear() + '-' +
-      String(today.getMonth() + 1).padStart(2, '0') + '-' +
-      String(today.getDate()).padStart(2, '0');
+    // Backend now filters by current day and branch by default
+    // Frontend only filters if user explicitly enables date filter
+    if (!filterByDate) {
+      return hawalaEntries.filter(entry => {
+        const matchesSearch = searchTerm === '' ||
+          entry.partyA.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          entry.partyB.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (entry.remark && entry.remark.toLowerCase().includes(searchTerm.toLowerCase()));
+        return matchesSearch;
+      });
+    }
 
     return hawalaEntries.filter(entry => {
       const entryDate = new Date(entry.date);
@@ -186,12 +241,10 @@ export default function HawalaPage() {
         String(entryDate.getMonth() + 1).padStart(2, '0') + '-' +
         String(entryDate.getDate()).padStart(2, '0');
 
-      // Default to showing current day transactions, or filter by date range
-      const matchesDate = !filterByDate ?
-        entryDateString === todayString :
-        (isSelectingRange && startDate && endDate ?
-          entryDateString >= startDate && entryDateString <= endDate :
-          entryDateString === dateFilter);
+      // Filter by date range or single date
+      const matchesDate = isSelectingRange && startDate && endDate ?
+        entryDateString >= startDate && entryDateString <= endDate :
+        entryDateString === dateFilter;
 
       const matchesSearch = searchTerm === '' ||
         entry.partyA.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -274,6 +327,29 @@ export default function HawalaPage() {
 
   // Save hawala entry
   const handleSave = async () => {
+    // Get current date in Indian timezone to ensure entry shows up in current day filter
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const parts = formatter.formatToParts(now);
+    const year = parts.find(p => p.type === 'year')?.value;
+    const month = parts.find(p => p.type === 'month')?.value;
+    const day = parts.find(p => p.type === 'day')?.value;
+    const currentDate = `${year}-${month}-${day}`;
+
+    // Get current time in Indian timezone
+    const timeFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+    const currentTime = timeFormatter.format(now);
+
     // Debug logging to see form data values
     console.log('Current form data:', formData);
     console.log('Validation checks:', {
@@ -326,8 +402,8 @@ export default function HawalaPage() {
       const hawalaData = {
         transactionId: formData.transactionId,
         tokenNo: formData.tokenNo ? parseInt(formData.tokenNo) : undefined,
-        date: formData.date,
-        time: formData.time,
+        date: currentDate, // Use current date in Indian timezone
+        time: currentTime, // Use current time in Indian timezone
         partyA: formData.partyA,
         partyB: formData.partyB,
         amount: parseInt(formData.amount),
@@ -350,13 +426,32 @@ export default function HawalaPage() {
 
       console.log('API call completed successfully');
 
-      // Refresh the data first to get latest entries
+      // Refresh data with a small delay to ensure backend has committed the entry
+      await new Promise(resolve => setTimeout(resolve, 200));
       await fetchHawalaEntries();
 
       // Fetch next IDs after successful save
-      const today = new Date().toISOString().split('T')[0];
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+      const parts = formatter.formatToParts(now);
+      const year = parts.find(p => p.type === 'year')?.value;
+      const month = parts.find(p => p.type === 'month')?.value;
+      const day = parts.find(p => p.type === 'day')?.value;
+      const today = `${year}-${month}-${day}`;
+
       try {
-        const response = await fetch(`${API_BASE_URL}/api/hawala/next-ids?date=${today}&type=INWARD`);
+        const token = getAuthToken();
+        const response = await fetch(`${API_BASE_URL}/api/hawala/next-ids?date=${today}&type=INWARD`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
         const result = await response.json();
 
         if (result.success) {
@@ -364,8 +459,8 @@ export default function HawalaPage() {
             ...prev,
             transactionId: result.nextTransactionId,
             tokenNo: result.nextTokenNo,
-            date: new Date().toISOString().split('T')[0],
-            time: new Date().toTimeString().slice(0, 5),
+            date: today, // Use current date in Indian timezone
+            time: currentTime, // Use current time in Indian timezone
             partyA: '',
             partyB: '',
             amount: '',

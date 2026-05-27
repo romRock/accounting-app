@@ -25,12 +25,12 @@ import { validateCreateLedgerEntry, validateUpdateLedgerEntry } from './validati
 
 const router = Router();
 
-// Public route for GET entries (no authentication required)
+// Apply authentication to all routes
+router.use(authenticateToken);
+
+// Account Entry GET routes with authentication
 router.get('/entries', getAccountEntries);
 router.get('/entries/next-id', getNextAccountTransactionId);
-
-// Apply authentication to all remaining routes
-router.use(authenticateToken);
 
 // Account Category CRUD operations
 router.post('/categories', requirePermission('accounting'), createAccountCategory);

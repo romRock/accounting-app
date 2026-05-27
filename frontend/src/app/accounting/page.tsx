@@ -42,7 +42,21 @@ export default function AccountingPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterByDate, setFilterByDate] = useState(false);
   const [isSelectingRange, setIsSelectingRange] = useState(false);
-  const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
+  const [dateFilter, setDateFilter] = useState(() => {
+    // Get current date in Indian timezone (UTC+5:30)
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const parts = formatter.formatToParts(now);
+    const year = parts.find(p => p.type === 'year')?.value;
+    const month = parts.find(p => p.type === 'month')?.value;
+    const day = parts.find(p => p.type === 'day')?.value;
+    return `${year}-${month}-${day}`;
+  });
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [categoryForm, setCategoryForm] = useState({ name: '', type: 'INCOME' as 'INCOME' | 'EXPENSE' });
@@ -73,8 +87,32 @@ export default function AccountingPage() {
   // Transaction Form State
   const [transactionForm, setTransactionForm] = useState<TransactionForm>({
     transactionNo: 'TRN001',
-    date: new Date().toISOString().split('T')[0],
-    time: new Date().toTimeString().split(' ')[0].substring(0, 5),
+    date: (() => {
+      // Get current date in Indian timezone (UTC+5:30)
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+      const parts = formatter.formatToParts(now);
+      const year = parts.find(p => p.type === 'year')?.value;
+      const month = parts.find(p => p.type === 'month')?.value;
+      const day = parts.find(p => p.type === 'day')?.value;
+      return `${year}-${month}-${day}`;
+    })(),
+    time: (() => {
+      // Get current time in Indian timezone (UTC+5:30)
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      return formatter.format(now);
+    })(),
     amount: 0,
     amountType: 'INCOME',
     category: '',
@@ -112,16 +150,16 @@ export default function AccountingPage() {
   // Fetch accounting entries
   const fetchAccountingEntries = async () => {
     try {
-      const response = await accountingApi.getAccountEntries();
+      // Fetch with higher limit to show all current day entries
+      const response = await accountingApi.getAccountEntries({ page: 1, limit: 1000 });
       console.log('✅ Accounting entries fetched:', response.entries);
       if (response.entries.length > 0) {
         console.log('📝 First entry sample:', response.entries[0]);
         console.log('🆔 First entry ID:', response.entries[0].entryId);
       }
-      // Sort entries by date ascending (oldest first) for display
-      const sortedEntries = (response.entries || []).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      setTransactions(sortedEntries);
-      return sortedEntries;
+      // Backend now filters by current day and branch, so no frontend filtering needed
+      setTransactions(response.entries || []);
+      return response.entries || [];
     } catch (error) {
       console.error('Failed to fetch accounting entries:', error);
       setTransactions([]);
@@ -198,40 +236,33 @@ export default function AccountingPage() {
       );
     }
 
-    // Always filter by date to show only current day entries by default
-    filtered = filtered.filter(transaction => {
-      let transactionDate = transaction.date?.includes('T')
-        ? transaction.date.split('T')[0]
-        : transaction.date || '';
+    // Backend now filters by current day and branch by default
+    // Frontend only filters if user explicitly enables date filter
+    if (filterByDate) {
+      filtered = filtered.filter(transaction => {
+        let transactionDate = transaction.date?.includes('T')
+          ? transaction.date.split('T')[0]
+          : transaction.date || '';
 
-      // Normalize date format - handle DD/MM/YYYY, YYYY-MM-DD, and other formats
-      if (transactionDate.includes('/')) {
-        const parts = transactionDate.split('/');
-        if (parts.length === 3) {
-          // Assume DD/MM/YYYY format
-          transactionDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        // Normalize date format - handle DD/MM/YYYY, YYYY-MM-DD, and other formats
+        if (transactionDate.includes('/')) {
+          const parts = transactionDate.split('/');
+          if (parts.length === 3) {
+            // Assume DD/MM/YYYY format
+            transactionDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+          }
         }
-      }
 
-      // Get today's date in YYYY-MM-DD format for comparison
-      const today = new Date();
-      const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
-      // If filterByDate is enabled and user has selected a specific date or range
-      if (filterByDate) {
         if (!isSelectingRange) {
-          // Filter to selected date if provided, otherwise today
+          // Filter to selected date if provided
           return !dateFilter || transactionDate === dateFilter;
         }
 
         return startDate && endDate
           ? transactionDate >= startDate && transactionDate <= endDate
           : true;
-      }
-
-      // Default: always filter to today's date
-      return transactionDate === todayString;
-    });
+      });
+    }
 
     return filtered;
   }, [transactions, searchTerm, filterByDate, dateFilter, isSelectingRange, startDate, endDate]);
@@ -244,13 +275,36 @@ export default function AccountingPage() {
     }
 
     try {
+      // Get current date in Indian timezone to ensure entry shows up in current day filter
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+      const parts = formatter.formatToParts(now);
+      const year = parts.find(p => p.type === 'year')?.value;
+      const month = parts.find(p => p.type === 'month')?.value;
+      const day = parts.find(p => p.type === 'day')?.value;
+      const currentDate = `${year}-${month}-${day}`;
+
+      // Get current time in Indian timezone
+      const timeFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      const currentTime = timeFormatter.format(now);
+
       const entryData = {
-        date: transactionForm.date,
-        time: transactionForm.time,
+        date: currentDate, // Use current date in Indian timezone
+        time: currentTime, // Use current time in Indian timezone
         categoryId: transactionForm.category,
         amount: transactionForm.amount,
         description: transactionForm.remark || '',
-        partyId: transactionForm.account, // This would need to be updated to actual party ID
+        partyId: transactionForm.account,
         totalAmount: transactionForm.amount,
         type: transactionForm.amountType,
         status: 'COMPLETED',
@@ -267,10 +321,18 @@ export default function AccountingPage() {
         showSuccessToast('Accounting entry added successfully');
       }
 
-      // Refresh data
+      // Refresh data with a small delay to ensure backend has committed the entry
+      await new Promise(resolve => setTimeout(resolve, 200));
       await fetchAccountingEntries();
       await clearForm();
-      
+
+      // Update form date/time to current values for next entry
+      setTransactionForm(prev => ({
+        ...prev,
+        date: currentDate,
+        time: currentTime,
+      }));
+
       // Focus on amount input (keyboard-friendly)
       setTimeout(() => amountInputRef.current?.focus(), 100);
     } catch (error) {

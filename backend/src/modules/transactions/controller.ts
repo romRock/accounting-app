@@ -63,9 +63,9 @@ export const createTransaction = async (req: Request, res: Response) => {
 
     // Generate unique transaction ID based on type (book_001 for outward, cut_001 for inward)
     const transactionId = await generateTransactionIdByType(type);
-    
-    // Generate token number (daily reset, separate for outward/inward)
-    const tokenNo = await generateTokenNumberByType(date, type);
+
+    // Generate token number (daily reset, separate for outward/inward, branch-specific)
+    const tokenNo = await generateTokenNumberByType(date, type, branchId);
 
     // Calculate commission if auto is enabled
     let calculatedCommission = commission || 0;
@@ -177,7 +177,7 @@ export const createTransaction = async (req: Request, res: Response) => {
         status: true,
         statusTime: new Date(),
         type: type as TransactionType,
-        branchId: null, // Provide null value for optional branchId
+        branchId: branchId || null, // Use user's branchId
         createdBy: userId!,
       },
     });
@@ -233,6 +233,13 @@ export const getTransactions = async (req: Request, res: Response) => {
     const userPermissions = req.user?.role?.permissions as any;
     const isSuperAdmin = userPermissions?.masterData === 'full_access';
 
+    // Get current date in Indian timezone for default filtering
+    const now = new Date();
+    const istDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const today = new Date(istDate.getFullYear(), istDate.getMonth(), istDate.getDate());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
     // Build where clause
     const where: any = {
       isActive: true,
@@ -255,10 +262,17 @@ export const getTransactions = async (req: Request, res: Response) => {
     if (receiverClientId) where.receiverClientId = receiverClientId as string;
     if (senderClientId) where.senderClientId = senderClientId as string;
 
+    // If date range is specified, use it; otherwise filter to current day (Indian timezone)
     if (dateFrom || dateTo) {
       where.date = {};
       if (dateFrom) where.date.gte = new Date(dateFrom as string);
       if (dateTo) where.date.lte = new Date(dateTo as string);
+    } else {
+      // Default: filter to current day (Indian timezone)
+      where.date = {
+        gte: today,
+        lt: tomorrow,
+      };
     }
 
     if (search) {
@@ -298,6 +312,9 @@ export const getTransactions = async (req: Request, res: Response) => {
       center: centers.find((c: any) => c.id === transaction.centerId) || { id: transaction.centerId, name: 'Unknown', code: 'Unknown' }
     }));
 
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.json({
       transactions: transactionsWithCenters,
       pagination: limitNum ? {
@@ -644,9 +661,10 @@ export const getTransactionStats = async (req: Request, res: Response) => {
 export const getNextTransactionIds = async (req: Request, res: Response) => {
   try {
     const { date, type } = req.query;
-    
+    const branchId = req.user?.branchId;
+
     const nextTransactionId = await generateTransactionIdByType(type as string || 'OUTWARD');
-    const nextTokenNo = await generateTokenNumberByType(date as string || new Date().toISOString().split('T')[0], type as string || 'OUTWARD');
+    const nextTokenNo = await generateTokenNumberByType(date as string || new Date().toISOString().split('T')[0], type as string || 'OUTWARD', branchId);
 
     res.json({
       nextTransactionId,
@@ -692,22 +710,31 @@ async function generateTransactionIdByType(type: string): Promise<string> {
   }
 }
 
-// Helper function to generate token number by type (separate for outward/inward, daily reset at 12:00 AM IST)
-export const generateTokenNumberByType = async (date: string, type: string) => {
+// Helper function to generate token number by type (separate for outward/inward, daily reset at 12:00 AM IST, branch-specific)
+export const generateTokenNumberByType = async (date: string, type: string, branchId?: string) => {
   try {
+    // Convert date to Indian timezone for proper day boundary
     const targetDate = new Date(date);
-    targetDate.setHours(0, 0, 0, 0);
-    const nextDay = new Date(targetDate);
+    const istDate = new Date(targetDate.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+    const todayStart = new Date(istDate.getFullYear(), istDate.getMonth(), istDate.getDate());
+    const nextDay = new Date(todayStart);
     nextDay.setDate(nextDay.getDate() + 1);
 
-    const lastTransaction = await prisma.transaction.findFirst({
-      where: {
-        type: type,
-        date: {
-          gte: targetDate,
-          lt: nextDay,
-        },
+    const where: any = {
+      type: type,
+      date: {
+        gte: todayStart,
+        lt: nextDay,
       },
+    };
+
+    // Filter by branch if branchId is provided
+    if (branchId) {
+      where.branchId = branchId;
+    }
+
+    const lastTransaction = await prisma.transaction.findFirst({
+      where: where,
       orderBy: { tokenNo: 'desc' },
       select: { tokenNo: true },
     });

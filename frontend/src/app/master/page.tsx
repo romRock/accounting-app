@@ -47,7 +47,13 @@ interface Role {
       report_7: boolean;
     };
     balanceSheet: 'all' | 'none';
-    masterData: 'full_access' | 'role_based_access' | 'none';
+    master: {
+      users: 'all' | 'none';
+      roles: 'all' | 'none';
+      cities: 'all' | 'none';
+      clients: 'all' | 'none';
+      branches: 'all' | 'none';
+    };
   };
   createdAt: string;
   updatedAt: string;
@@ -112,7 +118,13 @@ export default function MasterPage() {
         report_7: false
       },
       balanceSheet: 'none',
-      masterData: 'none'
+      master: {
+        users: 'none',
+        roles: 'none',
+        cities: 'none',
+        clients: 'none',
+        branches: 'none'
+      }
     }
   });
   const [centerForm, setCenterForm] = useState<Partial<Center>>({});
@@ -139,19 +151,48 @@ export default function MasterPage() {
     // Parse permissions from JSON string if needed
     let permissions;
     try {
-      permissions = typeof user.role.permissions === 'string' 
-        ? JSON.parse(user.role.permissions) 
+      permissions = typeof user.role.permissions === 'string'
+        ? JSON.parse(user.role.permissions)
         : user.role.permissions;
     } catch (error) {
       console.error('Error parsing permissions:', error);
       return false;
     }
 
-    // Strict RBAC - only allow if user has explicit full_access permission
+    // Check for backward compatibility with old masterData format
+    if (permissions.masterData === 'full_access') {
+      return true;
+    }
+
+    // Strict RBAC - only allow if user has explicit full access to any master section
     // Works like other single access modules - no access by default
-    return permissions.masterData === 'full_access' ||
-           permissions.master?.read ||
-           permissions.master?.write;
+    return permissions.master?.users === 'all' ||
+           permissions.master?.roles === 'all' ||
+           permissions.master?.cities === 'all' ||
+           permissions.master?.clients === 'all' ||
+           permissions.master?.branches === 'all';
+  };
+
+  // Check if user has access to specific master section
+  const hasMasterAccess = (section: 'users' | 'roles' | 'cities' | 'clients' | 'branches') => {
+    if (!user?.role?.permissions) return false;
+
+    let permissions;
+    try {
+      permissions = typeof user.role.permissions === 'string'
+        ? JSON.parse(user.role.permissions)
+        : user.role.permissions;
+    } catch (error) {
+      console.error('Error parsing permissions:', error);
+      return false;
+    }
+
+    // Check for backward compatibility with old masterData format
+    if (permissions.masterData === 'full_access') {
+      return true;
+    }
+
+    return permissions.master?.[section] === 'all';
   };
 
   // Redirect non-admin users
@@ -319,7 +360,13 @@ export default function MasterPage() {
             report_7: true
           },
           balanceSheet: 'all',
-          masterData: 'full_access'
+          master: {
+            users: 'all',
+            roles: 'all',
+            cities: 'all',
+            clients: 'all',
+            branches: 'all'
+          }
         },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -344,7 +391,13 @@ export default function MasterPage() {
             report_7: false
           },
           balanceSheet: 'all',
-          masterData: 'role_based_access'
+          master: {
+            users: 'none',
+            roles: 'none',
+            cities: 'all',
+            clients: 'all',
+            branches: 'none'
+          }
         },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -369,7 +422,13 @@ export default function MasterPage() {
             report_7: false
           },
           balanceSheet: 'none',
-          masterData: 'role_based_access'
+          master: {
+            users: 'none',
+            roles: 'none',
+            cities: 'none',
+            clients: 'none',
+            branches: 'none'
+          }
         },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -394,7 +453,13 @@ export default function MasterPage() {
             report_7: false
           },
           balanceSheet: 'none',
-          masterData: 'role_based_access'
+          master: {
+            users: 'none',
+            roles: 'none',
+            cities: 'none',
+            clients: 'none',
+            branches: 'none'
+          }
         },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -531,7 +596,13 @@ export default function MasterPage() {
                     report_7: false 
                   },
                   balanceSheet: "none" as const,
-                  masterData: "role_based_access" as const
+                  master: {
+                    users: "none" as const,
+                    roles: "none" as const,
+                    cities: "none" as const,
+                    clients: "none" as const,
+                    branches: "none" as const
+                  }
                 }
               );
 
@@ -1104,7 +1175,13 @@ export default function MasterPage() {
           report_7: false
         },
         balanceSheet: 'none',
-        masterData: 'role_based_access'
+        master: {
+          users: 'none',
+          roles: 'none',
+          cities: 'none',
+          clients: 'none',
+          branches: 'none'
+        }
       }
     });
     setCenterForm({});
@@ -1161,7 +1238,7 @@ export default function MasterPage() {
           <CardContent className="p-6">
             
             {/* USERS TAB */}
-            {activeTab === 'users' && (
+            {activeTab === 'users' && hasMasterAccess('users') && (
               <div className="space-y-6">
                 {/* User Form */}
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
@@ -1337,7 +1414,7 @@ export default function MasterPage() {
             )}
 
             {/* ROLES & PERMISSIONS TAB */}
-            {activeTab === 'roles' && (
+            {activeTab === 'roles' && hasMasterAccess('roles') && (
               <div className="space-y-6">
                 {/* Role Form */}
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
@@ -1721,38 +1798,96 @@ export default function MasterPage() {
                     {/* Master Data Module */}
                     <div className="border border-gray-200 rounded-lg p-4">
                       <h5 className="font-medium text-gray-900 mb-3">Master Data</h5>
-                      <div className="flex space-x-4">
+                      <div className="grid grid-cols-2 gap-4">
                         <label className="flex items-center space-x-2">
                           <input
-                            type="radio"
-                            name="masterData"
-                            checked={roleForm.permissions?.masterData === 'full_access'}
-                            onChange={() => setRoleForm({
+                            type="checkbox"
+                            checked={roleForm.permissions?.master?.users === 'all'}
+                            onChange={(e) => setRoleForm({
                               ...roleForm,
                               permissions: {
                                 ...roleForm.permissions!,
-                                masterData: 'full_access'
+                                master: {
+                                  ...roleForm.permissions!.master,
+                                  users: e.target.checked ? 'all' : 'none'
+                                }
                               }
                             })}
                             className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
                           />
-                          <span className="text-sm text-gray-900">All Access</span>
+                          <span className="text-sm text-gray-900">Users</span>
                         </label>
                         <label className="flex items-center space-x-2">
                           <input
-                            type="radio"
-                            name="masterData"
-                            checked={roleForm.permissions?.masterData === 'none'}
-                            onChange={() => setRoleForm({
+                            type="checkbox"
+                            checked={roleForm.permissions?.master?.roles === 'all'}
+                            onChange={(e) => setRoleForm({
                               ...roleForm,
                               permissions: {
                                 ...roleForm.permissions!,
-                                masterData: 'none'
+                                master: {
+                                  ...roleForm.permissions!.master,
+                                  roles: e.target.checked ? 'all' : 'none'
+                                }
                               }
                             })}
                             className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
                           />
-                          <span className="text-sm text-gray-900">No Access</span>
+                          <span className="text-sm text-gray-900">Roles</span>
+                        </label>
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={roleForm.permissions?.master?.cities === 'all'}
+                            onChange={(e) => setRoleForm({
+                              ...roleForm,
+                              permissions: {
+                                ...roleForm.permissions!,
+                                master: {
+                                  ...roleForm.permissions!.master,
+                                  cities: e.target.checked ? 'all' : 'none'
+                                }
+                              }
+                            })}
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+                          />
+                          <span className="text-sm text-gray-900">Cities</span>
+                        </label>
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={roleForm.permissions?.master?.clients === 'all'}
+                            onChange={(e) => setRoleForm({
+                              ...roleForm,
+                              permissions: {
+                                ...roleForm.permissions!,
+                                master: {
+                                  ...roleForm.permissions!.master,
+                                  clients: e.target.checked ? 'all' : 'none'
+                                }
+                              }
+                            })}
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+                          />
+                          <span className="text-sm text-gray-900">Clients</span>
+                        </label>
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={roleForm.permissions?.master?.branches === 'all'}
+                            onChange={(e) => setRoleForm({
+                              ...roleForm,
+                              permissions: {
+                                ...roleForm.permissions!,
+                                master: {
+                                  ...roleForm.permissions!.master,
+                                  branches: e.target.checked ? 'all' : 'none'
+                                }
+                              }
+                            })}
+                            className="h-4 w-4 rounded border-gray-300 bg-blue-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+                          />
+                          <span className="text-sm text-gray-900">Branches</span>
                         </label>
                       </div>
                     </div>
@@ -1845,7 +1980,7 @@ export default function MasterPage() {
             )}
 
             {/* CENTERS TAB */}
-            {activeTab === 'centers' && (
+            {activeTab === 'centers' && hasMasterAccess('cities') && (
               <div className="space-y-6">
                 {/* Center Form */}
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
@@ -2039,7 +2174,7 @@ export default function MasterPage() {
             )}
 
             {/* CLIENTS TAB */}
-            {activeTab === 'clients' && (
+            {activeTab === 'clients' && hasMasterAccess('clients') && (
               <div className="space-y-6">
                 {/* Client Form */}
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
@@ -2203,7 +2338,7 @@ export default function MasterPage() {
             )}
 
             {/* BRANCHES TAB */}
-            {activeTab === 'branches' && (
+            {activeTab === 'branches' && hasMasterAccess('branches') && (
               <div className="space-y-6">
                 {/* Branch Form */}
                 <div className="bg-white p-4 rounded-lg border border-gray-200">

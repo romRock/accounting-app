@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { RefreshCw, Trash2, Save } from 'lucide-react';
 import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
+import API_BASE_URL from '@/lib/api';
+import { useAuthStore } from '@/store/index';
 
 // Function to format time in Indian time format
 const formatTime = (timeString: string) => {
@@ -65,8 +67,32 @@ export default function SPLPage() {
   const [formData, setFormData] = useState({
     transactionId: '',
     tokenNo: 0,
-    date: new Date().toISOString().split('T')[0],
-    time: new Date().toTimeString().slice(0, 5),
+    date: (() => {
+      // Get current date in Indian timezone (UTC+5:30)
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+      const parts = formatter.formatToParts(now);
+      const year = parts.find(p => p.type === 'year')?.value;
+      const month = parts.find(p => p.type === 'month')?.value;
+      const day = parts.find(p => p.type === 'day')?.value;
+      return `${year}-${month}-${day}`;
+    })(),
+    time: (() => {
+      // Get current time in Indian timezone (UTC+5:30)
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      return formatter.format(now);
+    })(),
     partyA: '',
     amountA: '',
     partyB: '',
@@ -83,52 +109,111 @@ export default function SPLPage() {
   const [endDate, setEndDate] = useState('');
   const [isSelectingRange, setIsSelectingRange] = useState(false);
 
-  // Real-time time update
+  // Auto-refresh time every second (like accounting and hawala pages)
   useEffect(() => {
-    const timer = setInterval(() => {
+    const interval = setInterval(() => {
       const now = new Date();
-      const indianTime = now.toLocaleTimeString('en-IN', { hour12: false });
-      setFormData(prev => ({
-        ...prev,
-        time: indianTime
-      }));
-    }, 1000); // Update every second
+      // Format Indian time (HH:MM)
+      const indianTime = now.toLocaleTimeString('en-IN', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Kolkata'
+      });
+      setFormData(prev => ({ ...prev, time: indianTime }));
+    }, 1000);
 
-    return () => clearInterval(timer);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Initialize form and fetch next IDs from backend
+  useEffect(() => {
+    const initializeForm = async () => {
+      try {
+        // Get current date in Indian timezone for next IDs API
+        const now = new Date();
+        const formatter = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Kolkata',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        });
+        const parts = formatter.formatToParts(now);
+        const year = parts.find(p => p.type === 'year')?.value;
+        const month = parts.find(p => p.type === 'month')?.value;
+        const day = parts.find(p => p.type === 'day')?.value;
+        const today = `${year}-${month}-${day}`;
+
+        const { accessToken } = useAuthStore.getState();
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+        };
+
+        if (accessToken) {
+          headers['Authorization'] = `Bearer ${accessToken}`;
+        }
+
+        const response = await fetch(`${API_BASE_URL}/api/specialEntry/next-ids?date=${today}&type=INWARD`, {
+          method: 'GET',
+          headers: headers,
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          setFormData(prev => ({
+            ...prev,
+            transactionId: result.nextTransactionId,
+            tokenNo: result.nextTokenNo
+          }));
+        } else {
+          console.error('Failed to get next special entry IDs:', result.error);
+          // Fallback to generated IDs
+          setFormData(prev => ({
+            ...prev,
+            transactionId: generateTransactionId(),
+            tokenNo: parseInt(generateTokenNo())
+          }));
+        }
+      } catch (error) {
+        console.error('Error initializing form:', error);
+        // Fallback to generated IDs
+        setFormData(prev => ({
+          ...prev,
+          transactionId: generateTransactionId(),
+          tokenNo: parseInt(generateTokenNo())
+        }));
+      }
+    };
+
+    initializeForm();
   }, []);
 
   // Fetch special entries on component mount
   useEffect(() => {
     const fetchSpecialEntries = async () => {
       try {
-        // Get today's date in YYYY-MM-DD format
-        const today = new Date().toISOString().split('T')[0];
-        
-        // Determine date range
+        // Backend now filters by current day and branch by default
+        // Frontend only filters if user explicitly enables date filter
         let dateFrom, dateTo;
         if (filterByDate) {
           if (isSelectingRange) {
-            dateFrom = startDate || today;
-            dateTo = endDate || today;
+            dateFrom = startDate;
+            dateTo = endDate;
           } else {
-            dateFrom = dateFilter || today;
-            dateTo = dateFilter || today;
+            dateFrom = dateFilter;
+            dateTo = dateFilter;
           }
-        } else {
-          // Default to today when filterByDate is false
-          dateFrom = today;
-          dateTo = today;
         }
 
         const response = await getSpecialEntries({
           page: 1,
-          limit: 100,
+          limit: 1000,
           search: searchTerm || undefined,
           status: statusFilter === 'all' ? undefined : statusFilter,
           dateFrom,
           dateTo
         });
-        
+
         if (response.success && response.data) {
           setSPLEntries(response.data);
         } else {
@@ -172,11 +257,34 @@ export default function SPLPage() {
 
   // Clear form
   const clearForm = () => {
+    // Get current date in Indian timezone
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const parts = formatter.formatToParts(now);
+    const year = parts.find(p => p.type === 'year')?.value;
+    const month = parts.find(p => p.type === 'month')?.value;
+    const day = parts.find(p => p.type === 'day')?.value;
+    const currentDate = `${year}-${month}-${day}`;
+
+    // Get current time in Indian timezone
+    const timeFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+    const currentTime = timeFormatter.format(now);
+
     setFormData({
       transactionId: '',
       tokenNo: 0,
-      date: new Date().toISOString().split('T')[0],
-      time: new Date().toTimeString().slice(0, 5),
+      date: currentDate,
+      time: currentTime,
       partyA: '',
       amountA: '',
       partyB: '',
@@ -186,15 +294,38 @@ export default function SPLPage() {
       remark: ''
     });
     setSelectedEntry(null);
-    
+
     // Focus on amount input (keyboard-friendly)
     setTimeout(() => amountInputRef.current?.focus(), 100);
   };
 
   // Save entry
   const saveEntry = async () => {
+    // Get current date in Indian timezone to ensure entry shows up in current day filter
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const parts = formatter.formatToParts(now);
+    const year = parts.find(p => p.type === 'year')?.value;
+    const month = parts.find(p => p.type === 'month')?.value;
+    const day = parts.find(p => p.type === 'day')?.value;
+    const currentDate = `${year}-${month}-${day}`;
+
+    // Get current time in Indian timezone
+    const timeFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+    const currentTime = timeFormatter.format(now);
+
     console.log('🔍 SPL DEBUG: Current formData:', formData);
-    
+
     // Calculate amountC = amountA - amountB
     const calculatedAmountC = parseFloat(formData.amountA || '0') - parseFloat(formData.amountB || '0');
     console.log('🔍 SPL DEBUG: Calculated amountC:', calculatedAmountC);
@@ -209,13 +340,13 @@ export default function SPLPage() {
       date: formData.date,
       time: formData.time
     };
-    
+
     console.log('🔍 SPL DEBUG: Required fields check:', requiredFields);
-    
+
     const missingFields = Object.entries(requiredFields)
       .filter(([key, value]) => !value || value.toString().trim() === '')
       .map(([key]) => key);
-    
+
     if (missingFields.length > 0) {
       console.log('🔍 SPL DEBUG: Missing fields:', missingFields);
       showErrorToast('Please fill in all required fields');
@@ -231,8 +362,8 @@ export default function SPLPage() {
     const payload = {
       transactionId: formData.transactionId || generateTransactionId(),
       tokenNo: formData.tokenNo || parseInt(generateTokenNo()),
-      date: formData.date,
-      time: formData.time,
+      date: currentDate, // Use current date in Indian timezone
+      time: currentTime, // Use current time in Indian timezone
       partyA: formData.partyA,
       amountA: parseFloat(formData.amountA),
       partyB: formData.partyB,
@@ -241,7 +372,7 @@ export default function SPLPage() {
       amountC: calculatedAmountC,
       remark: formData.remark
     };
-    
+
     console.log('🔍 SPL DEBUG: API Payload:', payload);
 
     try {
@@ -250,8 +381,8 @@ export default function SPLPage() {
         const updatedEntry = await updateSpecialEntry(selectedEntry.id, {
           transactionId: formData.transactionId || generateTransactionId(),
           tokenNo: formData.tokenNo || parseInt(generateTokenNo()),
-          date: formData.date,
-          time: formData.time,
+          date: currentDate,
+          time: currentTime,
           partyA: formData.partyA,
           amountA: parseFloat(formData.amountA),
           partyB: formData.partyB,
@@ -260,9 +391,9 @@ export default function SPLPage() {
           amountC: calculatedAmountC,
           remark: formData.remark
         });
-        
+
         // Refresh table data after update
-        setSPLEntries(prev => prev.map(entry => 
+        setSPLEntries(prev => prev.map(entry =>
           entry.id === selectedEntry.id ? updatedEntry : entry
         ));
       } else {
@@ -271,13 +402,76 @@ export default function SPLPage() {
         setSPLEntries(prev => [...prev, newEntry]);
       }
 
-      clearForm();
+      // Refresh data with a small delay to ensure backend has committed the entry
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // Fetch entries again to get latest data
+      const { accessToken } = useAuthStore.getState();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+
+      const refreshResponse = await fetch(`${API_BASE_URL}/api/specialEntry?page=1&limit=1000`, {
+        method: 'GET',
+        headers: headers,
+      });
+      const refreshResult = await refreshResponse.json();
+      if (refreshResult.success && refreshResult.data) {
+        setSPLEntries(refreshResult.data);
+      }
+
+      // Fetch next IDs after successful save
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+      const parts = formatter.formatToParts(now);
+      const year = parts.find(p => p.type === 'year')?.value;
+      const month = parts.find(p => p.type === 'month')?.value;
+      const day = parts.find(p => p.type === 'day')?.value;
+      const today = `${year}-${month}-${day}`;
+
+      try {
+        const nextIdsResponse = await fetch(`${API_BASE_URL}/api/specialEntry/next-ids?date=${today}&type=INWARD`, {
+          method: 'GET',
+          headers: headers,
+        });
+        const nextIdsResult = await nextIdsResponse.json();
+
+        if (nextIdsResult.success) {
+          setFormData(prev => ({
+            ...prev,
+            transactionId: nextIdsResult.nextTransactionId,
+            tokenNo: nextIdsResult.nextTokenNo,
+            date: today,
+            time: currentTime,
+            partyA: '',
+            amountA: '',
+            partyB: '',
+            amountB: '',
+            partyC: '',
+            amountC: '',
+            remark: ''
+          }));
+        } else {
+          clearForm();
+        }
+      } catch (error) {
+        clearForm();
+      }
+
       if (selectedEntry) {
         showUpdateToast('Special entry updated successfully');
       } else {
         showSuccessToast('Special entry created successfully');
       }
-      
+
       // Focus on amount input (keyboard-friendly)
       setTimeout(() => amountInputRef.current?.focus(), 100);
     } catch (error) {

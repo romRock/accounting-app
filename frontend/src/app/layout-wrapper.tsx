@@ -157,9 +157,29 @@ export default function LayoutWrapper({
         // Strict RBAC - only allow if user has explicit balanceSheet permission
         return permissions.balanceSheet === 'all' || permissions.balanceSheet?.read || permissions.balanceSheet?.write;
       case 'master':
-        // Strict RBAC - only allow if user has explicit full_access permission (admin/super admin only)
-        // Works like other single access modules - no access by default
-        return permissions.masterData === 'full_access' ||
+        // Check for backward compatibility with old masterData format
+        if (permissions.masterData === 'full_access') {
+          return true;
+        }
+        // Handle granular master permissions
+        if (action === 'users') {
+          return permissions.master?.users === 'all';
+        } else if (action === 'roles') {
+          return permissions.master?.roles === 'all';
+        } else if (action === 'cities') {
+          return permissions.master?.cities === 'all';
+        } else if (action === 'clients') {
+          return permissions.master?.clients === 'all';
+        } else if (action === 'branches') {
+          return permissions.master?.branches === 'all';
+        }
+        // Check if user has any master access
+        return permissions.master?.users === 'all' ||
+               permissions.master?.roles === 'all' ||
+               permissions.master?.cities === 'all' ||
+               permissions.master?.clients === 'all' ||
+               permissions.master?.branches === 'all' ||
+               permissions.masterData === 'full_access' ||
                permissions.master?.read ||
                permissions.master?.write;
       default:
@@ -572,81 +592,91 @@ export default function LayoutWrapper({
               {/* Master Tabs - Only show on master page */}
               {pathname === '/master' && (
                 <div className="flex items-center space-x-3">
-                  <button
-                    onClick={() => {
-                      setActiveMasterTab('users');
-                      // Dispatch event for master page
-                      const event = new CustomEvent('setMasterTab', { detail: 'users' });
-                      window.dispatchEvent(event);
-                    }}
-                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                  {hasPermission('master', 'users') && (
+                    <button
+                      onClick={() => {
+                        setActiveMasterTab('users');
+                        // Dispatch event for master page
+                        const event = new CustomEvent('setMasterTab', { detail: 'users' });
+                        window.dispatchEvent(event);
+                      }}
+                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                       activeMasterTab === 'users'
                         ? 'bg-orange-600 border-orange-400 text-white'
                         : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
                     }`}
-                  >
-                    <span className="relative z-10">Users</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveMasterTab('roles');
-                      // Dispatch event for master page
-                      const event = new CustomEvent('setMasterTab', { detail: 'roles' });
-                      window.dispatchEvent(event);
-                    }}
-                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                    >
+                      <span className="relative z-10">Users</span>
+                    </button>
+                  )}
+                  {hasPermission('master', 'roles') && (
+                    <button
+                      onClick={() => {
+                        setActiveMasterTab('roles');
+                        // Dispatch event for master page
+                        const event = new CustomEvent('setMasterTab', { detail: 'roles' });
+                        window.dispatchEvent(event);
+                      }}
+                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                       activeMasterTab === 'roles'
                         ? 'bg-orange-600 border-orange-400 text-white'
                         : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
                     }`}
-                  >
-                    <span className="relative z-10">Roles</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveMasterTab('centers');
-                      // Dispatch event for master page
-                      const event = new CustomEvent('setMasterTab', { detail: 'centers' });
-                      window.dispatchEvent(event);
-                    }}
-                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                    >
+                      <span className="relative z-10">Roles</span>
+                    </button>
+                  )}
+                  {hasPermission('master', 'cities') && (
+                    <button
+                      onClick={() => {
+                        setActiveMasterTab('centers');
+                        // Dispatch event for master page
+                        const event = new CustomEvent('setMasterTab', { detail: 'centers' });
+                        window.dispatchEvent(event);
+                      }}
+                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                       activeMasterTab === 'centers'
                         ? 'bg-orange-600 border-orange-400 text-white'
                         : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
                     }`}
-                  >
-                    <span className="relative z-10">Centers</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveMasterTab('clients');
-                      // Dispatch event for master page
-                      const event = new CustomEvent('setMasterTab', { detail: 'clients' });
-                      window.dispatchEvent(event);
-                    }}
-                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                    >
+                      <span className="relative z-10">Centers</span>
+                    </button>
+                  )}
+                  {hasPermission('master', 'clients') && (
+                    <button
+                      onClick={() => {
+                        setActiveMasterTab('clients');
+                        // Dispatch event for master page
+                        const event = new CustomEvent('setMasterTab', { detail: 'clients' });
+                        window.dispatchEvent(event);
+                      }}
+                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                       activeMasterTab === 'clients'
                         ? 'bg-orange-600 border-orange-400 text-white'
                         : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
                     }`}
-                  >
-                    <span className="relative z-10">Clients</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveMasterTab('branches');
-                      // Dispatch event for master page
-                      const event = new CustomEvent('setMasterTab', { detail: 'branches' });
-                      window.dispatchEvent(event);
-                    }}
-                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                    >
+                      <span className="relative z-10">Clients</span>
+                    </button>
+                  )}
+                  {hasPermission('master', 'branches') && (
+                    <button
+                      onClick={() => {
+                        setActiveMasterTab('branches');
+                        // Dispatch event for master page
+                        const event = new CustomEvent('setMasterTab', { detail: 'branches' });
+                        window.dispatchEvent(event);
+                      }}
+                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
                       activeMasterTab === 'branches'
                         ? 'bg-orange-600 border-orange-400 text-white'
                         : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
                     }`}
-                  >
-                    <span className="relative z-10">Branches</span>
-                  </button>
+                    >
+                      <span className="relative z-10">Branches</span>
+                    </button>
+                  )}
                 </div>
               )}
               
@@ -734,7 +764,20 @@ export default function LayoutWrapper({
                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-orange-200 pointer-events-none" />
                     <input
                       type="date"
-                      defaultValue={new Date().toISOString().split('T')[0]}
+                      defaultValue={(() => {
+                        const now = new Date();
+                        const formatter = new Intl.DateTimeFormat('en-CA', {
+                          timeZone: 'Asia/Kolkata',
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit'
+                        });
+                        const parts = formatter.formatToParts(now);
+                        const year = parts.find(p => p.type === 'year')?.value;
+                        const month = parts.find(p => p.type === 'month')?.value;
+                        const day = parts.find(p => p.type === 'day')?.value;
+                        return `${year}-${month}-${day}`;
+                      })()}
                       className="pl-10 pr-4 py-2 bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 border border-orange-500/30 rounded-2xl text-orange-200 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 cursor-pointer hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black transition-all duration-300"
                       onChange={(e) => {
                         // Dispatch event for dashboard page

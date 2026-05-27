@@ -51,40 +51,40 @@ const router = Router();
 // Apply authentication to all routes
 router.use(authenticateToken);
 
-// User management
-router.get('/users', requirePermission('users.read'), getUsers);
-router.get('/users/:id', requirePermission('users.read'), getUserById);
-router.post('/users', requirePermission('users.create'), validateCreateUser, createUser);
-router.put('/users/:id', requirePermission('users.update'), validateUpdateUser, updateUser);
-router.delete('/users/:id', requirePermission('users.delete'), deleteUser);
+// User management - Only users with master.users permission can manage users
+router.get('/users', requirePermission('master.users'), getUsers);
+router.get('/users/:id', requirePermission('master.users'), getUserById);
+router.post('/users', requirePermission('master.users'), validateCreateUser, createUser);
+router.put('/users/:id', requirePermission('master.users'), validateUpdateUser, updateUser);
+router.delete('/users/:id', requirePermission('master.users'), deleteUser);
 
-// Role management - Only admin/super admin can manage roles
-router.get('/roles', requireAdmin, getRoles);
-router.get('/roles/:id', requireAdmin, getRoleById);
-router.post('/roles', requireAdmin, validateCreateRole, createRole);
-router.put('/roles/:id', requireAdmin, validateUpdateRole, updateRole);
-router.delete('/roles/:id', requireAdmin, deleteRole);
+// Role management - Only users with master.roles permission can manage roles
+router.get('/roles', requirePermission('master.roles'), getRoles);
+router.get('/roles/:id', requirePermission('master.roles'), getRoleById);
+router.post('/roles', requirePermission('master.roles'), validateCreateRole, createRole);
+router.put('/roles/:id', requirePermission('master.roles'), validateUpdateRole, updateRole);
+router.delete('/roles/:id', requirePermission('master.roles'), deleteRole);
 
-// City management
-router.get('/cities', requirePermission('cities.read'), getCities);
-router.get('/cities/:id', requirePermission('cities.read'), getCityById);
-router.post('/cities', requirePermission('cities.create'), validateCreateCity, createCity);
-router.put('/cities/:id', requirePermission('cities.update'), validateUpdateCity, updateCity);
-router.delete('/cities/:id', requirePermission('cities.delete'), deleteCity);
+// City management - Only users with master.cities permission can manage cities
+router.get('/cities', requirePermission('master.cities'), getCities);
+router.get('/cities/:id', requirePermission('master.cities'), getCityById);
+router.post('/cities', requirePermission('master.cities'), validateCreateCity, createCity);
+router.put('/cities/:id', requirePermission('master.cities'), validateUpdateCity, updateCity);
+router.delete('/cities/:id', requirePermission('master.cities'), deleteCity);
 
-// Party management
-router.get('/parties', requirePermission('parties.read'), getParties);
-router.get('/parties/:id', requirePermission('parties.read'), getPartyById);
-router.post('/parties', requirePermission('parties.create'), validateCreateParty, createParty);
-router.put('/parties/:id', requirePermission('parties.update'), validateUpdateParty, updateParty);
-router.delete('/parties/:id', requirePermission('parties.delete'), deleteParty);
+// Party management - Only users with master.clients permission can manage parties
+router.get('/parties', requirePermission('master.clients'), getParties);
+router.get('/parties/:id', requirePermission('master.clients'), getPartyById);
+router.post('/parties', requirePermission('master.clients'), validateCreateParty, createParty);
+router.put('/parties/:id', requirePermission('master.clients'), validateUpdateParty, updateParty);
+router.delete('/parties/:id', requirePermission('master.clients'), deleteParty);
 
-// Branch management
-router.get('/branches', requireAdmin, getBranches);
-router.get('/branches/:id', requireAdmin, getBranchById);
-router.post('/branches', requireAdmin, validateCreateBranch, createBranch);
-router.put('/branches/:id', requireAdmin, validateUpdateBranch, updateBranch);
-router.delete('/branches/:id', requireAdmin, deleteBranch);
+// Branch management - Only users with master.branches permission can manage branches
+router.get('/branches', requirePermission('master.branches'), getBranches);
+router.get('/branches/:id', requirePermission('master.branches'), getBranchById);
+router.post('/branches', requirePermission('master.branches'), validateCreateBranch, createBranch);
+router.put('/branches/:id', requirePermission('master.branches'), validateUpdateBranch, updateBranch);
+router.delete('/branches/:id', requirePermission('master.branches'), deleteBranch);
 
 // Commission rate management
 router.get('/commission-rates', requirePermission('commission_rates.read'), getCommissionRates);

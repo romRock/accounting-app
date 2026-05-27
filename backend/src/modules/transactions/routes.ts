@@ -13,18 +13,20 @@ import { validateCreateTransaction, validateUpdateTransaction } from './validati
 
 const router = Router();
 
-// Transaction CRUD operations - Main GET routes without authentication
+// Apply authentication to all routes
+router.use(authenticateToken);
+
+// Transaction CRUD operations - Main GET routes with authentication
 router.get('/', getTransactions);
 router.get('/next-ids', getNextTransactionIds);
 router.get('/stats', getTransactionStats);
 router.get('/:id', getTransactionById);
 
-// Special routes with RBAC protection - these require authentication for permission checking
-router.get('/inward', authenticateToken, requirePermission('transactions.read'), getTransactions);
-router.get('/outward', authenticateToken, requirePermission('transactions.read'), getTransactions);
+// Special routes with RBAC protection - these require permission checking
+router.get('/inward', requirePermission('transactions.read'), getTransactions);
+router.get('/outward', requirePermission('transactions.read'), getTransactions);
 
-// Apply authentication to POST, PUT, DELETE routes (no permission check required)
-router.use(authenticateToken);
+// POST, PUT, DELETE routes (no additional permission check required)
 router.post('/', validateCreateTransaction, createTransaction);
 router.put('/:id', validateUpdateTransaction, updateTransaction);
 router.delete('/:id', deleteTransaction);

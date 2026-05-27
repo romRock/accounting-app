@@ -4,7 +4,8 @@ import {
   getSpecialEntries,
   getSpecialEntryById,
   updateSpecialEntry,
-  deleteSpecialEntry
+  deleteSpecialEntry,
+  getSpecialEntryNextIds
 } from './controller';
 import { authenticateToken } from '../auth/middleware';
 
@@ -18,6 +19,9 @@ router.post('/', createSpecialEntry);
 
 // Get all special entries - Public route like transactions API
 router.get('/', getSpecialEntries);
+
+// Get next special entry IDs
+router.get('/next-ids', getSpecialEntryNextIds);
 
 // Get single special entry
 router.get('/:id', getSpecialEntryById);

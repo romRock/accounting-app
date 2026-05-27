@@ -1752,14 +1752,14 @@ export const searchCities = async (req: Request, res: Response) => {
     console.log("Cities API HIT");
     console.log("Environment:", process.env.NODE_ENV);
     console.log("Query params:", req.query);
-    
+
     // Log DB connection (masked)
     const dbUrl = process.env.DATABASE_URL || '';
-    const maskedUrl = dbUrl.includes('@') 
+    const maskedUrl = dbUrl.includes('@')
       ? dbUrl.substring(0, dbUrl.indexOf('@') + 1) + '***'
       : '***';
     console.log("DB URL (masked):", maskedUrl);
-    
+
     const {
       search,
       limit = 20,
@@ -1771,15 +1771,25 @@ export const searchCities = async (req: Request, res: Response) => {
     const limitNum = Math.min(Math.max(parseInt(getFirstValue(limit) || '20'), 1), 50); // Max 50 results
     const pageNum = Math.max(parseInt(getFirstValue(page) || '1'), 1);
     const offset = (pageNum - 1) * limitNum;
-    
+
     console.log("Search:", searchValue);
     console.log("Limit:", limitNum);
     console.log("Page:", pageNum);
+    console.log("User:", req.user?.username);
+    console.log("User branchId:", req.user?.branchId);
 
     const where: any = {
       isActive: true,
       isDeleted: false,
     };
+
+    // Filter by branch if user has branchId assigned
+    if (req.user?.branchId) {
+      where.branchId = req.user.branchId;
+      console.log("Filtering by branchId:", req.user.branchId);
+    } else {
+      console.log("No branchId assigned to user - showing all cities");
+    }
 
     // Build search conditions
     if (searchValue && searchValue.trim()) {
@@ -1804,7 +1814,7 @@ export const searchCities = async (req: Request, res: Response) => {
         const { seedCities } = await import('../../seedCities');
         await seedCities();
         console.log("Auto-seeding completed successfully");
-        
+
         // Re-check count after seeding
         const newCount = await prisma.city.count({
           where: { isActive: true, isDeleted: false }
@@ -1827,7 +1837,7 @@ export const searchCities = async (req: Request, res: Response) => {
     const shouldApplyLimit = req.query.limit !== undefined;
     const finalLimit = shouldApplyLimit ? limitNum : undefined;
     const finalOffset = shouldApplyLimit ? offset : undefined;
-    
+
     console.log("Should apply limit:", shouldApplyLimit);
     console.log("Final limit:", finalLimit);
 
@@ -1874,6 +1884,115 @@ export const searchCities = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching cities',
+    });
+  }
+};
+
+// Public Parties Search Endpoint (for typeahead dropdown)
+export const searchParties = async (req: Request, res: Response) => {
+  try {
+    console.log("=== PARTIES API DEBUG ===");
+    console.log("Parties API HIT");
+    console.log("Query params:", req.query);
+
+    const {
+      search,
+      limit = 20,
+      page = 1
+    } = req.query;
+
+    // Convert and validate parameters
+    const searchValue = getFirstValue(search);
+    const limitNum = Math.min(Math.max(parseInt(getFirstValue(limit) || '20'), 1), 50); // Max 50 results
+    const pageNum = Math.max(parseInt(getFirstValue(page) || '1'), 1);
+    const offset = (pageNum - 1) * limitNum;
+
+    console.log("Search:", searchValue);
+    console.log("Limit:", limitNum);
+    console.log("Page:", pageNum);
+    console.log("User:", req.user?.username);
+    console.log("User branchId:", req.user?.branchId);
+
+    const where: any = {
+      isActive: true,
+      isDeleted: false,
+    };
+
+    // Filter by branch if user has branchId assigned
+    if (req.user?.branchId) {
+      where.branchId = req.user.branchId;
+      console.log("Filtering by branchId:", req.user.branchId);
+    } else {
+      console.log("No branchId assigned to user - showing all parties");
+    }
+
+    // Build search conditions
+    if (searchValue && searchValue.trim()) {
+      const searchTerm = searchValue.trim();
+      where.OR = [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        { phone: { contains: searchTerm, mode: 'insensitive' } },
+        { email: { contains: searchTerm, mode: 'insensitive' } },
+      ];
+    }
+
+    // Get total count for pagination
+    const total = await prisma.party.count({ where });
+    console.log("Parties matching query:", total);
+
+    // Build orderBy conditions - always sort A-Z
+    let orderBy: any = { name: 'asc' };
+
+    // FIX: Don't apply limit unless explicitly provided
+    const shouldApplyLimit = req.query.limit !== undefined;
+    const finalLimit = shouldApplyLimit ? limitNum : undefined;
+    const finalOffset = shouldApplyLimit ? offset : undefined;
+
+    console.log("Should apply limit:", shouldApplyLimit);
+    console.log("Final limit:", finalLimit);
+
+    // Fetch parties with optional pagination
+    const parties = await prisma.party.findMany({
+      where,
+      orderBy,
+      take: finalLimit,
+      skip: finalOffset,
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        email: true,
+        city: true,
+      },
+    });
+
+    console.log("Parties fetched count:", parties.length);
+    console.log("=== END PARTIES API DEBUG ===");
+
+    // Calculate pagination info only if limit is applied
+    let pagination = null;
+    if (shouldApplyLimit) {
+      const totalPages = Math.ceil(total / limitNum);
+      pagination = {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+        hasNext: pageNum < totalPages,
+        hasPrev: pageNum > 1,
+      };
+    }
+
+    res.json({
+      success: true,
+      data: parties,
+      pagination,
+    });
+  } catch (error) {
+    console.error('Error in searchParties:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching parties',
     });
   }
 };

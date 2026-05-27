@@ -24,23 +24,35 @@ async function generateHawalaTransactionId(): Promise<string> {
   }
 }
 
-// Generate token number (daily reset at 12:00 AM IST)
-async function generateHawalaTokenNo(date?: string): Promise<number> {
+// Generate token number (daily reset at 12:00 AM IST, branch-specific)
+async function generateHawalaTokenNo(date?: string, branchId?: string): Promise<number> {
   try {
     const today = new Date();
     const istToday = new Date(today.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
     const todayStart = new Date(istToday.getFullYear(), istToday.getMonth(), istToday.getDate());
-    
-    // Count today's hawala entries
-    const todayEntries = await prisma.hawala.count({
-      where: {
-        date: {
-          gte: todayStart
-        }
-      }
+    const nextDay = new Date(todayStart);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    const where: any = {
+      date: {
+        gte: todayStart,
+        lt: nextDay,
+      },
+    };
+
+    // Filter by branch if branchId is provided
+    if (branchId) {
+      where.branchId = branchId;
+    }
+
+    // Get last hawala entry for this branch today
+    const lastHawala = await prisma.hawala.findFirst({
+      where: where,
+      orderBy: { tokenNo: 'desc' },
+      select: { tokenNo: true },
     });
-    
-    return todayEntries + 1;
+
+    return lastHawala?.tokenNo ? lastHawala.tokenNo + 1 : 1;
   } catch (error) {
     return 1;
   }
@@ -65,33 +77,51 @@ export const createHawala = async (req: Request, res: Response) => {
     const createdBy = authenticatedUser?.email || authenticatedUser?.id || 'system';
     const userBranchId = authenticatedUser?.branchId;
 
-    // Validate required fields
-    if (!transactionId || !date || !time || !partyA || !partyB || !amount) {
+    // Validate required fields (transactionId is optional - backend will generate it)
+    if (!date || !time || !partyA || !partyB || !amount) {
       return res.status(400).json({
         success: false,
         message: 'Missing required fields',
-        error: 'transactionId, date, time, partyA, partyB, and amount are required'
+        error: 'date, time, partyA, partyB, and amount are required'
       });
     }
 
-    // Check if transaction ID already exists
-    const existingHawala = await prisma.hawala.findFirst({
-      where: { transactionId }
-    });
+    // Generate transaction ID if not provided, or handle duplicates
+    let finalTransactionId = transactionId;
+    if (!finalTransactionId) {
+      finalTransactionId = await generateHawalaTransactionId();
+    }
 
-    if (existingHawala) {
-      return res.status(400).json({
-        success: false,
-        message: 'Transaction ID already exists',
-        error: 'A hawala entry with this transaction ID already exists'
+    // Handle duplicate transaction ID - generate a new one if it already exists
+    let attempts = 0;
+    const maxAttempts = 10;
+    while (attempts < maxAttempts) {
+      const existingHawala = await prisma.hawala.findFirst({
+        where: { transactionId: finalTransactionId }
       });
+
+      if (!existingHawala) {
+        break; // transactionId is unique, proceed
+      }
+
+      // Generate a new transactionId
+      const match = finalTransactionId.match(/HWL(\d+)/);
+      if (match) {
+        const currentNumber = parseInt(match[1], 10);
+        finalTransactionId = `HWL${(currentNumber + 1).toString().padStart(3, '0')}`;
+      } else {
+        // If format doesn't match, append timestamp
+        finalTransactionId = `HWL${Date.now()}`;
+      }
+
+      attempts++;
     }
 
     // Create hawala entry
     const hawala = await prisma.hawala.create({
       data: {
-        transactionId: transactionId || await generateHawalaTransactionId(),
-        tokenNo: tokenNo ? parseInt(tokenNo) : await generateHawalaTokenNo(date),
+        transactionId: finalTransactionId,
+        tokenNo: tokenNo ? parseInt(tokenNo) : await generateHawalaTokenNo(date, userBranchId),
         date: new Date(date),
         time: new Date(`${date}T${time}`),
         partyA,
@@ -203,6 +233,13 @@ export const getHawalaEntries = async (req: Request, res: Response) => {
     const userPermissions = req.user?.role?.permissions as any;
     const isSuperAdmin = userPermissions?.masterData === 'full_access';
 
+    // Get current date in Indian timezone for default filtering
+    const now = new Date();
+    const istDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const today = new Date(istDate.getFullYear(), istDate.getMonth(), istDate.getDate());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
     // Build where clause
     const where: any = {
       isActive: true,
@@ -229,11 +266,17 @@ export const getHawalaEntries = async (req: Request, res: Response) => {
       ];
     }
 
-    // Add date range filter
+    // If date range is specified, use it; otherwise filter to current day (Indian timezone)
     if (dateFrom || dateTo) {
       where.date = {};
       if (dateFrom) where.date.gte = new Date(dateFrom as string);
       if (dateTo) where.date.lte = new Date(dateTo as string);
+    } else {
+      // Default: filter to current day (Indian timezone)
+      where.date = {
+        gte: today,
+        lt: tomorrow,
+      };
     }
 
     // Add party filters
@@ -254,7 +297,9 @@ export const getHawalaEntries = async (req: Request, res: Response) => {
       prisma.hawala.count({ where })
     ]);
 
-
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.status(200).json({
       success: true,
       message: 'Hawala entries retrieved successfully',
@@ -386,34 +431,52 @@ export const updateHawala = async (req: Request, res: Response) => {
 export const getHawalaNextIds = async (req: Request, res: Response) => {
   try {
     const { date, type } = req.query;
-    
+    const branchId = req.user?.branchId;
+
     const today = new Date();
     const istToday = new Date(today.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
     const todayStart = new Date(istToday.getFullYear(), istToday.getMonth(), istToday.getDate());
-    
-    // Count today's hawala entries
-    const todayEntries = await prisma.hawala.count({
-      where: {
-        date: {
-          gte: todayStart
-        }
-      }
-    });
-    
-    // Get last hawala entry
-    const lastHawala = await prisma.hawala.findFirst({
-      orderBy: { createdAt: 'desc' }
-    });
-    
-    let nextTransactionId = 'HWL001';
-    let nextTokenNo = '1';
-    
-    if (lastHawala) {
-      const lastNumber = parseInt(lastHawala.transactionId.replace('HWL', ''));
-      nextTransactionId = `HWL${String(lastNumber + 1).padStart(3, '0')}`;
-      nextTokenNo = String((todayEntries as number) + 1);
+    const nextDay = new Date(todayStart);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    const where: any = {
+      date: {
+        gte: todayStart,
+        lt: nextDay,
+      },
+    };
+
+    // Filter by branch if branchId is provided
+    if (branchId) {
+      where.branchId = branchId;
     }
-    
+
+    // Count today's hawala entries for this branch
+    const todayEntries = await prisma.hawala.count({
+      where: where
+    });
+
+    // Get last hawala entry for this branch today
+    const lastHawala = await prisma.hawala.findFirst({
+      where: where,
+      orderBy: { tokenNo: 'desc' },
+      select: { tokenNo: true },
+    });
+
+    // Get last hawala entry globally for transaction ID
+    const lastGlobalHawala = await prisma.hawala.findFirst({
+      orderBy: { createdAt: 'desc' },
+      select: { transactionId: true },
+    });
+
+    let nextTransactionId = 'HWL001';
+    if (lastGlobalHawala) {
+      const lastNumber = parseInt(lastGlobalHawala.transactionId.replace('HWL', ''));
+      nextTransactionId = `HWL${String(lastNumber + 1).padStart(3, '0')}`;
+    }
+
+    const nextTokenNo = lastHawala?.tokenNo ? lastHawala.tokenNo + 1 : 1;
+
     res.json({
       success: true,
       nextTransactionId,

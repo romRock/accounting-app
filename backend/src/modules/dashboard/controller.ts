@@ -6,7 +6,11 @@ const prisma = new PrismaClient();
 // Get total outward booking commission (our commission only)
 export const getTotalOutwardBookingCommission = async (req: Request, res: Response) => {
   try {
-    const today = new Date();
+    // Use Indian timezone (Asia/Kolkata) for date calculations
+    const now = new Date();
+    const indianDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    
+    const today = new Date(indianDate);
     today.setUTCHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
@@ -47,7 +51,11 @@ export const getTotalOutwardBookingCommission = async (req: Request, res: Respon
 // Get total inward booking commission (our commission only)
 export const getTotalInwardBookingCommission = async (req: Request, res: Response) => {
   try {
-    const today = new Date();
+    // Use Indian timezone (Asia/Kolkata) for date calculations
+    const now = new Date();
+    const indianDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    
+    const today = new Date(indianDate);
     today.setUTCHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
@@ -88,7 +96,11 @@ export const getTotalInwardBookingCommission = async (req: Request, res: Respons
 // Get total transaction counts by type
 export const getTotalTransactionCounts = async (req: Request, res: Response) => {
   try {
-    const today = new Date();
+    // Use Indian timezone (Asia/Kolkata) for date calculations
+    const now = new Date();
+    const indianDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    
+    const today = new Date(indianDate);
     today.setUTCHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
@@ -339,8 +351,28 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
   try {
     const { date: dateParam } = req.query;
     
-    // Use provided date or default to today
-    const today = dateParam ? new Date(dateParam as string) : new Date();
+    // Get user branch info for filtering
+    const userBranchId = (req as any).user?.branchId;
+    const userPermissions = (req as any).user?.role?.permissions as any;
+    const isSuperAdmin = userPermissions?.masterData === 'full_access';
+    
+    // Build branch filter
+    const branchFilter: any = {};
+    if (!isSuperAdmin) {
+      if (userBranchId) {
+        branchFilter.branchId = userBranchId;
+      } else {
+        // User has no branch assigned - return empty results
+        branchFilter.branchId = 'non-existent-branch-id-to-return-empty';
+      }
+    }
+    
+    // Use Indian timezone (Asia/Kolkata) for date calculations
+    const now = new Date();
+    const indianDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    
+    // Use provided date or default to today in Indian timezone
+    const today = dateParam ? new Date(dateParam as string) : new Date(indianDate);
     today.setUTCHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
@@ -351,7 +383,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
     console.log('Tomorrow (start of day UTC):', tomorrow.toISOString());
     console.log('Current UTC time:', new Date().toISOString());
 
-    // Get total outward booking commission (today only)
+    // Get total outward booking commission (today only) - filtered by branch
     const outwardResult = await prisma.transaction.aggregate({
       where: {
         type: 'OUTWARD',
@@ -361,13 +393,14 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
           gte: today,
           lt: tomorrow,
         },
+        ...branchFilter,
       },
       _sum: {
         bookingCommission: true,
       },
     });
 
-    // Get total inward booking commission (today only)
+    // Get total inward booking commission (today only) - filtered by branch
     const inwardResult = await prisma.transaction.aggregate({
       where: {
         type: 'INWARD',
@@ -377,13 +410,14 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
           gte: today,
           lt: tomorrow,
         },
+        ...branchFilter,
       },
       _sum: {
         bookingCommission: true,
       },
     });
 
-    // Count transactions by type (today only)
+    // Count transactions by type (today only) - filtered by branch
     const outwardCount = await prisma.transaction.count({
       where: {
         type: 'OUTWARD',
@@ -393,6 +427,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
           gte: today,
           lt: tomorrow,
         },
+        ...branchFilter,
       },
     });
 
@@ -405,6 +440,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
           gte: today,
           lt: tomorrow,
         },
+        ...branchFilter,
       },
     });
 
@@ -416,6 +452,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
           gte: today,
           lt: tomorrow,
         },
+        ...branchFilter,
       },
     });
 
@@ -427,6 +464,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
           gte: today,
           lt: tomorrow,
         },
+        ...branchFilter,
       },
     });
 
@@ -438,24 +476,27 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
           gte: today,
           lt: tomorrow,
         },
+        ...branchFilter,
       },
     });
 
     const totalTransactions = outwardCount + inwardCount + hawalaCount + accountingCount + specialEntryCount;
 
-    // Get total number of clients (parties)
+    // Get total number of clients (parties) - filtered by branch
     const totalClients = await prisma.party.count({
       where: {
         isActive: true,
         isDeleted: false,
+        ...branchFilter,
       },
     });
 
-    // Get total number of cities (centers)
+    // Get total number of cities (centers) - filtered by branch
     const totalCities = await prisma.city.count({
       where: {
         isActive: true,
         isDeleted: false,
+        ...branchFilter,
       },
     });
 

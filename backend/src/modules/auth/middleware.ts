@@ -222,7 +222,49 @@ export const requirePermission = (permission: string) => {
 
     // Check nested permission (e.g., transactions.create)
     const [module, action] = permission.split('.');
-    
+
+    // Special handling for master module with granular permissions
+    if (module === 'master') {
+      // Check for backward compatibility with old masterData format
+      if (parsedPermissions.masterData === 'full_access') {
+        console.log('User has full master access (old format)');
+        next();
+        return;
+      }
+
+      const masterPermissions = parsedPermissions.master;
+      if (!masterPermissions) {
+        console.log('ERROR: No master permissions found');
+        return next(createError('Insufficient permissions', 403));
+      }
+
+      // Check specific master section permission
+      if (action === 'users' && masterPermissions.users !== 'all') {
+        console.log('ERROR: User does not have users permission');
+        return next(createError('Insufficient permissions', 403));
+      }
+      if (action === 'roles' && masterPermissions.roles !== 'all') {
+        console.log('ERROR: User does not have roles permission');
+        return next(createError('Insufficient permissions', 403));
+      }
+      if (action === 'cities' && masterPermissions.cities !== 'all') {
+        console.log('ERROR: User does not have cities permission');
+        return next(createError('Insufficient permissions', 403));
+      }
+      if (action === 'clients' && masterPermissions.clients !== 'all') {
+        console.log('ERROR: User does not have clients permission');
+        return next(createError('Insufficient permissions', 403));
+      }
+      if (action === 'branches' && masterPermissions.branches !== 'all') {
+        console.log('ERROR: User does not have branches permission');
+        return next(createError('Insufficient permissions', 403));
+      }
+
+      console.log('Master permission check passed');
+      next();
+      return;
+    }
+
     // Special handling for general module permissions like 'accounting', 'transactions', etc.
     // If user has general access to a module, they should have access to all operations
     const generalModuleAccess = parsedPermissions[module];
@@ -232,14 +274,14 @@ export const requirePermission = (permission: string) => {
       next();
       return;
     }
-    
+
     // Check specific permission
     const hasPermission = parsedPermissions[module] && parsedPermissions[module][action];
-    
+
     console.log('Module:', module);
     console.log('Action:', action);
     console.log('Has permission:', hasPermission);
-    
+
     if (!hasPermission) {
       console.log('ERROR: User does not have required permission');
       return next(createError('Insufficient permissions', 403));

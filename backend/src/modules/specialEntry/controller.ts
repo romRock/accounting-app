@@ -24,6 +24,100 @@ async function generateSpecialEntryId(): Promise<string> {
   }
 }
 
+// Generate token number for special entry (branch-specific)
+async function generateSpecialEntryTokenNo(date?: string, branchId?: string): Promise<number> {
+  try {
+    const today = new Date();
+    const istToday = new Date(today.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+    const todayStart = new Date(istToday.getFullYear(), istToday.getMonth(), istToday.getDate());
+    const nextDay = new Date(todayStart);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    const where: any = {
+      date: {
+        gte: todayStart,
+        lt: nextDay,
+      },
+    };
+
+    // Filter by branch if branchId is provided
+    if (branchId) {
+      where.branchId = branchId;
+    }
+
+    // Get last special entry for this branch today
+    const lastSpecialEntry = await prisma.specialEntry.findFirst({
+      where: where,
+      orderBy: { tokenNo: 'desc' },
+      select: { tokenNo: true },
+    });
+
+    return lastSpecialEntry?.tokenNo ? lastSpecialEntry.tokenNo + 1 : 1;
+  } catch (error) {
+    return 1;
+  }
+}
+
+// Get next special entry IDs
+export const getSpecialEntryNextIds = async (req: Request, res: Response) => {
+  try {
+    const { date, type } = req.query;
+    const branchId = req.user?.branchId;
+
+    const today = new Date();
+    const istToday = new Date(today.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+    const todayStart = new Date(istToday.getFullYear(), istToday.getMonth(), istToday.getDate());
+    const nextDay = new Date(todayStart);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    const where: any = {
+      date: {
+        gte: todayStart,
+        lt: nextDay,
+      },
+    };
+
+    // Filter by branch if branchId is provided
+    if (branchId) {
+      where.branchId = branchId;
+    }
+
+    // Get last special entry for this branch today
+    const lastSpecialEntry = await prisma.specialEntry.findFirst({
+      where: where,
+      orderBy: { tokenNo: 'desc' },
+      select: { tokenNo: true },
+    });
+
+    // Get last special entry globally for transaction ID
+    const lastGlobalSpecialEntry = await prisma.specialEntry.findFirst({
+      orderBy: { createdAt: 'desc' },
+      select: { transactionId: true },
+    });
+
+    let nextTransactionId = 'SPL001';
+    if (lastGlobalSpecialEntry) {
+      const lastNumber = parseInt(lastGlobalSpecialEntry.transactionId.replace('SPL', ''));
+      const nextNumber = lastNumber + 1;
+      nextTransactionId = `SPL${String(nextNumber).padStart(3, '0')}`;
+    }
+
+    const nextTokenNo = lastSpecialEntry?.tokenNo ? lastSpecialEntry.tokenNo + 1 : 1;
+
+    res.status(200).json({
+      success: true,
+      nextTransactionId,
+      nextTokenNo
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get next special entry IDs',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
 // Get all special entries
 export const getSpecialEntries = async (req: Request, res: Response) => {
   try {
@@ -35,6 +129,13 @@ export const getSpecialEntries = async (req: Request, res: Response) => {
     const userBranchId = req.user?.branchId;
     const userPermissions = req.user?.role?.permissions as any;
     const isSuperAdmin = userPermissions?.masterData === 'full_access';
+
+    // Get current date in Indian timezone for default filtering
+    const now = new Date();
+    const istDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const today = new Date(istDate.getFullYear(), istDate.getMonth(), istDate.getDate());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
 
     // Build where clause
     const where: any = {
@@ -62,11 +163,17 @@ export const getSpecialEntries = async (req: Request, res: Response) => {
       ];
     }
 
-    // Add date range filter
+    // If date range is specified, use it; otherwise filter to current day (Indian timezone)
     if (dateFrom || dateTo) {
       where.date = {};
       if (dateFrom) where.date.gte = new Date(dateFrom as string);
       if (dateTo) where.date.lte = new Date(dateTo as string);
+    } else {
+      // Default: filter to current day (Indian timezone)
+      where.date = {
+        gte: today,
+        lt: tomorrow,
+      };
     }
 
     // Add party filters
@@ -88,7 +195,9 @@ export const getSpecialEntries = async (req: Request, res: Response) => {
       prisma.specialEntry.count({ where })
     ]);
 
-
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.status(200).json({
       success: true,
       message: 'Special entries retrieved successfully',
@@ -183,7 +292,7 @@ export const createSpecialEntry = async (req: Request, res: Response) => {
     const specialEntry = await prisma.specialEntry.create({
       data: {
         transactionId,
-        tokenNo: tokenNo ? parseInt(tokenNo.toString()) : null,
+        tokenNo: tokenNo ? parseInt(tokenNo.toString()) : await generateSpecialEntryTokenNo(date, userBranchId),
         date: new Date(date),
         time: new Date(`${date}T${time}`),
         partyA,

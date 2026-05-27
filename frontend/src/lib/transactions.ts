@@ -91,6 +91,7 @@ export const transactionApi = {
     status?: string;
     search?: string;
   } = {}): Promise<TransactionsResponse> {
+    const { accessToken } = useAuthStore.getState();
     const queryParams = new URLSearchParams();
     
     if (params.page) queryParams.append('page', params.page.toString());
@@ -99,7 +100,11 @@ export const transactionApi = {
     if (params.status !== undefined) queryParams.append('status', params.status);
     if (params.search) queryParams.append('search', params.search);
 
-    const response = await fetch(`${API_BASE_URL}/api/transactions?${queryParams}`);
+    const response = await fetch(`${API_BASE_URL}/api/transactions?${queryParams}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
 
     if (!response.ok) {
       throw new Error('Failed to fetch transactions');
@@ -184,11 +189,18 @@ export const transactionApi = {
       params.append('limit', limit.toString());
     }
 
+    const { accessToken } = useAuthStore.getState();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+
     const response = await fetch(`${API_BASE_URL}/api/cities?${params}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: headers,
     });
 
     if (!response.ok) {
@@ -361,12 +373,18 @@ export const transactionApi = {
   },
 
   async getClients(): Promise<Client[]> {
-    
-    const response = await fetch(`${API_BASE_URL}/api/clients`, {
+    const { accessToken } = useAuthStore.getState();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/parties`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: headers,
     });
 
     if (!response.ok) {
@@ -375,7 +393,7 @@ export const transactionApi = {
     }
 
     const result = await response.json();
-    return result.data;
+    return result.success ? result.data : [];
   },
 
   // Roles API functions

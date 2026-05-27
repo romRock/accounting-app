@@ -11,22 +11,15 @@ import { authenticateToken, requirePermission } from '../auth/middleware';
 
 const router = Router();
 
-// Create hawala entry - Only require authentication, no specific permission needed
-router.post('/', authenticateToken, createHawala);
+// Apply authentication to all routes
+router.use(authenticateToken);
 
-// Get all hawala entries - Public route like transactions API
+// Hawala CRUD operations
+router.post('/', createHawala);
 router.get('/', getHawalaEntries);
-
-// Get next hawala IDs - Public route like transactions API
 router.get('/next-ids', getHawalaNextIds);
-
-// Get single hawala entry
-router.get('/:id', authenticateToken, requirePermission('transactions.read'), getHawalaById);
-
-// Update hawala entry - Only require authentication, no specific permission needed
-router.put('/:id', authenticateToken, updateHawala);
-
-// Delete hawala entry - Only require authentication, no specific permission needed
-router.delete('/:id', authenticateToken, deleteHawala);
+router.get('/:id', requirePermission('transactions.read'), getHawalaById);
+router.put('/:id', updateHawala);
+router.delete('/:id', deleteHawala);
 
 export default router;

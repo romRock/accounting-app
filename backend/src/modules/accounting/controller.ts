@@ -829,6 +829,13 @@ export const getAccountEntries = async (req: Request, res: Response) => {
     const userPermissions = req.user?.role?.permissions as any;
     const isSuperAdmin = userPermissions?.masterData === 'full_access';
 
+    // Get current date in Indian timezone for default filtering
+    const now = new Date();
+    const istDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const today = new Date(istDate.getFullYear(), istDate.getMonth(), istDate.getDate());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
     const where: any = {
       isActive: true,
       isDeleted: false,
@@ -849,10 +856,17 @@ export const getAccountEntries = async (req: Request, res: Response) => {
     if (type) where.type = type as string;
     if (partyId) where.partyId = partyId as string;
 
+    // If date range is specified, use it; otherwise filter to current day (Indian timezone)
     if (dateFrom || dateTo) {
       where.date = {};
       if (dateFrom) where.date.gte = new Date(dateFrom as string);
       if (dateTo) where.date.lte = new Date(dateTo as string);
+    } else {
+      // Default: filter to current day (Indian timezone)
+      where.date = {
+        gte: today,
+        lt: tomorrow,
+      };
     }
     if (search) {
       where.OR = [
@@ -935,6 +949,9 @@ export const getAccountEntries = async (req: Request, res: Response) => {
       _sum: { amount: true },
     });
 
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.json({
       entries,
       pagination: {

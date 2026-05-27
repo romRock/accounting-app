@@ -32,7 +32,25 @@ export default function DashboardPage() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    // Get current date in Indian timezone (UTC+5:30)
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const parts = formatter.formatToParts(now);
+    const year = parts.find(p => p.type === 'year')?.value;
+    const month = parts.find(p => p.type === 'month')?.value;
+    const day = parts.find(p => p.type === 'day')?.value;
+    const result = `${year}-${month}-${day}`;
+    console.log('Dashboard selectedDate initialized:', result);
+    console.log('Current time (UTC):', now.toISOString());
+    console.log('Current time (Asia/Kolkata):', now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    return result;
+  });
   const [customerReview, setCustomerReview] = useState<{ plusCustomers: Array<{ name: string; balance: number }>; minusCustomers: Array<{ name: string; balance: number }> } | null>(null);
 
   // Check dashboard permissions and redirect if not allowed
@@ -83,9 +101,11 @@ export default function DashboardPage() {
       try {
         setLoading(true);
         
+        const { accessToken } = useAuthStore.getState();
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/dashboard/metrics?date=${selectedDate}`, {
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
           },
         });
 

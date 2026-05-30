@@ -384,7 +384,15 @@ export const transactionApi = {
     }
 
     const result = await response.json();
-    return result.success ? result.data : [];
+    const parties = result.success ? result.data : [];
+    return parties.map((party: { id: string; name: string; phone?: string; city?: string; createdAt?: string; updatedAt?: string }) => ({
+      id: party.id,
+      name: party.name,
+      mobileNumber: party.phone || '',
+      city: party.city || '',
+      createdAt: party.createdAt || '',
+      updatedAt: party.updatedAt || '',
+    }));
   },
 
   // Roles API functions

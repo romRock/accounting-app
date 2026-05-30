@@ -48,6 +48,32 @@ const transactionSchema = z.object({
 
 type TransactionForm = z.infer<typeof transactionSchema>;
 
+function calculateOutwardCommissionsFromAmount(amount: number) {
+  const minCharge = 50;
+  let calculatedCommission = 0;
+
+  if (amount <= 50000) {
+    calculatedCommission = minCharge;
+  } else if (amount <= 60000) {
+    calculatedCommission = 60;
+  } else if (amount <= 70000) {
+    calculatedCommission = 70;
+  } else if (amount <= 80000) {
+    calculatedCommission = 80;
+  } else if (amount <= 90000) {
+    calculatedCommission = 90;
+  } else if (amount <= 100000) {
+    calculatedCommission = 100;
+  } else {
+    calculatedCommission = Math.ceil(amount / 10000) * 10;
+  }
+
+  const bookingCommission = Math.floor(calculatedCommission * 0.35);
+  const centerCommission = calculatedCommission - bookingCommission;
+
+  return { calculatedCommission, bookingCommission, centerCommission };
+}
+
 interface Center {
   id: string;
   name: string;
@@ -153,6 +179,7 @@ export default function TransactionsPage() {
 
   const autoCommission = watch('autoCommission');
   const amount = watch('amount');
+  const commission = watch('commission');
 
   // Fetch next transaction IDs from backend
   const fetchNextIds = async (date: string, transactionType?: string) => {
@@ -195,39 +222,9 @@ export default function TransactionsPage() {
   useEffect(() => {
     if (autoCommission && amount > 0) {
       if (activeTab === 'outward') {
-        // OUTWARD commission calculation - same logic as inward but with 33%/67% split
-        const minCharge = 50;
-        let calculatedCommission = 0;
-        
-        if (amount <= 50000) {
-          // 0 to 50,000: Fixed minimum charge of 50
-          calculatedCommission = minCharge;
-        } else if (amount > 50000 && amount <= 60000) {
-          // 50,001 to 60,000: Calculate on 60,000 base
-          calculatedCommission = 60;
-        } else if (amount > 60000 && amount <= 70000) {
-          // 60,001 to 70,000: Calculate on 70,000 base
-          calculatedCommission = 70;
-        } else if (amount > 70000 && amount <= 80000) {
-          // 70,001 to 80,000: Calculate on 80,000 base
-          calculatedCommission = 80;
-        } else if (amount > 80000 && amount <= 90000) {
-          // 80,001 to 90,000: Calculate on 90,000 base
-          calculatedCommission = 90;
-        } else if (amount > 90000 && amount <= 100000) {
-          // 90,001 to 100,000: Calculate on 100,000 base
-          calculatedCommission = 100;
-        } else {
-          // For any amount above 100,000, round up to next 10,000 and use as commission base
-          calculatedCommission = Math.ceil(amount / 10000) * 10;
-        }
-        
-        // 35% our commission, 65% center commission for outward
-        // Use Math.floor to apply rounding to center side
-        const bookingCommission = Math.floor(calculatedCommission * 0.35);
-        const centerCommission = calculatedCommission - bookingCommission;
-        
-        
+        const { calculatedCommission, bookingCommission, centerCommission } =
+          calculateOutwardCommissionsFromAmount(amount);
+
         setValue('commission', calculatedCommission);
         setValue('bookingCommission', bookingCommission);
         setValue('centerCommission', centerCommission);
@@ -281,15 +278,15 @@ export default function TransactionsPage() {
     }
   }, [amount, autoCommission, setValue, activeTab]);
 
-  // Calculate total commission as sum of booking and center when manual mode
+  // Manual outward: center stays auto-calculated; extra goes to booking commission
   useEffect(() => {
-    if (!autoCommission) {
-      const bookingCommission = watch('bookingCommission') || 0;
-      const centerCommission = watch('centerCommission') || 0;
-      const totalCommission = bookingCommission + centerCommission;
-      setValue('commission', totalCommission);
+    if (!autoCommission && activeTab === 'outward' && amount > 0) {
+      const { centerCommission } = calculateOutwardCommissionsFromAmount(amount);
+      const totalCommission = commission || 0;
+      setValue('centerCommission', centerCommission);
+      setValue('bookingCommission', Math.max(0, totalCommission - centerCommission));
     }
-  }, [watch('bookingCommission'), watch('centerCommission'), autoCommission, setValue]);
+  }, [amount, commission, autoCommission, activeTab, setValue]);
 
   // Update time continuously every second
   useEffect(() => {
@@ -708,6 +705,7 @@ export default function TransactionsPage() {
                       step="0.01"
                       placeholder=""
                       value={watch('commission') || 0}
+                      onChange={(e) => setValue('commission', Number(e.target.value))}
                       readOnly={autoCommission}
                       autoComplete="off"
                       min="0"
@@ -758,11 +756,8 @@ export default function TransactionsPage() {
                       <Label className="text-sm font-medium text-gray-700">Booking Commission</Label>
                       <Input
                         value={watch('bookingCommission') || 0}
-                        onChange={(e) => setValue('bookingCommission', Number(e.target.value))}
-                        readOnly={autoCommission}
-                        className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-medium text-sm ${
-                          autoCommission ? 'bg-gray-50 text-green-600' : 'bg-white text-black'
-                        }`}
+                        readOnly
+                        className="border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-medium text-sm bg-gray-50 text-green-600"
                       />
                     </div>
                     
@@ -770,11 +765,8 @@ export default function TransactionsPage() {
                       <Label className="text-sm font-medium text-gray-700">Center Commission</Label>
                       <Input
                         value={watch('centerCommission') || 0}
-                        onChange={(e) => setValue('centerCommission', Number(e.target.value))}
-                        readOnly={autoCommission}
-                        className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-medium text-sm ${
-                          autoCommission ? 'bg-gray-50 text-green-600' : 'bg-white text-black'
-                        }`}
+                        readOnly
+                        className="border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-medium text-sm bg-gray-50 text-green-600"
                       />
                     </div>
                   </div>

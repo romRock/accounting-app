@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -274,53 +274,42 @@ export default function BalanceSheetPage() {
     });
   };
 
-  // Export functionality
-  const exportBalanceSheet = (format: 'excel' | 'pdf') => {
-    setExporting(true);
-    const totals = calculateTotals();
-    const sortedIncome = sortEntries(balanceSheetData.incomeEntries);
-    const sortedExpense = sortEntries(balanceSheetData.expenseEntries);
-
-    setTimeout(() => {
-      if (format === 'excel') {
-        // Create CSV for Excel export
-        const csvContent = [
-          'Final Balance Sheet',
-          '',
-          'Income Side (To Collect),,Expense Side (To Pay)',
-          'Accounts,Amount,Accounts,Amount',
-          ...Array.from({ length: Math.max(sortedIncome.length, sortedExpense.length) }).map((_, i) => {
-            const income = sortedIncome[i] || { accountName: '', amount: 0 };
-            const expense = sortedExpense[i] || { accountName: '', amount: 0 };
-            return `${income.accountName},${income.amount},${expense.accountName},${expense.amount}`;
-          }),
-          '',
-          `TOTALS,${totals.totalIncome},,${totals.totalExpense}`,
-          `,,NET PAYABLE,,${totals.netPayable}`
-        ].join('\n');
-
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `final-balance-sheet.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-      } else {
-        // Generate PDF using print window
-        generatePDF();
-      }
-      setExporting(false);
-    }, 500);
+  const escapeCSV = (value: string | number) => {
+    const str = String(value);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
   };
 
-  // Generate PDF using print window
-  const generatePDF = () => {
-    const totals = calculateTotals();
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+  const buildExportRows = useCallback(() => {
     const sortedIncome = sortEntries(balanceSheetData.incomeEntries);
     const sortedExpense = sortEntries(balanceSheetData.expenseEntries);
+    const totals = {
+      totalIncome: balanceSheetData.incomeEntries.reduce((sum, entry) => sum + entry.amount, 0),
+      totalExpense: balanceSheetData.expenseEntries.reduce((sum, entry) => sum + entry.amount, 0),
+      netPayable: 0 as number,
+    };
+    totals.netPayable = totals.totalExpense - totals.totalIncome;
+
+    return {
+      sortedIncome,
+      sortedExpense,
+      totals,
+      maxRows: Math.max(sortedIncome.length, sortedExpense.length),
+    };
+  }, [balanceSheetData, sortConfig]); // sortEntries uses sortConfig
+
+  const generatePDF = useCallback((exportRows: ReturnType<typeof buildExportRows>) => {
+    const { sortedIncome, sortedExpense, totals, maxRows } = exportRows;
+    const generatedOn = formatDate(new Date());
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -351,7 +340,7 @@ export default function BalanceSheetPage() {
       <body>
         <div class="header">
           <h1>FINAL BALANCE SHEET</h1>
-          <p>Generated from Accounting System</p>
+          <p>Generated from Accounting System on ${generatedOn}</p>
         </div>
 
         <div class="summary">
@@ -379,14 +368,14 @@ export default function BalanceSheetPage() {
             </tr>
           </thead>
           <tbody>
-            ${Array.from({ length: Math.max(sortedIncome.length, sortedExpense.length) }).map((_, i) => {
+            ${Array.from({ length: maxRows }).map((_, i) => {
               const income = sortedIncome[i] || { accountName: '', amount: 0 };
               const expense = sortedExpense[i] || { accountName: '', amount: 0 };
               return `
                 <tr>
-                  <td class="text-left">${income.accountName}</td>
+                  <td class="text-left">${escapeHtml(income.accountName)}</td>
                   <td class="text-right">${income.amount > 0 ? formatCurrency(income.amount) : ''}</td>
-                  <td class="text-left">${expense.accountName}</td>
+                  <td class="text-left">${escapeHtml(expense.accountName)}</td>
                   <td class="text-right">${expense.amount > 0 ? formatCurrency(expense.amount) : ''}</td>
                 </tr>
               `;
@@ -407,14 +396,72 @@ export default function BalanceSheetPage() {
     if (printWindow) {
       printWindow.document.write(htmlContent);
       printWindow.document.close();
-      printWindow.onload = () => {
-        setTimeout(() => {
-          printWindow.print();
-          printWindow.close();
-        }, 500);
-      };
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+    } else {
+      alert('Please allow popups to generate PDF');
     }
-  };
+  }, []);
+
+  // Export functionality
+  const exportBalanceSheet = useCallback((format: 'excel' | 'pdf') => {
+    setExporting(true);
+
+    try {
+      const exportRows = buildExportRows();
+      const { sortedIncome, sortedExpense, totals, maxRows } = exportRows;
+
+      if (format === 'excel') {
+        const headerRow = [
+          'Income Side (To Collect)',
+          'Amount',
+          'Expense Side (To Pay)',
+          'Amount',
+        ].map(escapeCSV).join(',');
+
+        const dataRows = Array.from({ length: maxRows }).map((_, i) => {
+          const income = sortedIncome[i] || { accountName: '', amount: 0 };
+          const expense = sortedExpense[i] || { accountName: '', amount: 0 };
+          return [
+            income.accountName,
+            income.amount > 0 ? formatCurrency(income.amount) : '',
+            expense.accountName,
+            expense.amount > 0 ? formatCurrency(expense.amount) : '',
+          ].map(escapeCSV).join(',');
+        });
+
+        const csvContent = [
+          'Final Balance Sheet',
+          `Generated on,${escapeCSV(formatDate(new Date()))}`,
+          '',
+          headerRow,
+          ...dataRows,
+          '',
+          ['TOTALS', formatCurrency(totals.totalIncome), 'TOTALS', formatCurrency(totals.totalExpense)].map(escapeCSV).join(','),
+          ['Net Payable', '', '', formatCurrency(totals.netPayable)].map(escapeCSV).join(','),
+        ].join('\n');
+
+        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `final-balance-sheet-${formatDate(new Date()).replace(/\//g, '-')}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      } else {
+        generatePDF(exportRows);
+      }
+    } catch (error) {
+      console.error('Balance sheet export failed:', error);
+      alert('Export failed. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  }, [buildExportRows, generatePDF]);
 
   // Listen for tab changes from header
   useEffect(() => {
@@ -433,7 +480,7 @@ export default function BalanceSheetPage() {
       window.removeEventListener('setBalanceSheetTab', handleTabChange as EventListener);
       window.removeEventListener('exportBalanceSheet', handleExport as EventListener);
     };
-  }, []);
+  }, [exportBalanceSheet]);
 
   // Auto-load data on component mount
   useEffect(() => {

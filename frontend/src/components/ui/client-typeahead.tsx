@@ -42,7 +42,9 @@ export function ClientTypeahead({
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   
   const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Sync searchTerm with value prop when it changes (for edit functionality)
@@ -64,23 +66,18 @@ export function ClientTypeahead({
 
   // Fetch clients with debounce
   const fetchClients = useCallback(async (query: string) => {
-    console.log("fetchClients called with query:", query);
     setLoading(true);
     try {
       const { transactionApi } = await import('@/lib/transactions');
-      console.log("Calling transactionApi.getClients");
       const clients = await transactionApi.getClients();
-      console.log("API returned clients:", clients.length);
-      
-      // Filter clients based on search query
-      const filteredClients = query.trim() 
-        ? clients.filter(client => 
-            client.name.toLowerCase().includes(query.toLowerCase()) ||
-            client.mobileNumber.includes(query) ||
-            client.city.toLowerCase().includes(query.toLowerCase())
+      const normalizedQuery = query.trim().toLowerCase();
+
+      const filteredClients = normalizedQuery
+        ? clients.filter(client =>
+            client.name.toLowerCase().startsWith(normalizedQuery)
           )
         : clients;
-      
+
       setResults(filteredClients);
     } catch (error) {
       console.error('Error fetching clients:', error);
@@ -106,6 +103,24 @@ export function ClientTypeahead({
       }
     };
   }, [searchTerm, fetchClients]);
+
+  // Keep keyboard-selected item visible inside the scrollable dropdown
+  useEffect(() => {
+    if (selectedIndex < 0) return;
+
+    const dropdown = dropdownRef.current;
+    const selectedItem = itemRefs.current[selectedIndex];
+    if (!dropdown || !selectedItem) return;
+
+    const dropdownRect = dropdown.getBoundingClientRect();
+    const itemRect = selectedItem.getBoundingClientRect();
+
+    if (itemRect.bottom > dropdownRect.bottom) {
+      dropdown.scrollTop += itemRect.bottom - dropdownRect.bottom;
+    } else if (itemRect.top < dropdownRect.top) {
+      dropdown.scrollTop -= dropdownRect.top - itemRect.top;
+    }
+  }, [selectedIndex, results]);
 
   // Handle input change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -136,13 +151,15 @@ export function ClientTypeahead({
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setSelectedIndex(prev => 
+        if (results.length === 0) break;
+        setSelectedIndex(prev =>
           prev < results.length - 1 ? prev + 1 : prev
         );
         break;
       case 'ArrowUp':
         e.preventDefault();
-        setSelectedIndex(prev => prev > 0 ? prev - 1 : -1);
+        if (results.length === 0) break;
+        setSelectedIndex(prev => (prev > 0 ? prev - 1 : -1));
         break;
       case 'Enter':
         e.preventDefault();
@@ -161,10 +178,15 @@ export function ClientTypeahead({
   // Handle click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-        setSelectedIndex(-1);
+      const target = event.target as Node;
+      if (
+        containerRef.current?.contains(target) ||
+        dropdownRef.current?.contains(target)
+      ) {
+        return;
       }
+      setIsOpen(false);
+      setSelectedIndex(-1);
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -173,32 +195,9 @@ export function ClientTypeahead({
 
   // Handle input focus
   const handleFocus = () => {
-    console.log("=== CLIENT TYPEAHEAD DEBUG ===");
-    console.log("Input focused");
-    console.log("Current search term:", searchTerm);
-    console.log("Setting isOpen to true");
-    
-    // Always show dropdown on focus, even if empty
     setIsOpen(true);
-    
-    // Fetch all clients if search term is empty
-    if (!searchTerm.trim()) {
-      console.log("Fetching all clients (empty search)");
-      fetchClients('');
-    } else {
-      console.log("Fetching clients with term:", searchTerm);
-      fetchClients(searchTerm);
-    }
+    fetchClients(searchTerm);
   };
-
-  // Debug dropdown state changes
-  useEffect(() => {
-    console.log("=== CLIENT DROPDOWN STATE DEBUG ===");
-    console.log("isOpen:", isOpen);
-    console.log("loading:", loading);
-    console.log("results.length:", results.length);
-    console.log("searchTerm:", searchTerm);
-  }, [isOpen, loading, results.length, searchTerm]);
 
   // Highlight matching text
   const highlightMatch = (text: string, query: string) => {
@@ -220,7 +219,7 @@ export function ClientTypeahead({
 
   return (
     <>
-      <div className="relative" ref={dropdownRef}>
+      <div className="relative" ref={containerRef}>
         <Label htmlFor={id} className="text-sm font-medium text-gray-700">
           {label}
         </Label>
@@ -229,12 +228,19 @@ export function ClientTypeahead({
             id={id}
             ref={inputRef}
             type="text"
+            name={`client-typeahead-${id}`}
             value={searchTerm}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             onFocus={handleFocus}
             placeholder={placeholder}
             disabled={disabled}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            data-lpignore="true"
+            data-1p-ignore
             className={`w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500 text-sm ${className}`}
           />
           
@@ -272,6 +278,9 @@ export function ClientTypeahead({
               {results.map((client, index) => (
                 <li
                   key={client.id}
+                  ref={(el) => {
+                    itemRefs.current[index] = el;
+                  }}
                   className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
                     index === selectedIndex
                       ? 'bg-blue-50 text-blue-700'
@@ -279,13 +288,8 @@ export function ClientTypeahead({
                   }`}
                   onClick={() => handleClientSelect(client)}
                 >
-                  <div className="flex flex-col">
-                    <div className="font-medium text-gray-900">
-                      {highlightMatch(client.name, searchTerm)}
-                    </div>
-                    <div className="text-xs text-gray-600">
-                      {client.mobileNumber} • {client.city}
-                    </div>
+                  <div className="font-medium text-gray-900">
+                    {highlightMatch(client.name, searchTerm)}
                   </div>
                 </li>
               ))}

@@ -43,6 +43,7 @@
     "db:test:production:api": "tsx scripts/test-production-api.ts",
     "db:check:production:endpoints": "tsx scripts/check-production-endpoints.ts",
     "db:seed:users:production": "node scripts/seed-users-production.ts",
+    "db:reset:fresh-users:production": "tsx scripts/reset-fresh-users-production.ts",
     "update:admin-role:production": "node scripts/update-admin-role-production.ts",
     "db:migrate:permissions": "node scripts/permissions-migration.js",
     "db:studio": "prisma studio",

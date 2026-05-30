@@ -43,6 +43,8 @@ import {
   SpecialEntry,
   SpecialEntryCreateRequest
 } from '@/lib/specialEntry';
+import { getFetchDateRange } from '@/lib/date-filter';
+import { DatePicker } from '@/components/ui/date-picker';
 
 // Types
 interface SPLEntry {
@@ -126,6 +128,30 @@ export default function SPLPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Fetch next token for a selected date (transaction ID stays global)
+  const fetchNextTokenForDate = async (selectedDate: string) => {
+    try {
+      const { accessToken } = useAuthStore.getState();
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+      const response = await fetch(`${API_BASE_URL}/api/specialEntry/next-ids?date=${selectedDate}`, {
+        method: 'GET',
+        headers,
+      });
+      const result = await response.json();
+      if (result.success) {
+        setFormData(prev => ({
+          ...prev,
+          tokenNo: result.nextTokenNo,
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching next token for date:', error);
+    }
+  };
+
   // Initialize form and fetch next IDs from backend
   useEffect(() => {
     const initializeForm = async () => {
@@ -192,18 +218,13 @@ export default function SPLPage() {
   useEffect(() => {
     const fetchSpecialEntries = async () => {
       try {
-        // Backend now filters by current day and branch by default
-        // Frontend only filters if user explicitly enables date filter
-        let dateFrom, dateTo;
-        if (filterByDate) {
-          if (isSelectingRange) {
-            dateFrom = startDate;
-            dateTo = endDate;
-          } else {
-            dateFrom = dateFilter;
-            dateTo = dateFilter;
-          }
-        }
+        const { dateFrom, dateTo } = getFetchDateRange(
+          filterByDate,
+          dateFilter,
+          isSelectingRange,
+          startDate,
+          endDate
+        );
 
         const response = await getSpecialEntries({
           page: 1,
@@ -211,7 +232,7 @@ export default function SPLPage() {
           search: searchTerm || undefined,
           status: statusFilter === 'all' ? undefined : statusFilter,
           dateFrom,
-          dateTo
+          dateTo,
         });
 
         if (response.success && response.data) {
@@ -301,29 +322,6 @@ export default function SPLPage() {
 
   // Save entry
   const saveEntry = async () => {
-    // Get current date in Indian timezone to ensure entry shows up in current day filter
-    const now = new Date();
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Kolkata',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-    const parts = formatter.formatToParts(now);
-    const year = parts.find(p => p.type === 'year')?.value;
-    const month = parts.find(p => p.type === 'month')?.value;
-    const day = parts.find(p => p.type === 'day')?.value;
-    const currentDate = `${year}-${month}-${day}`;
-
-    // Get current time in Indian timezone
-    const timeFormatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Kolkata',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    });
-    const currentTime = timeFormatter.format(now);
-
     console.log('🔍 SPL DEBUG: Current formData:', formData);
 
     // Calculate amountC = amountA - amountB
@@ -362,8 +360,8 @@ export default function SPLPage() {
     const payload = {
       transactionId: formData.transactionId || generateTransactionId(),
       tokenNo: formData.tokenNo || parseInt(generateTokenNo()),
-      date: currentDate, // Use current date in Indian timezone
-      time: currentTime, // Use current time in Indian timezone
+      date: formData.date,
+      time: formData.time,
       partyA: formData.partyA,
       amountA: parseFloat(formData.amountA),
       partyB: formData.partyB,
@@ -381,8 +379,8 @@ export default function SPLPage() {
         const updatedEntry = await updateSpecialEntry(selectedEntry.id, {
           transactionId: formData.transactionId || generateTransactionId(),
           tokenNo: formData.tokenNo || parseInt(generateTokenNo()),
-          date: currentDate,
-          time: currentTime,
+          date: formData.date,
+          time: formData.time,
           partyA: formData.partyA,
           amountA: parseFloat(formData.amountA),
           partyB: formData.partyB,
@@ -405,25 +403,24 @@ export default function SPLPage() {
       // Refresh data with a small delay to ensure backend has committed the entry
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      // Fetch entries again to get latest data
-      const { accessToken } = useAuthStore.getState();
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-      if (accessToken) {
-        headers['Authorization'] = `Bearer ${accessToken}`;
-      }
-
-      const refreshResponse = await fetch(`${API_BASE_URL}/api/specialEntry?page=1&limit=1000`, {
-        method: 'GET',
-        headers: headers,
+      const { dateFrom, dateTo } = getFetchDateRange(
+        filterByDate,
+        dateFilter,
+        isSelectingRange,
+        startDate,
+        endDate
+      );
+      const refreshResult = await getSpecialEntries({
+        page: 1,
+        limit: 1000,
+        dateFrom,
+        dateTo,
       });
-      const refreshResult = await refreshResponse.json();
       if (refreshResult.success && refreshResult.data) {
         setSPLEntries(refreshResult.data);
       }
 
-      // Fetch next IDs after successful save
+      // Fetch next IDs after successful save (reset to today)
       const now = new Date();
       const formatter = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Asia/Kolkata',
@@ -436,11 +433,23 @@ export default function SPLPage() {
       const month = parts.find(p => p.type === 'month')?.value;
       const day = parts.find(p => p.type === 'day')?.value;
       const today = `${year}-${month}-${day}`;
+      const timeFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      const currentTime = timeFormatter.format(now);
 
       try {
+        const { accessToken } = useAuthStore.getState();
+        const headers: HeadersInit = { 'Content-Type': 'application/json' };
+        if (accessToken) {
+          headers['Authorization'] = `Bearer ${accessToken}`;
+        }
         const nextIdsResponse = await fetch(`${API_BASE_URL}/api/specialEntry/next-ids?date=${today}&type=INWARD`, {
           method: 'GET',
-          headers: headers,
+          headers,
         });
         const nextIdsResult = await nextIdsResponse.json();
 
@@ -559,12 +568,16 @@ export default function SPLPage() {
               </div>
               <div>
                 <Label htmlFor="date" className="text-sm font-medium text-gray-700">Date</Label>
-                <Input
+                <DatePicker
                   id="date"
-                  type="date"
                   value={formData.date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                  className="bg-white border-gray-300 mt-1 text-black placeholder:text-gray-600"
+                  onChange={(newDate) => {
+                    setFormData(prev => ({ ...prev, date: newDate }));
+                    if (!selectedEntry) {
+                      fetchNextTokenForDate(newDate);
+                    }
+                  }}
+                  className="mt-1 h-9 text-sm"
                 />
               </div>
               <div>
@@ -777,30 +790,26 @@ export default function SPLPage() {
                         </div>
 
                         {!isSelectingRange ? (
-                          <Input
-                            type="date"
+                          <DatePicker
                             value={dateFilter}
-                            onChange={(e) => {
-                              setDateFilter(e.target.value);
-                            }}
-                            className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
+                            onChange={setDateFilter}
+                            placeholder="Select date"
+                            className="h-8 text-sm"
                           />
                         ) : (
                           <div className="flex items-center space-x-2">
-                            <Input
-                              type="date"
+                            <DatePicker
                               value={startDate}
-                              onChange={(e) => setStartDate(e.target.value)}
+                              onChange={setStartDate}
                               placeholder="Start date"
-                              className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
+                              className="h-8 text-sm"
                             />
                             <span className="text-gray-500 text-sm">to</span>
-                            <Input
-                              type="date"
+                            <DatePicker
                               value={endDate}
-                              onChange={(e) => setEndDate(e.target.value)}
+                              onChange={setEndDate}
                               placeholder="End date"
-                              className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
+                              className="h-8 text-sm"
                             />
                           </div>
                         )}

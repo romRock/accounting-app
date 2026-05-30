@@ -2032,7 +2032,9 @@ export default function ReportsPage() {
 
         {/* Filter Section */}
         {activeReport !== 'transaction-refund' && (
-          <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
+          <Card className={`shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative overflow-visible ${
+            activeReport === 'outward' || activeReport === 'inward' ? 'z-30' : 'z-10'
+          }`}>
             <CardHeader className="pb-4">
               <CardTitle className="text-xl font-semibold text-gray-900">
                 Filters
@@ -2144,7 +2146,7 @@ export default function ReportsPage() {
 
                 {/* Center Filter - For Outward/Inward reports */}
                 {(activeReport === 'outward' || activeReport === 'inward') && (
-                  <div>
+                  <div className="relative z-50">
                     {/* <Label htmlFor="center" className="text-sm font-medium text-gray-700">Center</Label> */}
                     <CityTypeahead
                       id="center"
@@ -2242,7 +2244,9 @@ export default function ReportsPage() {
 
         {/* Report Summary */}
         {summary && activeReport !== 'transaction-refund' && (
-          <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
+          <Card className={`shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative ${
+            activeReport === 'outward' || activeReport === 'inward' ? 'z-0' : 'z-10'
+          }`}>
             <CardHeader className="pb-4">
               <CardTitle className="text-xl font-semibold text-gray-900">
                 Report Summary

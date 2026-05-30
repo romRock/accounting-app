@@ -90,6 +90,8 @@ export const transactionApi = {
     type?: string;
     status?: string;
     search?: string;
+    dateFrom?: string;
+    dateTo?: string;
   } = {}): Promise<TransactionsResponse> {
     const { accessToken } = useAuthStore.getState();
     const queryParams = new URLSearchParams();
@@ -99,6 +101,8 @@ export const transactionApi = {
     if (params.type) queryParams.append('type', params.type);
     if (params.status !== undefined) queryParams.append('status', params.status);
     if (params.search) queryParams.append('search', params.search);
+    if (params.dateFrom) queryParams.append('dateFrom', params.dateFrom);
+    if (params.dateTo) queryParams.append('dateTo', params.dateTo);
 
     const response = await fetch(`${API_BASE_URL}/api/transactions?${queryParams}`, {
       headers: {

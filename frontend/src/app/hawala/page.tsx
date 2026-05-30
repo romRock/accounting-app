@@ -10,6 +10,8 @@ import { formatCurrency, formatDate, formatTime } from '@/lib/utils';
 import { Search, Calendar, Filter, Trash2, Save, RefreshCw, Edit, Check, X, Clock, User, DollarSign, FileText } from 'lucide-react';
 import { ClientTypeahead } from '@/components/ui/client-typeahead';
 import { getHawalaEntries, createHawala, updateHawala, deleteHawala, HawalaEntry } from '@/lib/hawala';
+import { getFetchDateRange } from '@/lib/date-filter';
+import { DatePicker } from '@/components/ui/date-picker';
 import API_BASE_URL from '@/lib/api';
 import { useAuthStore } from '@/store/index';
 import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
@@ -30,14 +32,6 @@ interface LedgerEffect {
   description: string;
   createdAt: string;
 }
-
-const hawalaApiUrl = 'https://example.com/hawala-api';
-
-const fetchHawalaEntries = async () => {
-  const response = await fetch(hawalaApiUrl);
-  const data = await response.json();
-  return data;
-};
 
 export default function HawalaPage() {
   // State
@@ -139,6 +133,28 @@ export default function HawalaPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Fetch next token for a selected date (transaction ID stays global)
+  const fetchNextTokenForDate = async (selectedDate: string) => {
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`${API_BASE_URL}/api/hawala/next-ids?date=${selectedDate}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const result = await response.json();
+      if (result.success) {
+        setFormData(prev => ({
+          ...prev,
+          tokenNo: result.nextTokenNo,
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching next token for date:', error);
+    }
+  };
+
   // Initialize form and fetch hawala entries
   useEffect(() => {
     const initializeForm = async () => {
@@ -209,7 +225,19 @@ export default function HawalaPage() {
   // Fetch hawala entries from API
   const fetchHawalaEntries = async () => {
     try {
-      const result = await getHawalaEntries();
+      const { dateFrom, dateTo } = getFetchDateRange(
+        filterByDate,
+        dateFilter,
+        isSelectingRange,
+        startDate,
+        endDate
+      );
+      const result = await getHawalaEntries({
+        page: 1,
+        limit: 1000,
+        dateFrom,
+        dateTo,
+      });
       if (result.success) {
         setHawalaEntries(result.data || []);
       } else {
@@ -220,6 +248,10 @@ export default function HawalaPage() {
       showErrorToast('Failed to fetch hawala entries');
     }
   };
+
+  useEffect(() => {
+    void fetchHawalaEntries();
+  }, [filterByDate, dateFilter, startDate, endDate, isSelectingRange]);
 
   // Filter entries
   const filteredEntries = useMemo(() => {
@@ -327,29 +359,6 @@ export default function HawalaPage() {
 
   // Save hawala entry
   const handleSave = async () => {
-    // Get current date in Indian timezone to ensure entry shows up in current day filter
-    const now = new Date();
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Kolkata',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-    const parts = formatter.formatToParts(now);
-    const year = parts.find(p => p.type === 'year')?.value;
-    const month = parts.find(p => p.type === 'month')?.value;
-    const day = parts.find(p => p.type === 'day')?.value;
-    const currentDate = `${year}-${month}-${day}`;
-
-    // Get current time in Indian timezone
-    const timeFormatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Kolkata',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    });
-    const currentTime = timeFormatter.format(now);
-
     // Debug logging to see form data values
     console.log('Current form data:', formData);
     console.log('Validation checks:', {
@@ -402,8 +411,8 @@ export default function HawalaPage() {
       const hawalaData = {
         transactionId: formData.transactionId,
         tokenNo: formData.tokenNo ? parseInt(formData.tokenNo) : undefined,
-        date: currentDate, // Use current date in Indian timezone
-        time: currentTime, // Use current time in Indian timezone
+        date: formData.date,
+        time: formData.time,
         partyA: formData.partyA,
         partyB: formData.partyB,
         amount: parseInt(formData.amount),
@@ -430,7 +439,7 @@ export default function HawalaPage() {
       await new Promise(resolve => setTimeout(resolve, 200));
       await fetchHawalaEntries();
 
-      // Fetch next IDs after successful save
+      // Fetch next IDs after successful save (reset to today)
       const now = new Date();
       const formatter = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Asia/Kolkata',
@@ -443,6 +452,13 @@ export default function HawalaPage() {
       const month = parts.find(p => p.type === 'month')?.value;
       const day = parts.find(p => p.type === 'day')?.value;
       const today = `${year}-${month}-${day}`;
+      const timeFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      const currentTime = timeFormatter.format(now);
 
       try {
         const token = getAuthToken();
@@ -582,12 +598,16 @@ export default function HawalaPage() {
               </div>
               <div>
                 <Label htmlFor="date">Date</Label>
-                <Input
+                <DatePicker
                   id="date"
-                  type="date"
                   value={formData.date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                  className="bg-white border-gray-300 rounded-md text-black placeholder:text-gray-600"
+                  onChange={(newDate) => {
+                    setFormData(prev => ({ ...prev, date: newDate }));
+                    if (!editingId) {
+                      fetchNextTokenForDate(newDate);
+                    }
+                  }}
+                  className="h-9 text-sm"
                 />
               </div>
               <div>
@@ -752,30 +772,26 @@ export default function HawalaPage() {
                         </div>
 
                         {!isSelectingRange ? (
-                          <Input
-                            type="date"
+                          <DatePicker
                             value={dateFilter}
-                            onChange={(e) => {
-                              setDateFilter(e.target.value);
-                            }}
-                            className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                            onChange={setDateFilter}
+                            placeholder="Select date"
+                            className="h-8 text-sm"
                           />
                         ) : (
                           <div className="flex items-center space-x-2">
-                            <Input
-                              type="date"
+                            <DatePicker
                               value={startDate}
-                              onChange={(e) => setStartDate(e.target.value)}
+                              onChange={setStartDate}
                               placeholder="Start date"
-                              className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                              className="h-8 text-sm"
                             />
                             <span className="text-gray-500 text-sm">to</span>
-                            <Input
-                              type="date"
+                            <DatePicker
                               value={endDate}
-                              onChange={(e) => setEndDate(e.target.value)}
+                              onChange={setEndDate}
                               placeholder="End date"
-                              className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                              className="h-8 text-sm"
                             />
                           </div>
                         )}

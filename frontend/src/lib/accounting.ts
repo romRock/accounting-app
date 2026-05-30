@@ -89,15 +89,28 @@ export const accountingApi = {
     dateTo?: string;
     search?: string;
   }): Promise<{ entries: AccountingEntry[]; pagination: any }> => {
-    // Add cache-busting timestamp to ensure fresh data
-    const cacheBuster = `&_t=${Date.now()}`;
-    const response = await fetch(`${API_BASE_URL}/api/accounting/entries?${new URLSearchParams(params as any).toString()}${cacheBuster}`, {
-      headers: {
-        'Authorization': `Bearer ${getAuthToken()}`,
-        'Content-Type': 'application/json',
-      },
-      cache: 'no-store',
-    });
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.categoryId) queryParams.append('categoryId', params.categoryId);
+    if (params?.type) queryParams.append('type', params.type);
+    if (params?.partyId) queryParams.append('partyId', params.partyId);
+    if (params?.dateFrom) queryParams.append('dateFrom', params.dateFrom);
+    if (params?.dateTo) queryParams.append('dateTo', params.dateTo);
+    if (params?.search) queryParams.append('search', params.search);
+
+    const cacheBuster = `_t=${Date.now()}`;
+    const query = queryParams.toString();
+    const response = await fetch(
+      `${API_BASE_URL}/api/accounting/entries?${query ? `${query}&` : ''}${cacheBuster}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+      }
+    );
 
     if (!response.ok) {
       throw new Error('Failed to fetch accounting entries');

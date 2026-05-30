@@ -24,18 +24,18 @@ async function generateSpecialEntryId(): Promise<string> {
   }
 }
 
-// Generate token number for special entry (branch-specific)
+// Generate token number for special entry (branch-specific, per selected date)
 async function generateSpecialEntryTokenNo(date?: string, branchId?: string): Promise<number> {
   try {
-    const today = new Date();
-    const istToday = new Date(today.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
-    const todayStart = new Date(istToday.getFullYear(), istToday.getMonth(), istToday.getDate());
-    const nextDay = new Date(todayStart);
+    const targetDate = date ? new Date(date) : new Date();
+    const istDate = new Date(targetDate.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    const dayStart = new Date(istDate.getFullYear(), istDate.getMonth(), istDate.getDate());
+    const nextDay = new Date(dayStart);
     nextDay.setDate(nextDay.getDate() + 1);
 
     const where: any = {
       date: {
-        gte: todayStart,
+        gte: dayStart,
         lt: nextDay,
       },
     };
@@ -61,33 +61,11 @@ async function generateSpecialEntryTokenNo(date?: string, branchId?: string): Pr
 // Get next special entry IDs
 export const getSpecialEntryNextIds = async (req: Request, res: Response) => {
   try {
-    const { date, type } = req.query;
+    const { date } = req.query;
     const branchId = req.user?.branchId;
 
-    const today = new Date();
-    const istToday = new Date(today.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
-    const todayStart = new Date(istToday.getFullYear(), istToday.getMonth(), istToday.getDate());
-    const nextDay = new Date(todayStart);
-    nextDay.setDate(nextDay.getDate() + 1);
-
-    const where: any = {
-      date: {
-        gte: todayStart,
-        lt: nextDay,
-      },
-    };
-
-    // Filter by branch if branchId is provided
-    if (branchId) {
-      where.branchId = branchId;
-    }
-
-    // Get last special entry for this branch today
-    const lastSpecialEntry = await prisma.specialEntry.findFirst({
-      where: where,
-      orderBy: { tokenNo: 'desc' },
-      select: { tokenNo: true },
-    });
+    const dateStr = (date as string) || new Date().toISOString().split('T')[0];
+    const nextTokenNo = await generateSpecialEntryTokenNo(dateStr, branchId);
 
     // Get last special entry globally for transaction ID
     const lastGlobalSpecialEntry = await prisma.specialEntry.findFirst({
@@ -101,8 +79,6 @@ export const getSpecialEntryNextIds = async (req: Request, res: Response) => {
       const nextNumber = lastNumber + 1;
       nextTransactionId = `SPL${String(nextNumber).padStart(3, '0')}`;
     }
-
-    const nextTokenNo = lastSpecialEntry?.tokenNo ? lastSpecialEntry.tokenNo + 1 : 1;
 
     res.status(200).json({
       success: true,

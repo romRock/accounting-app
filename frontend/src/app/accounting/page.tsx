@@ -11,6 +11,8 @@ import { formatCurrency, formatDate, formatTime } from '@/lib/utils';
 import { RefreshCw, Trash2, Save } from 'lucide-react';
 import { ClientTypeahead } from '@/components/ui/client-typeahead';
 import { accountingApi, AccountingEntry } from '@/lib/accounting';
+import { getFetchDateRange } from '@/lib/date-filter';
+import { DatePicker } from '@/components/ui/date-picker';
 import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
 
 // Category Data Structure
@@ -25,7 +27,7 @@ interface TransactionForm {
   transactionNo: string;
   date: string;
   time: string;
-  amount: number;
+  amount: number | '';
   amountType: 'INCOME' | 'EXPENSE';
   category: string;
   account: string;
@@ -113,7 +115,7 @@ export default function AccountingPage() {
       });
       return formatter.format(now);
     })(),
-    amount: 0,
+    amount: '',
     amountType: 'INCOME',
     category: '',
     account: '',
@@ -150,14 +152,19 @@ export default function AccountingPage() {
   // Fetch accounting entries
   const fetchAccountingEntries = async () => {
     try {
-      // Fetch with higher limit to show all current day entries
-      const response = await accountingApi.getAccountEntries({ page: 1, limit: 1000 });
-      console.log('✅ Accounting entries fetched:', response.entries);
-      if (response.entries.length > 0) {
-        console.log('📝 First entry sample:', response.entries[0]);
-        console.log('🆔 First entry ID:', response.entries[0].entryId);
-      }
-      // Backend now filters by current day and branch, so no frontend filtering needed
+      const { dateFrom, dateTo } = getFetchDateRange(
+        filterByDate,
+        dateFilter,
+        isSelectingRange,
+        startDate,
+        endDate
+      );
+      const response = await accountingApi.getAccountEntries({
+        page: 1,
+        limit: 1000,
+        dateFrom,
+        dateTo,
+      });
       setTransactions(response.entries || []);
       return response.entries || [];
     } catch (error) {
@@ -187,16 +194,6 @@ export default function AccountingPage() {
 
     const loadData = async () => {
       try {
-        const entriesResponse = await accountingApi.getAccountEntries();
-        // Sort entries by date ascending (oldest first) for display
-        const sortedEntries = (entriesResponse.entries || []).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        setTransactions(sortedEntries);
-      } catch (error) {
-        console.error('Failed to fetch accounting entries:', error);
-        setTransactions([]);
-      }
-
-      try {
         const nextIdResponse = await accountingApi.getNextTransactionId();
         if (nextIdResponse?.nextTransactionId) {
           setTransactionForm(prev => ({ ...prev, transactionNo: nextIdResponse.nextTransactionId }));
@@ -224,6 +221,11 @@ export default function AccountingPage() {
 
     void loadData();
   }, [isAuthenticated, router]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    void fetchAccountingEntries();
+  }, [isAuthenticated, filterByDate, dateFilter, startDate, endDate, isSelectingRange]);
 
   const filteredTransactions = useMemo(() => {
     let filtered = transactions;
@@ -269,43 +271,23 @@ export default function AccountingPage() {
 
   // Save transaction
   const saveTransaction = async () => {
-    if (!transactionForm.amount || !transactionForm.category || !transactionForm.account) {
+    const amountValue =
+      typeof transactionForm.amount === 'number' ? transactionForm.amount : 0;
+
+    if (!amountValue || !transactionForm.category || !transactionForm.account) {
       showErrorToast('Please fill in all required fields');
       return;
     }
 
     try {
-      // Get current date in Indian timezone to ensure entry shows up in current day filter
-      const now = new Date();
-      const formatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Asia/Kolkata',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      });
-      const parts = formatter.formatToParts(now);
-      const year = parts.find(p => p.type === 'year')?.value;
-      const month = parts.find(p => p.type === 'month')?.value;
-      const day = parts.find(p => p.type === 'day')?.value;
-      const currentDate = `${year}-${month}-${day}`;
-
-      // Get current time in Indian timezone
-      const timeFormatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: 'Asia/Kolkata',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      });
-      const currentTime = timeFormatter.format(now);
-
       const entryData = {
-        date: currentDate, // Use current date in Indian timezone
-        time: currentTime, // Use current time in Indian timezone
+        date: transactionForm.date,
+        time: transactionForm.time,
         categoryId: transactionForm.category,
-        amount: transactionForm.amount,
+        amount: amountValue,
         description: transactionForm.remark || '',
         partyId: transactionForm.account,
-        totalAmount: transactionForm.amount,
+        totalAmount: amountValue,
         type: transactionForm.amountType,
         status: 'COMPLETED',
       };
@@ -326,7 +308,27 @@ export default function AccountingPage() {
       await fetchAccountingEntries();
       await clearForm();
 
-      // Update form date/time to current values for next entry
+      // Reset form to today after save
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+      const parts = formatter.formatToParts(now);
+      const year = parts.find(p => p.type === 'year')?.value;
+      const month = parts.find(p => p.type === 'month')?.value;
+      const day = parts.find(p => p.type === 'day')?.value;
+      const currentDate = `${year}-${month}-${day}`;
+      const timeFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      const currentTime = timeFormatter.format(now);
+
       setTransactionForm(prev => ({
         ...prev,
         date: currentDate,
@@ -440,7 +442,7 @@ export default function AccountingPage() {
       transactionNo,
       date: dateValue,
       time: timeValue,
-      amount: transaction.amount || transaction.creditAmount || transaction.debitAmount || 0,
+      amount: transaction.amount || transaction.creditAmount || transaction.debitAmount || '',
       amountType: amountType as 'INCOME' | 'EXPENSE',
       category: categoryId,
       account: transaction.party?.name || transaction.partyId || transaction.accountId || '',
@@ -473,7 +475,7 @@ export default function AccountingPage() {
       transactionNo: nextTransactionNo,
       date: new Date().toISOString().split('T')[0],
       time: new Date().toTimeString().split(' ')[0].substring(0, 5),
-      amount: 0,
+      amount: '',
       amountType: 'INCOME',
       category: '',
       account: '',
@@ -565,12 +567,11 @@ export default function AccountingPage() {
                   </div>
                   <div>
                     <Label htmlFor="date" className="text-sm font-medium text-gray-700">Date</Label>
-                    <Input
+                    <DatePicker
                       id="date"
-                      type="date"
                       value={transactionForm.date}
-                      onChange={(e) => setTransactionForm(prev => ({ ...prev, date: e.target.value }))}
-                      className="bg-white border-gray-300 mt-1 text-black placeholder:text-gray-600"
+                      onChange={(date) => setTransactionForm(prev => ({ ...prev, date }))}
+                      className="mt-1 h-9 text-sm"
                     />
                   </div>
                   <div>
@@ -592,15 +593,25 @@ export default function AccountingPage() {
                       ref={amountInputRef}
                       type="number"
                       placeholder=""
-                      value={transactionForm.amount}
+                      value={transactionForm.amount === '' ? '' : transactionForm.amount}
                       onChange={(e) => {
                         const value = e.target.value;
-                        // Only allow positive integers
-                        if (value === '' || /^\d+$/.test(value)) {
-                          setTransactionForm(prev => ({ ...prev, amount: parseInt(value) || 0 }));
+                        if (value === '') {
+                          setTransactionForm(prev => ({ ...prev, amount: '' }));
+                          return;
+                        }
+                        // Only allow positive integers (no negative or decimals)
+                        if (/^\d+$/.test(value)) {
+                          setTransactionForm(prev => ({ ...prev, amount: parseInt(value, 10) }));
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E' || e.key === '.') {
+                          e.preventDefault();
                         }
                       }}
                       min="0"
+                      step="1"
                       onWheel={(e) => e.currentTarget.blur()}
                       className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-black text-lg placeholder:text-gray-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
@@ -747,28 +758,26 @@ export default function AccountingPage() {
                         </div>
 
                         {!isSelectingRange ? (
-                          <Input
-                            type="date"
+                          <DatePicker
                             value={dateFilter}
-                            onChange={(e) => setDateFilter(e.target.value)}
-                            className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
+                            onChange={setDateFilter}
+                            placeholder="Select date"
+                            className="h-8 text-sm"
                           />
                         ) : (
                           <div className="flex items-center space-x-2">
-                            <Input
-                              type="date"
+                            <DatePicker
                               value={startDate}
-                              onChange={(e) => setStartDate(e.target.value)}
+                              onChange={setStartDate}
                               placeholder="Start date"
-                              className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
+                              className="h-8 text-sm"
                             />
                             <span className="text-gray-500 text-sm">to</span>
-                            <Input
-                              type="date"
+                            <DatePicker
                               value={endDate}
-                              onChange={(e) => setEndDate(e.target.value)}
+                              onChange={setEndDate}
                               placeholder="End date"
-                              className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
+                              className="h-8 text-sm"
                             />
                           </div>
                         )}

@@ -16,6 +16,8 @@ import { useAuthStore } from '@/store/index';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { RefreshCw, Trash2, Save } from 'lucide-react';
 import { transactionApi, Transaction } from '@/lib/transactions';
+import { getFetchDateRange } from '@/lib/date-filter';
+import { DatePicker } from '@/components/ui/date-picker';
 import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
 
 // Modern transaction schema matching backend
@@ -313,14 +315,24 @@ export default function TransactionsPage() {
     }
 
     fetchTransactions();
-  }, [isAuthenticated, router, activeTab]);
+  }, [isAuthenticated, router, activeTab, filterByDate, dateFilter, startDate, endDate, isSelectingRange]);
 
   const fetchTransactions = async () => {
     try {
       setLoading(true);
+      const { dateFrom, dateTo } = getFetchDateRange(
+        filterByDate,
+        dateFilter,
+        isSelectingRange,
+        startDate,
+        endDate
+      );
       const data = await transactionApi.getTransactions({
         page: currentPage,
+        limit: 1000,
         type: activeTab.toUpperCase(),
+        dateFrom,
+        dateTo,
       });
       setTransactions(data.transactions);
     } catch (error) {
@@ -614,12 +626,18 @@ export default function TransactionsPage() {
                   
                   <div>
                     <Label htmlFor="date" className="text-sm font-medium text-gray-700">Date</Label>
-                    <Input
+                    <DatePicker
                       id="date"
-                      type="date"
-                      {...register('date')}
-                      autoComplete="off"
-                      className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                      value={watch('date') || ''}
+                      onChange={(newDate) => {
+                        setValue('date', newDate);
+                        if (!editingTransaction) {
+                          fetchNextIds(newDate, activeTab.toUpperCase()).then(({ nextTokenNo }) => {
+                            setValue('tokenNo', nextTokenNo);
+                          });
+                        }
+                      }}
+                      className="mt-0 h-9 text-sm"
                     />
                   </div>
 
@@ -988,30 +1006,26 @@ export default function TransactionsPage() {
                       </div>
                       
                       {!isSelectingRange ? (
-                        <Input
-                          type="date"
+                        <DatePicker
                           value={dateFilter}
-                          onChange={(e) => {
-                            setDateFilter(e.target.value);
-                          }}
-                          className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                          onChange={setDateFilter}
+                          placeholder="Select date"
+                          className="h-8 text-sm"
                         />
                       ) : (
                         <div className="flex items-center space-x-2">
-                          <Input
-                            type="date"
+                          <DatePicker
                             value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
+                            onChange={setStartDate}
                             placeholder="Start date"
-                            className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                            className="h-8 text-sm"
                           />
                           <span className="text-gray-500 text-sm">to</span>
-                          <Input
-                            type="date"
+                          <DatePicker
                             value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
+                            onChange={setEndDate}
                             placeholder="End date"
-                            className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                            className="h-8 text-sm"
                           />
                         </div>
                       )}

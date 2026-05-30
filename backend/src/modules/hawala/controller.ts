@@ -24,18 +24,18 @@ async function generateHawalaTransactionId(): Promise<string> {
   }
 }
 
-// Generate token number (daily reset at 12:00 AM IST, branch-specific)
+// Generate token number (daily reset at 12:00 AM IST, branch-specific, per selected date)
 async function generateHawalaTokenNo(date?: string, branchId?: string): Promise<number> {
   try {
-    const today = new Date();
-    const istToday = new Date(today.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
-    const todayStart = new Date(istToday.getFullYear(), istToday.getMonth(), istToday.getDate());
-    const nextDay = new Date(todayStart);
+    const targetDate = date ? new Date(date) : new Date();
+    const istDate = new Date(targetDate.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    const dayStart = new Date(istDate.getFullYear(), istDate.getMonth(), istDate.getDate());
+    const nextDay = new Date(dayStart);
     nextDay.setDate(nextDay.getDate() + 1);
 
     const where: any = {
       date: {
-        gte: todayStart,
+        gte: dayStart,
         lt: nextDay,
       },
     };
@@ -430,38 +430,11 @@ export const updateHawala = async (req: Request, res: Response) => {
 // Get next hawala IDs
 export const getHawalaNextIds = async (req: Request, res: Response) => {
   try {
-    const { date, type } = req.query;
+    const { date } = req.query;
     const branchId = req.user?.branchId;
 
-    const today = new Date();
-    const istToday = new Date(today.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
-    const todayStart = new Date(istToday.getFullYear(), istToday.getMonth(), istToday.getDate());
-    const nextDay = new Date(todayStart);
-    nextDay.setDate(nextDay.getDate() + 1);
-
-    const where: any = {
-      date: {
-        gte: todayStart,
-        lt: nextDay,
-      },
-    };
-
-    // Filter by branch if branchId is provided
-    if (branchId) {
-      where.branchId = branchId;
-    }
-
-    // Count today's hawala entries for this branch
-    const todayEntries = await prisma.hawala.count({
-      where: where
-    });
-
-    // Get last hawala entry for this branch today
-    const lastHawala = await prisma.hawala.findFirst({
-      where: where,
-      orderBy: { tokenNo: 'desc' },
-      select: { tokenNo: true },
-    });
+    const dateStr = (date as string) || new Date().toISOString().split('T')[0];
+    const nextTokenNo = await generateHawalaTokenNo(dateStr, branchId);
 
     // Get last hawala entry globally for transaction ID
     const lastGlobalHawala = await prisma.hawala.findFirst({
@@ -474,8 +447,6 @@ export const getHawalaNextIds = async (req: Request, res: Response) => {
       const lastNumber = parseInt(lastGlobalHawala.transactionId.replace('HWL', ''));
       nextTransactionId = `HWL${String(lastNumber + 1).padStart(3, '0')}`;
     }
-
-    const nextTokenNo = lastHawala?.tokenNo ? lastHawala.tokenNo + 1 : 1;
 
     res.json({
       success: true,

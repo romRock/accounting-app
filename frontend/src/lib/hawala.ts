@@ -1,5 +1,5 @@
 // Real hawala API service for backend
-import API_BASE_URL, { LIVE_API_URL } from './api';
+import API_BASE_URL from './api';
 import { useAuthStore } from '../store/index';
 
 const API_URL = API_BASE_URL;

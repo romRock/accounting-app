@@ -1,5 +1,5 @@
 // Real authentication service for backend API
-import API_BASE_URL, { LIVE_API_URL } from './api';
+import API_BASE_URL from './api';
 
 interface LoginResponse {
   user: {
@@ -74,8 +74,7 @@ interface AuthResponse {
 export const authApi = {
   async login(email: string, password: string): Promise<AuthResponse> {
     
-    // Try local API first
-    let response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -83,21 +82,9 @@ export const authApi = {
       body: JSON.stringify({ email, password }),
     });
 
-    // If local API fails (401, 500, network errors), fallback to live API
     if (!response.ok) {
-      
-      response = await fetch(`${LIVE_API_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Login failed');
-      }
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || 'Login failed');
     }
 
     const data: LoginResponse = await response.json();

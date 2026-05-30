@@ -105,7 +105,7 @@ model UserSession {
 model City {
   id        String   @id @default(cuid())
   name      String
-  code      String   @unique
+  code      String
   state     String?
   address   String?
   number    String?
@@ -117,6 +117,7 @@ model City {
 
   branch    Branch?  @relation(fields: [branchId], references: [id])
 
+  @@unique([code, branchId])
   @@index([code])
   @@index([name])
   @@index([branchId])

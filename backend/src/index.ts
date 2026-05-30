@@ -2237,11 +2237,22 @@ async function startServer() {
     await initializeDatabase();
     
     // Start the server
-    app.listen(PORT, '0.0.0.0', () => {
+    const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📚 API Documentation: http://localhost:${PORT}/api`);
       console.log(`🔐 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🌐 CORS Origins: ${process.env.NODE_ENV === 'production' ? 'Production URLs' : 'http://localhost:3000'}`);
+    });
+
+    server.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} is already in use. Another backend is still running.`);
+        console.error('   Run from project root: node scripts/free-port.js 3001');
+        console.error('   Then restart: npm run dev');
+      } else {
+        console.error('❌ Server failed to start:', err.message);
+      }
+      process.exit(1);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

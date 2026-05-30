@@ -34,10 +34,11 @@ const authHeaders = (): HeadersInit => {
 };
 
 export const masterApi = {
-  async getCities(params?: { search?: string; state?: string }): Promise<MasterCity[]> {
+  async getCities(params?: { search?: string; state?: string; branchId?: string }): Promise<MasterCity[]> {
     const qs = new URLSearchParams();
     if (params?.search) qs.set('search', params.search);
     if (params?.state) qs.set('state', params.state);
+    if (params?.branchId) qs.set('branchId', params.branchId);
 
     const response = await fetch(`${API_BASE_URL}/api/master/cities?${qs.toString()}`, {
       method: 'GET',
@@ -100,9 +101,10 @@ export const masterApi = {
     }
   },
 
-  async getParties(params?: { search?: string }): Promise<MasterParty[]> {
+  async getParties(params?: { search?: string; branchId?: string }): Promise<MasterParty[]> {
     const qs = new URLSearchParams();
     if (params?.search) qs.set('search', params.search);
+    if (params?.branchId) qs.set('branchId', params.branchId);
 
     const response = await fetch(`${API_BASE_URL}/api/master/parties?${qs.toString()}`, {
       method: 'GET',

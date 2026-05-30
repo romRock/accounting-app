@@ -17,6 +17,49 @@ const getFirstValue = (value: any): string | undefined => {
   return value;
 };
 
+const parsePermissions = (permissions: unknown): Record<string, any> => {
+  if (!permissions) return {};
+  if (typeof permissions === 'string') {
+    try {
+      return JSON.parse(permissions);
+    } catch {
+      return {};
+    }
+  }
+  return permissions as Record<string, any>;
+};
+
+const isSuperAdminUser = (req: Request): boolean => {
+  const permissions = parsePermissions(req.user?.role?.permissions);
+  return permissions.masterData === 'full_access';
+};
+
+const assertCanModifyBranchRecord = (
+  req: Request,
+  recordBranchId: string | null | undefined
+) => {
+  if (isSuperAdminUser(req)) return;
+  if (!req.user?.branchId) {
+    throw createError('Insufficient permissions', 403);
+  }
+  if (recordBranchId !== req.user.branchId) {
+    throw createError('Cannot modify data from another branch', 403);
+  }
+};
+
+const resolveBranchIdForWrite = (
+  req: Request,
+  requestedBranchId?: string | null
+): string | null | undefined => {
+  if (isSuperAdminUser(req)) {
+    return requestedBranchId ?? null;
+  }
+  return req.user?.branchId ?? null;
+};
+
+const branchDuplicateScope = (branchId: string | null | undefined) =>
+  branchId ? { branchId } : { branchId: null };
+
 // RBAC Permissions validation function
 function validateRBACPermissions(permissions: any) {
   const errors: string[] = [];
@@ -781,24 +824,24 @@ export const deleteRole = async (req: Request, res: Response) => {
 // City Management
 export const getCities = async (req: Request, res: Response) => {
   try {
-    const { search, state } = req.query;
+    const { search, state, branchId: branchIdQuery } = req.query;
 
     const where: any = {
       isActive: true,
       isDeleted: false,
     };
 
-    // Filter by branch if user is not Super Admin
-    const userPermissions = req.user?.role?.permissions as any;
-    const isSuperAdmin = userPermissions?.masterData === 'full_access';
+    const isSuperAdmin = isSuperAdminUser(req);
+    const branchIdParam = getFirstValue(branchIdQuery);
 
-    if (!isSuperAdmin) {
-      if (req.user?.branchId) {
-        where.branchId = req.user.branchId;
-      } else {
-        // User has no branch assigned - return empty results
-        where.branchId = 'non-existent-branch-id-to-return-empty';
+    if (isSuperAdmin) {
+      if (branchIdParam) {
+        where.branchId = branchIdParam;
       }
+    } else if (req.user?.branchId) {
+      where.branchId = req.user.branchId;
+    } else {
+      where.branchId = 'non-existent-branch-id-to-return-empty';
     }
 
     if (search) {
@@ -853,24 +896,21 @@ export const createCity = async (req: Request, res: Response) => {
     const { name, code, state, branchId } = req.body;
     const userId = req.user?.id;
 
-    // Check if city already exists
+    const cityBranchId = resolveBranchIdForWrite(req, branchId);
+
+    // Duplicate name/code only within the same branch
     const existingCity = await prisma.city.findFirst({
       where: {
-        OR: [
-          { name },
-          { code },
-        ],
+        OR: [{ name }, { code }],
         isActive: true,
         isDeleted: false,
+        ...branchDuplicateScope(cityBranchId),
       },
     });
 
     if (existingCity) {
-      throw createError('City with this name or code already exists', 409);
+      throw createError('City with this name or code already exists in this branch', 409);
     }
-
-    // If branchId not provided, use user's branchId
-    const cityBranchId = branchId || req.user?.branchId;
 
     const city = await prisma.city.create({
       data: {
@@ -914,26 +954,34 @@ export const updateCity = async (req: Request, res: Response) => {
       throw createError('City not found', 404);
     }
 
-    // Check if name/code is already taken by another city
+    assertCanModifyBranchRecord(req, existingCity.branchId);
+
+    // Duplicate name/code only within the same branch
     if (name || code) {
+      const scopeBranchId =
+        isSuperAdminUser(req) && branchId !== undefined
+          ? branchId
+          : existingCity.branchId;
+
       const duplicateCity = await prisma.city.findFirst({
         where: {
           AND: [
             { id: { not: cityId } },
             { isActive: true },
             { isDeleted: false },
+            branchDuplicateScope(scopeBranchId),
             {
               OR: [
                 name ? { name } : {},
                 code ? { code } : {},
-              ].filter(condition => Object.keys(condition).length > 0),
+              ].filter((condition) => Object.keys(condition).length > 0),
             },
           ],
         },
       });
 
       if (duplicateCity) {
-        throw createError('City name or code already taken', 409);
+        throw createError('City name or code already taken in this branch', 409);
       }
     }
 
@@ -943,7 +991,7 @@ export const updateCity = async (req: Request, res: Response) => {
         name,
         code,
         state,
-        branchId,
+        ...(isSuperAdminUser(req) && branchId !== undefined ? { branchId } : {}),
       },
     });
 
@@ -979,25 +1027,18 @@ export const deleteCity = async (req: Request, res: Response) => {
       throw createError('City not found', 404);
     }
 
-    // Check if city is being used in any transactions
-    const [fromTransactions, toTransactions] = await Promise.all([
-      prisma.transaction.count({
-        where: {
-          fromCityId: cityId,
-          isActive: true,
-          isDeleted: false,
-        },
-      }),
-      prisma.transaction.count({
-        where: {
-          toCityId: cityId,
-          isActive: true,
-          isDeleted: false,
-        },
-      }),
-    ]);
+    assertCanModifyBranchRecord(req, existingCity.branchId);
 
-    if (fromTransactions > 0 || toTransactions > 0) {
+    // Check if city is used as a transaction center
+    const transactionCount = await prisma.transaction.count({
+      where: {
+        centerId: cityId,
+        isActive: true,
+        isDeleted: false,
+      },
+    });
+
+    if (transactionCount > 0) {
       throw createError('Cannot delete city that is used in transactions', 400);
     }
 
@@ -1032,24 +1073,24 @@ export const deleteCity = async (req: Request, res: Response) => {
 // Party Management
 export const getParties = async (req: Request, res: Response) => {
   try {
-    const { search, cityId } = req.query;
+    const { search, branchId: branchIdQuery } = req.query;
 
     const where: any = {
       isActive: true,
       isDeleted: false,
     };
 
-    // Filter by branch if user is not Super Admin
-    const userPermissions = req.user?.role?.permissions as any;
-    const isSuperAdmin = userPermissions?.masterData === 'full_access';
+    const isSuperAdmin = isSuperAdminUser(req);
+    const branchIdParam = getFirstValue(branchIdQuery);
 
-    if (!isSuperAdmin) {
-      if (req.user?.branchId) {
-        where.branchId = req.user.branchId;
-      } else {
-        // User has no branch assigned - return empty results
-        where.branchId = 'non-existent-branch-id-to-return-empty';
+    if (isSuperAdmin) {
+      if (branchIdParam) {
+        where.branchId = branchIdParam;
       }
+    } else if (req.user?.branchId) {
+      where.branchId = req.user.branchId;
+    } else {
+      where.branchId = 'non-existent-branch-id-to-return-empty';
     }
 
     if (search) {
@@ -1113,8 +1154,8 @@ export const createParty = async (req: Request, res: Response) => {
       branchId,
     } = req.body;
 
-    // If branchId not provided, use user's branchId
-    const partyBranchId = branchId || req.user?.branchId;
+    // If branchId not provided, use user's branchId (branch users) or explicit branch (super admin)
+    const partyBranchId = resolveBranchIdForWrite(req, branchId);
 
     const party = await prisma.party.create({
       data: {
@@ -1175,6 +1216,8 @@ export const updateParty = async (req: Request, res: Response) => {
       throw createError('Party not found', 404);
     }
 
+    assertCanModifyBranchRecord(req, existingParty.branchId);
+
     const party = await prisma.party.update({
       where: { id: partyId },
       data: {
@@ -1185,7 +1228,7 @@ export const updateParty = async (req: Request, res: Response) => {
         panNumber,
         gstNumber,
         city,
-        branchId,
+        ...(isSuperAdminUser(req) && branchId !== undefined ? { branchId } : {}),
       },
     });
 
@@ -1238,10 +1281,12 @@ export const deleteParty = async (req: Request, res: Response) => {
       throw createError('Party not found', 404);
     }
 
-    // Check if party is being used in any transactions
+    assertCanModifyBranchRecord(req, existingParty.branchId);
+
+    // Check if party is used in any transactions
     const transactions = await prisma.transaction.count({
       where: {
-        partyId: partyId,
+        OR: [{ receiverClientId: partyId }, { senderClientId: partyId }],
         isActive: true,
         isDeleted: false,
       },

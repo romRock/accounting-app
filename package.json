@@ -4,7 +4,7 @@
   "description": "Production-ready Transaction & Bookkeeping Web Application for Angadiya firms",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev": "node scripts/free-port.js 3001 && concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "cd backend && npm run dev:prisma",
     "dev:frontend": "cd frontend && npm run dev",
     

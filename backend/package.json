@@ -45,6 +45,7 @@
     "db:migrate:pm2-branch": "tsx scripts/migrate-existing-data-to-pm2-branch.ts",
     "db:seed:parties:pm2-csv": "tsx scripts/seed-parties-pm2-from-csv.ts",
     "db:seed:parties:pm2-csv:fresh": "tsx scripts/seed-parties-pm2-from-csv.ts --fresh",
+    "db:migrate:city-code-per-branch": "tsx scripts/migrate-city-code-per-branch.ts",
     "update:admin-role:production": "node scripts/update-admin-role-production.ts",
     "db:migrate:permissions": "node scripts/permissions-migration.js",
     "db:studio": "prisma studio",

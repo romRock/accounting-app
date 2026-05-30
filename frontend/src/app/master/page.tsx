@@ -68,6 +68,7 @@ interface Center {
   city: string;
   address: string;
   contactNumber: string;
+  branchId?: string;
   status: 'Active' | 'Inactive';
   createdAt: string;
   updatedAt: string;
@@ -79,6 +80,7 @@ interface Client {
   mobileNumber: string;
   city: string;
   notes?: string;
+  branchId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -144,57 +146,46 @@ export default function MasterPage() {
   const [centersLoading, setCentersLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [branchFilterId, setBranchFilterId] = useState('');
 
-  // Check if user is admin or super admin based on permissions only
-  const isAdmin = () => {
-    if (!user?.role?.permissions) return false;
-
-    // Parse permissions from JSON string if needed
-    let permissions;
+  const getPermissions = () => {
+    if (!user?.role?.permissions) return null;
     try {
-      permissions = typeof user.role.permissions === 'string'
+      return typeof user.role.permissions === 'string'
         ? JSON.parse(user.role.permissions)
         : user.role.permissions;
     } catch (error) {
       console.error('Error parsing permissions:', error);
-      return false;
+      return null;
     }
+  };
 
-    // Check for backward compatibility with old masterData format
-    if (permissions.masterData === 'full_access') {
-      return true;
-    }
+  const isSuperAdmin = () => getPermissions()?.masterData === 'full_access';
 
-    // Strict RBAC - only allow if user has explicit full access to any master section
-    // Works like other single access modules - no access by default
+  // Admin for users/roles/branches tabs (super admin or explicit section access)
+  const isAdmin = () => {
+    if (isSuperAdmin()) return true;
+    const permissions = getPermissions();
+    if (!permissions) return false;
     return permissions.master?.users === 'all' ||
            permissions.master?.roles === 'all' ||
-           permissions.master?.cities === 'all' ||
-           permissions.master?.clients === 'all' ||
            permissions.master?.branches === 'all';
   };
 
   // Check if user has access to specific master section
   const hasMasterAccess = (section: 'users' | 'roles' | 'cities' | 'clients' | 'branches') => {
-    if (!user?.role?.permissions) return false;
-
-    let permissions;
-    try {
-      permissions = typeof user.role.permissions === 'string'
-        ? JSON.parse(user.role.permissions)
-        : user.role.permissions;
-    } catch (error) {
-      console.error('Error parsing permissions:', error);
-      return false;
-    }
-
-    // Check for backward compatibility with old masterData format
-    if (permissions.masterData === 'full_access') {
-      return true;
-    }
-
+    const permissions = getPermissions();
+    if (!permissions) return false;
+    if (permissions.masterData === 'full_access') return true;
     return permissions.master?.[section] === 'all';
   };
+
+  const hasAnyMasterAccess = () =>
+    hasMasterAccess('users') ||
+    hasMasterAccess('roles') ||
+    hasMasterAccess('cities') ||
+    hasMasterAccess('clients') ||
+    hasMasterAccess('branches');
 
   const isActiveTabAllowed = () => {
     switch (activeTab) {
@@ -232,9 +223,9 @@ export default function MasterPage() {
     return null;
   };
 
-  // Redirect non-admin users
+  // Redirect users with no master access at all
   useEffect(() => {
-    if (user && !isAdmin()) {
+    if (user && !hasAnyMasterAccess()) {
       // Redirect to first allowed page
       const pagePriority = [
         { path: '/transactions', check: () => {
@@ -286,13 +277,16 @@ export default function MasterPage() {
     window.dispatchEvent(event);
   }, [isAuthenticated, user, activeTab]);
 
+  const getSuperAdminBranchId = () => (isSuperAdmin() && branchFilterId ? branchFilterId : undefined);
+
   // Load real centers data
   const loadCenters = async () => {
     try {
       console.log("=== MASTER PAGE: Loading centers ===");
       setCentersLoading(true);
-      
-      const cities = await masterApi.getCities();
+
+      const branchId = getSuperAdminBranchId();
+      const cities = await masterApi.getCities(branchId ? { branchId } : undefined);
       console.log("API returned cities:", cities.length, cities);
       
       const centersData: Center[] = cities.map((city) => ({
@@ -302,6 +296,7 @@ export default function MasterPage() {
         city: city.state,
         address: city.address || `${city.name}, ${city.state}`,
         contactNumber: city.number || 'N/A',
+        branchId: city.branchId || undefined,
         status: 'Active' as const,
         createdAt: city.createdAt || new Date().toISOString(),
         updatedAt: city.updatedAt || new Date().toISOString()
@@ -322,7 +317,8 @@ export default function MasterPage() {
     try {
       console.log("=== MASTER PAGE: Loading clients ===");
 
-      const parties = await masterApi.getParties();
+      const branchId = getSuperAdminBranchId();
+      const parties = await masterApi.getParties(branchId ? { branchId } : undefined);
       console.log("API returned parties:", parties.length, parties);
 
       const clientsData: Client[] = parties.map((p) => ({
@@ -331,6 +327,7 @@ export default function MasterPage() {
         mobileNumber: p.phone || '',
         city: p.city || '',
         notes: p.address || undefined,
+        branchId: p.branchId || undefined,
         createdAt: p.createdAt || new Date().toISOString(),
         updatedAt: p.updatedAt || new Date().toISOString(),
       }));
@@ -579,8 +576,14 @@ export default function MasterPage() {
     if (hasMasterAccess('clients')) loadClients(); // "Clients" tab
     if (hasMasterAccess('roles')) loadRoles(); // "Roles" tab
     if (hasMasterAccess('users')) loadUsers(); // "Users" tab
-    if (hasMasterAccess('branches')) loadBranches(); // "Branches" tab
-  }, [isAuthenticated, router, user]);
+    if (hasMasterAccess('branches') || isSuperAdmin()) loadBranches(); // Branches list for super admin city/client assignment
+  }, [isAuthenticated, router, user, branchFilterId]);
+
+  // Default super admin branch filter to first branch
+  useEffect(() => {
+    if (!isSuperAdmin() || branchFilterId || branches.length === 0) return;
+    setBranchFilterId(branches[0].id);
+  }, [branches, user, branchFilterId]);
 
   // Listen for tab changes from header
   useEffect(() => {
@@ -637,7 +640,7 @@ export default function MasterPage() {
       case 'roles':
         if (roleForm.name) {
           // Only admins can add roles
-          if (!isAdmin) {
+          if (!isAdmin()) {
             showErrorToast('Only administrators can add new roles');
             return;
           }
@@ -706,11 +709,17 @@ export default function MasterPage() {
           const addNewCity = async () => {
             try {
               setLoading(true);
-              const newCity = await masterApi.createCity({
+              const createPayload: { name: string; code: string; state: string; branchId?: string } = {
                 name: centerForm.name!,
                 code: centerForm.code!,
                 state: centerForm.city!,
-              });
+              };
+              if (isSuperAdmin() && branchFilterId) {
+                createPayload.branchId = branchFilterId;
+              } else if (isSuperAdmin() && centerForm.branchId) {
+                createPayload.branchId = centerForm.branchId;
+              }
+              const newCity = await masterApi.createCity(createPayload);
 
               // Convert to Center format and add to local state
               const newCenter: Center = {
@@ -749,12 +758,24 @@ export default function MasterPage() {
           const addNewClient = async () => {
             try {
               setLoading(true);
-              const newClient = await masterApi.createParty({
+              const createPayload: {
+                name: string;
+                phone?: string;
+                city?: string;
+                address?: string;
+                branchId?: string;
+              } = {
                 name: clientForm.name!,
                 phone: clientForm.mobileNumber!,
                 city: clientForm.city!,
                 address: clientForm.notes,
-              });
+              };
+              if (isSuperAdmin() && branchFilterId) {
+                createPayload.branchId = branchFilterId;
+              } else if (isSuperAdmin() && clientForm.branchId) {
+                createPayload.branchId = clientForm.branchId;
+              }
+              const newClient = await masterApi.createParty(createPayload);
 
               // Convert to Client format and add to local state
               const clientData: Client = {
@@ -784,7 +805,7 @@ export default function MasterPage() {
       case 'branches':
         if (branchForm.name && branchForm.code) {
           // Only admins can add branches
-          if (!isAdmin) {
+          if (!isAdmin()) {
             showErrorToast('Only administrators can add new branches');
             return;
           }
@@ -890,7 +911,7 @@ export default function MasterPage() {
           break;
         case 'roles':
           // Only admins can delete roles
-          if (!isAdmin) {
+          if (!isAdmin()) {
             showErrorToast('Only administrators can delete roles');
             return;
           }
@@ -957,7 +978,7 @@ export default function MasterPage() {
           break;
         case 'branches':
           // Only admins can delete branches
-          if (!isAdmin) {
+          if (!isAdmin()) {
             showErrorToast('Only administrators can delete branches');
             return;
           }
@@ -1027,7 +1048,7 @@ export default function MasterPage() {
         break;
       case 'roles':
         // Only admins can update roles
-        if (!isAdmin) {
+        if (!isAdmin()) {
           showErrorToast('Only administrators can update roles');
           return;
         }
@@ -1073,11 +1094,17 @@ export default function MasterPage() {
         const updateCity = async () => {
           try {
             setLoading(true);
-            const updatedCity = await masterApi.updateCity(editingId!, {
+            const updatePayload: { name: string; code: string; state: string; branchId?: string } = {
               name: centerForm.name!,
               code: centerForm.code!,
               state: centerForm.city!,
-            });
+            };
+            if (isSuperAdmin() && branchFilterId) {
+              updatePayload.branchId = branchFilterId;
+            } else if (isSuperAdmin() && centerForm.branchId) {
+              updatePayload.branchId = centerForm.branchId;
+            }
+            const updatedCity = await masterApi.updateCity(editingId!, updatePayload);
 
             // Convert to Center format and update local state
             const updatedCenter: Center = {
@@ -1113,12 +1140,24 @@ export default function MasterPage() {
         const updateClient = async () => {
           try {
             setLoading(true);
-            const updatedClient = await masterApi.updateParty(editingId!, {
+            const updatePayload: {
+              name: string;
+              phone?: string;
+              city?: string;
+              address?: string;
+              branchId?: string;
+            } = {
               name: clientForm.name!,
               phone: clientForm.mobileNumber!,
               city: clientForm.city!,
               address: clientForm.notes,
-            });
+            };
+            if (isSuperAdmin() && branchFilterId) {
+              updatePayload.branchId = branchFilterId;
+            } else if (isSuperAdmin() && clientForm.branchId) {
+              updatePayload.branchId = clientForm.branchId;
+            }
+            const updatedClient = await masterApi.updateParty(editingId!, updatePayload);
 
             // Convert to Client format and update local state
             const clientData: Client = {
@@ -1145,7 +1184,7 @@ export default function MasterPage() {
         break;
       case 'branches':
         // Only admins can update branches
-        if (!isAdmin) {
+        if (!isAdmin()) {
           showErrorToast('Only administrators can update branches');
           return;
         }
@@ -2039,6 +2078,26 @@ export default function MasterPage() {
             {/* CENTERS TAB */}
             {activeTab === 'centers' && hasMasterAccess('cities') && (
               <div className="space-y-6">
+                {isSuperAdmin() && (
+                  <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <Label htmlFor="centersBranchFilter" className="text-sm font-medium text-gray-700">
+                      Branch filter
+                    </Label>
+                    <select
+                      id="centersBranchFilter"
+                      value={branchFilterId}
+                      onChange={(e) => setBranchFilterId(e.target.value)}
+                      className="w-full max-w-md bg-white border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 h-10 px-3"
+                    >
+                      <option value="">All branches</option>
+                      {branches.map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name} ({branch.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 {/* Center Form */}
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -2095,6 +2154,24 @@ export default function MasterPage() {
                         placeholder="Enter contact number"
                       />
                     </div>
+                    {isSuperAdmin() && (
+                      <div>
+                        <Label htmlFor="centerBranch" className="text-sm font-medium text-gray-700">Branch</Label>
+                        <select
+                          id="centerBranch"
+                          value={centerForm.branchId || ''}
+                          onChange={(e) => setCenterForm({ ...centerForm, branchId: e.target.value || undefined })}
+                          className="w-full bg-white border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 h-10 px-3"
+                        >
+                          <option value="">Unassigned</option>
+                          {branches.map((branch) => (
+                            <option key={branch.id} value={branch.id}>
+                              {branch.name} ({branch.code})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
                   
                   {/* Action Buttons */}
@@ -2199,7 +2276,7 @@ export default function MasterPage() {
                                 </span>
                               </td>
                               <td className="px-3 py-2 whitespace-nowrap text-sm">
-                                {isAdmin() && (
+                                {hasMasterAccess('cities') && (
                                   <div className="flex space-x-1">
                                     <Button
                                       size="sm"
@@ -2233,6 +2310,26 @@ export default function MasterPage() {
             {/* CLIENTS TAB */}
             {activeTab === 'clients' && hasMasterAccess('clients') && (
               <div className="space-y-6">
+                {isSuperAdmin() && (
+                  <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <Label htmlFor="clientsBranchFilter" className="text-sm font-medium text-gray-700">
+                      Branch filter
+                    </Label>
+                    <select
+                      id="clientsBranchFilter"
+                      value={branchFilterId}
+                      onChange={(e) => setBranchFilterId(e.target.value)}
+                      className="w-full max-w-md bg-white border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 h-10 px-3"
+                    >
+                      <option value="">All branches</option>
+                      {branches.map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name} ({branch.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 {/* Client Form */}
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -2280,6 +2377,24 @@ export default function MasterPage() {
                         placeholder="Enter notes"
                       />
                     </div>
+                    {isSuperAdmin() && (
+                      <div className="sm:col-span-2">
+                        <Label htmlFor="clientBranch" className="text-sm font-medium text-gray-700">Branch</Label>
+                        <select
+                          id="clientBranch"
+                          value={clientForm.branchId || ''}
+                          onChange={(e) => setClientForm({ ...clientForm, branchId: e.target.value || undefined })}
+                          className="w-full bg-white border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 h-10 px-3"
+                        >
+                          <option value="">Unassigned</option>
+                          {branches.map((branch) => (
+                            <option key={branch.id} value={branch.id}>
+                              {branch.name} ({branch.code})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
                   
                   {/* Action Buttons */}
@@ -2363,7 +2478,7 @@ export default function MasterPage() {
                                 {client.notes || '-'}
                               </td>
                               <td className="px-3 py-2 whitespace-nowrap text-sm">
-                                {isAdmin() && (
+                                {hasMasterAccess('clients') && (
                                   <div className="flex space-x-1">
                                     <Button
                                       size="sm"

@@ -10,6 +10,7 @@ import { useAuthStore } from '@/store';
 import { formatDate } from '@/lib/utils';
 import { transactionApi } from '@/lib/transactions';
 import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
+import { masterApi } from '@/lib/master';
 
 // Data Interfaces
 interface User {
@@ -195,6 +196,42 @@ export default function MasterPage() {
     return permissions.master?.[section] === 'all';
   };
 
+  const isActiveTabAllowed = () => {
+    switch (activeTab) {
+      case 'users':
+        return hasMasterAccess('users');
+      case 'roles':
+        return hasMasterAccess('roles');
+      case 'centers':
+        return hasMasterAccess('cities');
+      case 'clients':
+        return hasMasterAccess('clients');
+      case 'branches':
+        return hasMasterAccess('branches');
+      default:
+        return false;
+    }
+  };
+
+  const getFirstAllowedTab = (): 'users' | 'roles' | 'centers' | 'clients' | 'branches' | null => {
+    const tabPriority: Array<{
+      tab: 'users' | 'roles' | 'centers' | 'clients' | 'branches';
+      section: 'users' | 'roles' | 'cities' | 'clients' | 'branches';
+    }> = [
+      { tab: 'users', section: 'users' },
+      { tab: 'roles', section: 'roles' },
+      { tab: 'centers', section: 'cities' },
+      { tab: 'clients', section: 'clients' },
+      { tab: 'branches', section: 'branches' },
+    ];
+
+    for (const item of tabPriority) {
+      if (hasMasterAccess(item.section)) return item.tab;
+    }
+
+    return null;
+  };
+
   // Redirect non-admin users
   useEffect(() => {
     if (user && !isAdmin()) {
@@ -233,18 +270,32 @@ export default function MasterPage() {
     }
   }, [user, router]);
 
+  // Ensure the landing tab is allowed for the current role.
+  // (e.g. PM2/Vpatel usually don't have master.users access, so we must not default to "users".)
+  useEffect(() => {
+    if (!isAuthenticated || !user?.role?.permissions) return;
+    if (isActiveTabAllowed()) return;
+
+    const firstAllowed = getFirstAllowedTab();
+    if (!firstAllowed) return;
+
+    setActiveTab(firstAllowed);
+
+    // Keep the header tab UI in sync with the content tab.
+    const event = new CustomEvent('setMasterTab', { detail: firstAllowed });
+    window.dispatchEvent(event);
+  }, [isAuthenticated, user, activeTab]);
+
   // Load real centers data
   const loadCenters = async () => {
     try {
       console.log("=== MASTER PAGE: Loading centers ===");
       setCentersLoading(true);
       
-      // Test API call with debugging
-      console.log("Calling transactionApi.searchCities...");
-      const cities = await transactionApi.searchCities(''); // Get all cities without limit
+      const cities = await masterApi.getCities();
       console.log("API returned cities:", cities.length, cities);
       
-      const centersData: Center[] = cities.map((city, index) => ({
+      const centersData: Center[] = cities.map((city) => ({
         id: city.id,
         name: city.name,
         code: city.code,
@@ -252,8 +303,8 @@ export default function MasterPage() {
         address: city.address || `${city.name}, ${city.state}`,
         contactNumber: city.number || 'N/A',
         status: 'Active' as const,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt: city.createdAt || new Date().toISOString(),
+        updatedAt: city.updatedAt || new Date().toISOString()
       }));
       
       console.log("Transformed centers data:", centersData);
@@ -271,8 +322,18 @@ export default function MasterPage() {
     try {
       console.log("=== MASTER PAGE: Loading clients ===");
 
-      const clientsData = await transactionApi.getClients();
-      console.log("API returned clients:", clientsData.length, clientsData);
+      const parties = await masterApi.getParties();
+      console.log("API returned parties:", parties.length, parties);
+
+      const clientsData: Client[] = parties.map((p) => ({
+        id: p.id,
+        name: p.name,
+        mobileNumber: p.phone || '',
+        city: p.city || '',
+        notes: p.address || undefined,
+        createdAt: p.createdAt || new Date().toISOString(),
+        updatedAt: p.updatedAt || new Date().toISOString(),
+      }));
 
       setClients(clientsData);
     } catch (error) {
@@ -507,13 +568,19 @@ export default function MasterPage() {
       router.push('/login');
       return;
     }
+
+    // If user isn't ready yet, don't trigger API calls.
+    if (!user) return;
+
     generateMockData();
-    loadCenters(); // Load real centers data
-    loadClients(); // Load real clients data
-    loadRoles(); // Load real roles data
-    loadUsers(); // Load real users data
-    loadBranches(); // Load real branches data
-  }, [isAuthenticated, router]);
+
+    // Only load data for permitted master sections.
+    if (hasMasterAccess('cities')) loadCenters(); // "Centers" tab
+    if (hasMasterAccess('clients')) loadClients(); // "Clients" tab
+    if (hasMasterAccess('roles')) loadRoles(); // "Roles" tab
+    if (hasMasterAccess('users')) loadUsers(); // "Users" tab
+    if (hasMasterAccess('branches')) loadBranches(); // "Branches" tab
+  }, [isAuthenticated, router, user]);
 
   // Listen for tab changes from header
   useEffect(() => {
@@ -522,13 +589,13 @@ export default function MasterPage() {
       setActiveTab(newTab);
       
       // Load data when switching to specific tabs
-      if (newTab === 'roles') {
+      if (newTab === 'roles' && hasMasterAccess('roles')) {
         loadRoles();
-      } else if (newTab === 'centers') {
+      } else if (newTab === 'centers' && hasMasterAccess('cities')) {
         loadCenters();
-      } else if (newTab === 'clients') {
+      } else if (newTab === 'clients' && hasMasterAccess('clients')) {
         loadClients();
-      } else if (newTab === 'branches') {
+      } else if (newTab === 'branches' && hasMasterAccess('branches')) {
         loadBranches();
       }
     };
@@ -631,21 +698,19 @@ export default function MasterPage() {
         break;
       case 'centers':
         if (centerForm.name && centerForm.code && centerForm.city) {
-          // Only admins can add cities
-          if (!isAdmin) {
-            showErrorToast('Only administrators can add new cities');
+          if (!hasMasterAccess('cities')) {
+            showErrorToast('You do not have permission to add cities');
             return;
           }
 
           const addNewCity = async () => {
             try {
               setLoading(true);
-              const newCity = await transactionApi.addCity(
-                centerForm.name!,
-                centerForm.code!,
-                centerForm.city!,
-                centerForm.contactNumber || undefined
-              );
+              const newCity = await masterApi.createCity({
+                name: centerForm.name!,
+                code: centerForm.code!,
+                state: centerForm.city!,
+              });
 
               // Convert to Center format and add to local state
               const newCenter: Center = {
@@ -656,8 +721,8 @@ export default function MasterPage() {
                 address: newCity.address || `${newCity.name}, ${newCity.state}`,
                 contactNumber: newCity.number || 'N/A',
                 status: 'Active',
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
+                createdAt: newCity.createdAt || new Date().toISOString(),
+                updatedAt: newCity.updatedAt || new Date().toISOString()
               };
 
               setCenters([...centers, newCenter]);
@@ -676,31 +741,30 @@ export default function MasterPage() {
         break;
       case 'clients':
         if (clientForm.name && clientForm.mobileNumber && clientForm.city) {
-          // Only admins can add clients
-          if (!isAdmin) {
-            showErrorToast('Only administrators can add new clients');
+          if (!hasMasterAccess('clients')) {
+            showErrorToast('You do not have permission to add clients');
             return;
           }
 
           const addNewClient = async () => {
             try {
               setLoading(true);
-              const newClient = await transactionApi.addClient(
-                clientForm.name!,
-                clientForm.mobileNumber!,
-                clientForm.city!,
-                clientForm.notes
-              );
+              const newClient = await masterApi.createParty({
+                name: clientForm.name!,
+                phone: clientForm.mobileNumber!,
+                city: clientForm.city!,
+                address: clientForm.notes,
+              });
 
               // Convert to Client format and add to local state
               const clientData: Client = {
                 id: newClient.id,
                 name: newClient.name,
-                mobileNumber: newClient.mobileNumber,
-                city: newClient.city,
-                notes: newClient.notes,
-                createdAt: newClient.createdAt,
-                updatedAt: newClient.updatedAt
+                mobileNumber: newClient.phone || '',
+                city: newClient.city || '',
+                notes: newClient.address || undefined,
+                createdAt: newClient.createdAt || new Date().toISOString(),
+                updatedAt: newClient.updatedAt || new Date().toISOString()
               };
 
               setClients([...clients, clientData]);
@@ -848,16 +912,15 @@ export default function MasterPage() {
           deleteRole();
           break;
         case 'centers':
-          // Only admins can delete cities
-          if (!isAdmin) {
-            showErrorToast('Only administrators can delete cities');
+          if (!hasMasterAccess('cities')) {
+            showErrorToast('You do not have permission to delete cities');
             return;
           }
 
           const deleteCity = async () => {
             try {
               setLoading(true);
-              await transactionApi.deleteCity(id);
+              await masterApi.deleteCity(id);
               setCenters(centers.filter(c => c.id !== id));
               showDeleteToast('City deleted successfully!');
             } catch (error) {
@@ -871,16 +934,15 @@ export default function MasterPage() {
           deleteCity();
           break;
         case 'clients':
-          // Only admins can delete clients
-          if (!isAdmin) {
-            showErrorToast('Only administrators can delete clients');
+          if (!hasMasterAccess('clients')) {
+            showErrorToast('You do not have permission to delete clients');
             return;
           }
 
           const deleteClient = async () => {
             try {
               setLoading(true);
-              await transactionApi.deleteClient(id);
+              await masterApi.deleteParty(id);
               setClients(clients.filter(c => c.id !== id));
               showDeleteToast('Client deleted successfully!');
             } catch (error) {
@@ -1003,22 +1065,19 @@ export default function MasterPage() {
         updateRole();
         break;
       case 'centers':
-        // Only admins can update cities
-        if (!isAdmin) {
-          showErrorToast('Only administrators can update cities');
+        if (!hasMasterAccess('cities')) {
+          showErrorToast('You do not have permission to update cities');
           return;
         }
 
         const updateCity = async () => {
           try {
             setLoading(true);
-            const updatedCity = await transactionApi.updateCity(
-              editingId!,
-              centerForm.name!,
-              centerForm.code!,
-              centerForm.city!,
-              centerForm.contactNumber || undefined
-            );
+            const updatedCity = await masterApi.updateCity(editingId!, {
+              name: centerForm.name!,
+              code: centerForm.code!,
+              state: centerForm.city!,
+            });
 
             // Convert to Center format and update local state
             const updatedCenter: Center = {
@@ -1029,8 +1088,8 @@ export default function MasterPage() {
               address: updatedCity.address || `${updatedCity.name}, ${updatedCity.state}`,
               contactNumber: updatedCity.number || 'N/A',
               status: 'Active',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
+              createdAt: updatedCity.createdAt || new Date().toISOString(),
+              updatedAt: updatedCity.updatedAt || new Date().toISOString()
             };
 
             setCenters(centers.map(c => c.id === editingId ? updatedCenter : c));
@@ -1046,32 +1105,30 @@ export default function MasterPage() {
         updateCity();
         break;
       case 'clients':
-        // Only admins can update clients
-        if (!isAdmin) {
-          showErrorToast('Only administrators can update clients');
+        if (!hasMasterAccess('clients')) {
+          showErrorToast('You do not have permission to update clients');
           return;
         }
 
         const updateClient = async () => {
           try {
             setLoading(true);
-            const updatedClient = await transactionApi.updateClient(
-              editingId!,
-              clientForm.name!,
-              clientForm.mobileNumber!,
-              clientForm.city!,
-              clientForm.notes
-            );
+            const updatedClient = await masterApi.updateParty(editingId!, {
+              name: clientForm.name!,
+              phone: clientForm.mobileNumber!,
+              city: clientForm.city!,
+              address: clientForm.notes,
+            });
 
             // Convert to Client format and update local state
             const clientData: Client = {
               id: updatedClient.id,
               name: updatedClient.name,
-              mobileNumber: updatedClient.mobileNumber,
-              city: updatedClient.city,
-              notes: updatedClient.notes,
-              createdAt: updatedClient.createdAt,
-              updatedAt: updatedClient.updatedAt
+              mobileNumber: updatedClient.phone || '',
+              city: updatedClient.city || '',
+              notes: updatedClient.address || undefined,
+              createdAt: updatedClient.createdAt || new Date().toISOString(),
+              updatedAt: updatedClient.updatedAt || new Date().toISOString()
             };
 
             setClients(clients.map(c => c.id === editingId ? clientData : c));

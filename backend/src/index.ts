@@ -529,7 +529,8 @@ app.use(cors({
       'http://localhost:3000',
       'http://localhost:3002',
       'https://acc-kiya-611-pma.vercel.app',
-      'https://accounting-app-ttqe.onrender.com'
+      'https://accounting-app-ttqe.onrender.com',
+      'https://client-credit-tracker.in'
     ];
     
     if (process.env.NODE_ENV === 'development') {

@@ -17,6 +17,7 @@ import dashboardRoutes from './modules/dashboard/routes';
 import { authenticateToken, requireRole } from './modules/auth/middleware';
 import { requireAdmin } from './middlewares/rbac';
 import { errorHandler } from './middlewares/errorHandler';
+import { inputSecurityMiddleware } from './middlewares/inputSecurity';
 import { requestLogger } from './middlewares/requestLogger';
 import { cacheMiddleware, invalidateCachePattern } from './middlewares/cache';
 
@@ -518,7 +519,12 @@ async function initializeDatabase() {
 // });
 
 // Middleware
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  })
+);
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
@@ -551,7 +557,8 @@ app.use(cors({
 app.use(morgan('combined'));
 // app.use(limiter); // Disabled for continuous accountant work
 app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(inputSecurityMiddleware);
 app.use(requestLogger);
 // Removed cache from cities and parties since they now filter by user's branch
 app.use('/api/roles', cacheMiddleware(1800)); // Cache roles for 30 minutes

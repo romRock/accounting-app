@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, Activity, Users, MapPin, FileText } from 'lucide-react';
+import { getDashboardCustomerReview } from '@/lib/client-balance';
+import { formatCurrency } from '@/lib/utils';
 
 // Dashboard Metrics Interfaces
 interface DashboardMetrics {
@@ -51,7 +53,11 @@ export default function DashboardPage() {
     console.log('Current time (Asia/Kolkata):', now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
     return result;
   });
-  const [customerReview, setCustomerReview] = useState<{ plusCustomers: Array<{ name: string; balance: number }>; minusCustomers: Array<{ name: string; balance: number }> } | null>(null);
+  const [customerReview, setCustomerReview] = useState<{
+    incomeClients: Array<{ name: string; amount: number }>;
+    expenseClients: Array<{ name: string; amount: number }>;
+  } | null>(null);
+  const [customerReviewLoading, setCustomerReviewLoading] = useState(true);
 
   // Check dashboard permissions and redirect if not allowed
   useEffect(() => {
@@ -144,40 +150,26 @@ export default function DashboardPage() {
     };
   }, []);
 
-  // Fetch customer review data
+  // Customer review — same live data as Final Balance Sheet (top 10 each side, amount ascending)
   useEffect(() => {
     const fetchCustomerReview = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/dashboard/customer-review`, {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch customer review');
-        }
-
-        const data = await response.json();
-        if (data.success) {
-          setCustomerReview(data.data);
-        }
-      } catch (error: any) {
+        setCustomerReviewLoading(true);
+        const data = await getDashboardCustomerReview(10);
+        setCustomerReview(data);
+      } catch (error: unknown) {
         console.error('Error fetching customer review:', error);
+        setCustomerReview({ incomeClients: [], expenseClients: [] });
+      } finally {
+        setCustomerReviewLoading(false);
       }
     };
 
     fetchCustomerReview();
   }, []);
 
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
+  const formatDashboardAmount = (amount: number) =>
+    formatCurrency(amount, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
   // Navigation handlers
   const navigateToPage = (page: string) => {
@@ -218,7 +210,7 @@ export default function DashboardPage() {
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-gray-700 mb-1">Total Outward Booking</p>
                   <p className="text-3xl font-bold text-blue-600">
-                    {formatCurrency(metrics?.totalOutwardBookingCommission || 0)}
+                    {formatDashboardAmount(metrics?.totalOutwardBookingCommission || 0)}
                   </p>
                   <p className="text-xs text-gray-500 mt-2">Booking Commission Only</p>
                 </div>
@@ -236,7 +228,7 @@ export default function DashboardPage() {
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-gray-700 mb-1">Total Inward Booking</p>
                   <p className="text-3xl font-bold text-indigo-600">
-                    {formatCurrency(metrics?.totalInwardBookingCommission || 0)}
+                    {formatDashboardAmount(metrics?.totalInwardBookingCommission || 0)}
                   </p>
                   <p className="text-xs text-gray-500 mt-2">Booking Commission Only</p>
                 </div>
@@ -329,30 +321,30 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* Customer Review Section */}
+        {/* Customer Review — live balance sheet data (top 10, amount ascending) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Plus Customers (Income/Positive Balance) */}
           <Card className="relative overflow-hidden shadow-lg border-0 bg-gradient-to-br from-emerald-50 via-white to-emerald-100 hover:shadow-2xl hover:scale-105 transition-all duration-300 before:absolute before:inset-0 before:bg-gradient-to-r before:from-emerald-500/10 before:to-transparent before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300">
             <CardHeader className="pb-3 relative z-10">
               <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
                 <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-2 rounded-lg">
                   <TrendingUp className="h-5 w-5 text-white" />
                 </div>
-                Income Clients
+                Income Side (To Collect)
               </CardTitle>
+              <p className="text-xs text-gray-500 mt-1">Top 10 · ascending amount · same as Balance Sheet</p>
             </CardHeader>
             <CardContent className="relative z-10">
-              {customerReview?.plusCustomers && customerReview.plusCustomers.length > 0 ? (
+              {customerReviewLoading ? (
+                <p className="text-gray-500 text-sm">Loading...</p>
+              ) : customerReview?.incomeClients && customerReview.incomeClients.length > 0 ? (
                 <div className="space-y-3">
-                  {customerReview.plusCustomers.map((client, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-white/80 backdrop-blur-sm rounded-xl border border-emerald-200 shadow-sm hover:shadow-md transition-shadow">
+                  {customerReview.incomeClients.map((client, index) => (
+                    <div key={`${client.name}-${index}`} className="flex items-center justify-between p-3 bg-white/80 backdrop-blur-sm rounded-xl border border-emerald-200 shadow-sm hover:shadow-md transition-shadow">
                       <div className="flex-1">
                         <p className="font-semibold text-gray-800">{client.name}</p>
-                        <p className="text-xs text-gray-500">Balance</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-emerald-600">{formatCurrency(client.balance)}</p>
-                        <p className="text-xs text-gray-500">Credit</p>
+                        <p className="font-bold text-emerald-600">{formatDashboardAmount(client.amount)}</p>
                       </div>
                     </div>
                   ))}
@@ -363,28 +355,28 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Minus Customers (Expense/Negative Balance) */}
           <Card className="relative overflow-hidden shadow-lg border-0 bg-gradient-to-br from-red-50 via-white to-red-100 hover:shadow-2xl hover:scale-105 transition-all duration-300 before:absolute before:inset-0 before:bg-gradient-to-r before:from-red-500/10 before:to-transparent before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300">
             <CardHeader className="pb-3 relative z-10">
               <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
                 <div className="bg-gradient-to-br from-red-500 to-rose-600 p-2 rounded-lg">
                   <TrendingDown className="h-5 w-5 text-white" />
                 </div>
-                Expense Clients
+                Expense Side (To Pay)
               </CardTitle>
+              <p className="text-xs text-gray-500 mt-1">Top 10 · ascending amount · same as Balance Sheet</p>
             </CardHeader>
             <CardContent className="relative z-10">
-              {customerReview?.minusCustomers && customerReview.minusCustomers.length > 0 ? (
+              {customerReviewLoading ? (
+                <p className="text-gray-500 text-sm">Loading...</p>
+              ) : customerReview?.expenseClients && customerReview.expenseClients.length > 0 ? (
                 <div className="space-y-3">
-                  {customerReview.minusCustomers.map((client, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-white/80 backdrop-blur-sm rounded-xl border border-red-200 shadow-sm hover:shadow-md transition-shadow">
+                  {customerReview.expenseClients.map((client, index) => (
+                    <div key={`${client.name}-${index}`} className="flex items-center justify-between p-3 bg-white/80 backdrop-blur-sm rounded-xl border border-red-200 shadow-sm hover:shadow-md transition-shadow">
                       <div className="flex-1">
                         <p className="font-semibold text-gray-800">{client.name}</p>
-                        <p className="text-xs text-gray-500">Balance</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-red-600">{formatCurrency(client.balance)}</p>
-                        <p className="text-xs text-gray-500">Debit</p>
+                        <p className="font-bold text-red-600">{formatDashboardAmount(client.amount)}</p>
                       </div>
                     </div>
                   ))}

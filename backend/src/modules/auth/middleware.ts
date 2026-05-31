@@ -63,6 +63,26 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     }
 
     // For temporary users (starting with 'temp_'), create a mock user
+    if (!decoded.userId.startsWith('temp_')) {
+      if (!decoded.sessionId) {
+        throw createError('Invalid token', 401);
+      }
+
+      const activeSession = await prisma.userSession.findFirst({
+        where: {
+          id: decoded.sessionId,
+          userId: decoded.userId,
+          isActive: true,
+          isDeleted: false,
+          expiresAt: { gt: new Date() },
+        },
+      });
+
+      if (!activeSession) {
+        throw createError('Session expired or logged in on another device', 401);
+      }
+    }
+
     if (decoded.userId.startsWith('temp_')) {
       req.user = {
         id: decoded.userId,

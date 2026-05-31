@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
+import { AppLogo } from '@/components/app-logo';
 import { useAuthStore } from '@/store';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { Button } from '@/components/ui/button';
@@ -382,11 +382,11 @@ export default function LayoutWrapper({
       <div className={`hidden lg:flex bg-white border-r border-gray-200 flex-col h-screen fixed left-0 top-0 transition-all duration-300 ${
         isSidebarCollapsed ? 'w-16' : 'w-1/5'
       }`}>
-        <div className={`flex items-center justify-center h-20 bg-white/80 backdrop-blur-md border-b border-orange-200/50 shadow-inner shadow-orange-400 flex-shrink-0 ${isSidebarCollapsed ? 'px-2' : ''}`}>
+        <div className={`flex items-center justify-center h-20 bg-white/80 backdrop-blur-md border-b border-orange-200/50 flex-shrink-0 ${isSidebarCollapsed ? 'px-2' : ''}`}>
           {isSidebarCollapsed ? (
-            <Image src="/images/logo.png" alt="Angadiya Logo" width={50} height={50} className="object-contain" priority />
+            <AppLogo width={50} height={50} className="object-contain" priority />
           ) : (
-            <Image src="/images/logo.png" alt="Angadiya Logo" width={100} height={50} className="object-contain" priority />
+            <AppLogo width={100} height={50} className="object-contain" priority />
           )}
         </div>
         
@@ -448,13 +448,13 @@ export default function LayoutWrapper({
         <div className={`p-4  shadow-inner shadow-orange-400 border border-orange-200 flex-shrink-0 ${isSidebarCollapsed ? 'px-2' : ''}`}>
           {isSidebarCollapsed ? (
             <div className="flex flex-col items-center space-y-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-medium shadow-lg">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center text-white text-sm font-medium shadow-lg">
                 {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
               </div>
               <Button
                 onClick={logout}
                 variant="outline"
-                className="p-2 border-gray-300 text-gray-50 hover:bg-gray-100 hover:text-gray-900 hover:border-gray-400 transition-all duration-200"
+                className="p-2 border-gray-300 bg-gradient-to-br from-orange-500 to-orange-700 text-gray-50 hover:bg-gray-100 hover:text-gray-900 hover:border-gray-400 transition-all duration-200"
                 title="Sign Out"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -465,7 +465,7 @@ export default function LayoutWrapper({
           ) : (
             <>
               <div className="flex items-center mb-4">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-medium shadow-lg">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center text-white text-sm font-medium shadow-lg">
                   {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
                 </div>
                 <div className="ml-3 flex-1 min-w-0">
@@ -498,7 +498,7 @@ export default function LayoutWrapper({
               <Button
                 onClick={logout}
                 variant="outline"
-                className="w-full border-gray-300 text-gray-50 hover:bg-gray-100 hover:text-gray-900 hover:border-gray-400 transition-all duration-200"
+                className="w-full border-gray-300 bg-gradient-to-br from-orange-500 to-orange-700 text-gray-50 hover:bg-gray-100 hover:text-gray-900 hover:border-gray-400 transition-all duration-200"
               >
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -859,7 +859,7 @@ export default function LayoutWrapper({
         <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setSidebarOpen(false)} />
         <div className="fixed inset-y-0 left-0 w-full max-w-sm bg-white">
           <div className="flex items-center justify-center h-16 bg-white border-b border-gray-200">
-            <Image src="/images/logo.png" alt="Angadiya Logo" width={160} height={40} className="object-contain" priority />
+            <AppLogo width={160} height={40} className="object-contain" priority />
           </div>
           
           <nav className="mt-8 px-4">

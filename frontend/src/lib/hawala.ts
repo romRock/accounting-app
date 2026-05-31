@@ -1,5 +1,5 @@
 // Real hawala API service for backend
-import API_BASE_URL from './api';
+import API_BASE_URL, { safeJsonStringify } from './api';
 import { useAuthStore } from '../store/index';
 
 const API_URL = API_BASE_URL;
@@ -99,7 +99,7 @@ export const createHawala = async (data: CreateHawalaData): Promise<HawalaRespon
     const response = await fetch(`${API_URL}/api/hawala`, {
       method: 'POST',
       headers,
-      body: JSON.stringify(data),
+      body: safeJsonStringify(data),
     });
 
     const result = await response.json();
@@ -180,7 +180,7 @@ export const updateHawala = async (id: string, data: UpdateHawalaData): Promise<
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify(data),
+      body: safeJsonStringify(data),
     });
 
     const result = await response.json();
@@ -205,7 +205,7 @@ export const deleteHawala = async (id: string, createdBy: string): Promise<Hawal
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({ createdBy }),
+      body: safeJsonStringify({ createdBy }),
     });
 
     const result = await response.json();

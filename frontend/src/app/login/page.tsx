@@ -12,10 +12,23 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuthStore } from '@/store';
+import { containsMaliciousInput } from '@/lib/security';
+import { APP_NAME, APP_DESCRIPTION } from '@/lib/app-branding';
+
+const safeCredential = (message: string) =>
+  z
+    .string()
+    .max(256, message)
+    .refine((value) => !containsMaliciousInput(value), { message });
 
 const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  email: safeCredential('Invalid email address')
+    .max(254, 'Invalid email address')
+    .pipe(z.string().email('Invalid email address')),
+  password: safeCredential('Password must be at least 6 characters').min(
+    6,
+    'Password must be at least 6 characters'
+  ),
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
@@ -78,8 +91,16 @@ export default function LoginPage() {
       </div>
       
       <div className="relative z-10 w-full max-w-md">
+        <div className="text-center mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+            {APP_NAME}
+          </h1>
+          <p className="mt-2 text-sm sm:text-base text-gray-200 max-w-sm mx-auto">
+            {APP_DESCRIPTION}
+          </p>
+        </div>
 
-        <Card className="bg-gray-300 border-gray-100 shadow-2xl lg:mt-20">
+        <Card className="bg-gray-300 border-gray-100 shadow-2xl lg:mt-4">
           <CardHeader className="space-y-1 pb-6">
             <CardTitle className="text-2xl font-bold text-black">Sign In</CardTitle>
             <CardDescription className="text-gray-600">

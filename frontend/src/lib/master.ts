@@ -1,4 +1,4 @@
-import API_BASE_URL from './api';
+import API_BASE_URL, { safeJsonStringify } from './api';
 import { useAuthStore } from '@/store';
 
 export interface MasterCity {
@@ -58,7 +58,7 @@ export const masterApi = {
     const response = await fetch(`${API_BASE_URL}/api/master/cities`, {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify(payload),
+      body: safeJsonStringify(payload),
     });
 
     if (!response.ok) {
@@ -77,7 +77,7 @@ export const masterApi = {
     const response = await fetch(`${API_BASE_URL}/api/master/cities/${id}`, {
       method: 'PUT',
       headers: authHeaders(),
-      body: JSON.stringify(payload),
+      body: safeJsonStringify(payload),
     });
 
     if (!response.ok) {
@@ -131,7 +131,7 @@ export const masterApi = {
     const response = await fetch(`${API_BASE_URL}/api/master/parties`, {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify(payload),
+      body: safeJsonStringify(payload),
     });
 
     if (!response.ok) {
@@ -150,7 +150,7 @@ export const masterApi = {
     const response = await fetch(`${API_BASE_URL}/api/master/parties/${id}`, {
       method: 'PUT',
       headers: authHeaders(),
-      body: JSON.stringify(payload),
+      body: safeJsonStringify(payload),
     });
 
     if (!response.ok) {

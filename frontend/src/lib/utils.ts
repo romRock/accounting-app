@@ -5,13 +5,18 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatCurrency(amount: number | string): string {
+export function formatCurrency(
+  amount: number | string,
+  options?: { minimumFractionDigits?: number; maximumFractionDigits?: number }
+): string {
   const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-  return new Intl.NumberFormat('en-IN', {
+  const formatted = new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
-    minimumFractionDigits: 2,
+    minimumFractionDigits: options?.minimumFractionDigits ?? 2,
+    maximumFractionDigits: options?.maximumFractionDigits ?? 2,
   }).format(num);
+  return formatted.replace(/^₹(?!\s)/, '₹ ');
 }
 
 export function formatDate(date: string | Date | null | undefined, fallback = '-'): string {

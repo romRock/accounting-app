@@ -1,12 +1,22 @@
 import { z } from 'zod';
+import { isSafeInputString } from '../../utils/inputSecurity';
+
+const safeString = (message: string) =>
+  z.string().refine(isSafeInputString, { message });
 
 export const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  email: safeString('Invalid email address')
+    .max(254, 'Invalid email address')
+    .pipe(z.string().email('Invalid email address')),
+  password: safeString('Password must be at least 6 characters')
+    .min(6, 'Password must be at least 6 characters')
+    .max(256, 'Password must be at least 6 characters'),
 });
 
 export const refreshTokenSchema = z.object({
-  refreshToken: z.string().min(1, 'Refresh token is required'),
+  refreshToken: safeString('Refresh token is required')
+    .min(1, 'Refresh token is required')
+    .max(4096, 'Refresh token is required'),
 });
 
 export const logoutSchema = z.object({

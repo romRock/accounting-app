@@ -1,4 +1,4 @@
-import API_BASE_URL from './api';
+import API_BASE_URL, { safeJsonStringify } from './api';
 import { useAuthStore } from '@/store';
 
 // Accounting Entry Types
@@ -127,7 +127,7 @@ export const accountingApi = {
         'Authorization': `Bearer ${getAuthToken()}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(data),
+      body: safeJsonStringify(data),
     });
 
     if (!response.ok) {
@@ -160,7 +160,7 @@ export const accountingApi = {
         'Authorization': `Bearer ${getAuthToken()}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(data),
+      body: safeJsonStringify(data),
     });
 
     if (!response.ok) {

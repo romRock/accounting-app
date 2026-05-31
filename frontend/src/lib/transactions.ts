@@ -1,5 +1,5 @@
 // Real transaction API service for backend
-import API_BASE_URL from './api';
+import API_BASE_URL, { safeJsonStringify } from './api';
 import { useAuthStore } from '../store/index';
 
 export interface Transaction {
@@ -126,7 +126,7 @@ export const transactionApi = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${accessToken}`,
       },
-      body: JSON.stringify(transactionData),
+      body: safeJsonStringify(transactionData),
     });
 
     if (!response.ok) {
@@ -145,7 +145,7 @@ export const transactionApi = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${accessToken}`,
       },
-      body: JSON.stringify(transactionData),
+      body: safeJsonStringify(transactionData),
     });
 
     if (!response.ok) {
@@ -217,7 +217,7 @@ export const transactionApi = {
     const response = await fetch(`${API_BASE_URL}/api/cities/add`, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify({ name, code, state, number }),
+      body: safeJsonStringify({ name, code, state, number }),
     });
 
     if (!response.ok) {
@@ -244,7 +244,7 @@ export const transactionApi = {
     const response = await fetch(`${API_BASE_URL}/api/cities/update`, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify({ id, name, code, state, number }),
+      body: safeJsonStringify({ id, name, code, state, number }),
     });
 
     if (!response.ok) {
@@ -271,7 +271,7 @@ export const transactionApi = {
     const response = await fetch(`${API_BASE_URL}/api/cities/delete`, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify({ id }),
+      body: safeJsonStringify({ id }),
     });
 
     if (!response.ok) {
@@ -298,7 +298,7 @@ export const transactionApi = {
     const response = await fetch(`${API_BASE_URL}/api/clients/add`, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify({ name, mobileNumber, city, notes }),
+      body: safeJsonStringify({ name, mobileNumber, city, notes }),
     });
 
     if (!response.ok) {
@@ -325,7 +325,7 @@ export const transactionApi = {
     const response = await fetch(`${API_BASE_URL}/api/clients/update`, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify({ id, name, mobileNumber, city, notes }),
+      body: safeJsonStringify({ id, name, mobileNumber, city, notes }),
     });
 
     if (!response.ok) {
@@ -354,7 +354,7 @@ export const transactionApi = {
     const response = await fetch(`${API_BASE_URL}/api/clients/delete`, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify({ id }),
+      body: safeJsonStringify({ id }),
     });
 
     if (!response.ok) {
@@ -442,7 +442,7 @@ export const transactionApi = {
     const response = await fetch(`${API_BASE_URL}/api/roles/add`, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify({ name, permissions }),
+      body: safeJsonStringify({ name, permissions }),
     });
 
     if (!response.ok) {
@@ -467,7 +467,7 @@ export const transactionApi = {
     const response = await fetch(`${API_BASE_URL}/api/roles/update`, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify({ id, name, permissions }),
+      body: safeJsonStringify({ id, name, permissions }),
     });
 
     if (!response.ok) {
@@ -493,7 +493,7 @@ export const transactionApi = {
     const response = await fetch(`${API_BASE_URL}/api/roles/delete`, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify({ id }),
+      body: safeJsonStringify({ id }),
     });
 
     if (!response.ok) {
@@ -541,7 +541,7 @@ export const transactionApi = {
     const response = await fetch(`${API_BASE_URL}/api/users/add`, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify({ fullName, mobileNumber, email, password, roleId, branchId }),
+      body: safeJsonStringify({ fullName, mobileNumber, email, password, roleId, branchId }),
     });
 
     if (!response.ok) {
@@ -567,7 +567,7 @@ export const transactionApi = {
     const response = await fetch(`${API_BASE_URL}/api/users/update`, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify({ id, fullName, mobileNumber, email, password, roleId, branchId }),
+      body: safeJsonStringify({ id, fullName, mobileNumber, email, password, roleId, branchId }),
     });
 
     if (!response.ok) {
@@ -593,7 +593,7 @@ export const transactionApi = {
     const response = await fetch(`${API_BASE_URL}/api/users/delete`, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify({ id }),
+      body: safeJsonStringify({ id }),
     });
 
     if (!response.ok) {
@@ -639,7 +639,7 @@ export const transactionApi = {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ name, code, state, number }),
+      body: safeJsonStringify({ name, code, state, number }),
     });
 
     if (!response.ok) {

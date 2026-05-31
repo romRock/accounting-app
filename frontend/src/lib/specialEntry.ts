@@ -1,5 +1,5 @@
 // Special Entry API service
-import API_BASE_URL from './api';
+import API_BASE_URL, { safeJsonStringify } from './api';
 import { useAuthStore } from '../store/index';
 
 export interface SpecialEntry {
@@ -144,7 +144,7 @@ export const createSpecialEntry = async (data: SpecialEntryCreateRequest): Promi
     const response = await fetch(`${API_BASE_URL}/api/specialEntry`, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify(data),
+      body: safeJsonStringify(data),
     });
 
     if (!response.ok) {
@@ -175,7 +175,7 @@ export const updateSpecialEntry = async (id: string, data: Partial<SpecialEntryC
     const response = await fetch(`${API_BASE_URL}/api/specialEntry/${id}`, {
       method: 'PUT',
       headers: headers,
-      body: JSON.stringify(data),
+      body: safeJsonStringify(data),
     });
 
     if (!response.ok) {

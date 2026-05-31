@@ -1,5 +1,5 @@
 // Real authentication service for backend API
-import API_BASE_URL from './api';
+import API_BASE_URL, { safeJsonStringify } from './api';
 
 interface LoginResponse {
   user: {
@@ -73,13 +73,12 @@ interface AuthResponse {
 
 export const authApi = {
   async login(email: string, password: string): Promise<AuthResponse> {
-    
     const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ email, password }),
+      body: safeJsonStringify({ email, password }),
     });
 
     if (!response.ok) {
@@ -102,7 +101,7 @@ export const authApi = {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ refreshToken }),
+      body: safeJsonStringify({ refreshToken }),
     });
 
     if (!response.ok) {
@@ -117,7 +116,7 @@ export const authApi = {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ refreshToken }),
+      body: safeJsonStringify({ refreshToken }),
     });
 
     if (!response.ok) {

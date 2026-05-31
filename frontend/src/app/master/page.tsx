@@ -11,6 +11,7 @@ import { formatDate } from '@/lib/utils';
 import { transactionApi } from '@/lib/transactions';
 import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
 import { masterApi } from '@/lib/master';
+import { safeJsonStringify } from '@/lib/api';
 
 // Data Interfaces
 interface User {
@@ -820,7 +821,7 @@ export default function MasterPage() {
                   'Content-Type': 'application/json',
                   'Authorization': `Bearer ${accessToken}`,
                 },
-                body: JSON.stringify({
+                body: safeJsonStringify({
                   name: branchForm.name,
                   code: branchForm.code,
                   address: branchForm.address,
@@ -1199,7 +1200,7 @@ export default function MasterPage() {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${accessToken}`,
               },
-              body: JSON.stringify({
+              body: safeJsonStringify({
                 name: branchForm.name,
                 code: branchForm.code,
                 address: branchForm.address,

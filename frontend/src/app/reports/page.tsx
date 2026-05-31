@@ -1097,7 +1097,13 @@ export default function ReportsPage() {
           const at = (t.amountType || '').toUpperCase();
           if (at === 'CASH') return; // exclude cash
           const { hhmm, ts } = extractTimeAndTs(t.date, t.time);
-          const totalAmt = t.type === 'OUTWARD' ? (t.amount || 0) + (t.centerCommission || 0) : (t.amount || 0);
+          // OUTWARD CREDIT (client-affecting): amount + full commission; other OUTWARD: amount + center commission
+          const totalAmt =
+            t.type === 'OUTWARD'
+              ? at === 'CREDIT'
+                ? (t.amount || 0) + (t.commission || 0)
+                : (t.amount || 0) + (t.centerCommission || 0)
+              : (t.amount || 0);
           rows.push({
             key: `txn-${t.id}`,
             module: 'transaction',

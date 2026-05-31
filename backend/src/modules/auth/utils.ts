@@ -7,13 +7,18 @@ interface JWTPayload {
   userId: string;
   email: string;
   username: string;
+  sessionId: string;
 }
 
-export const generateTokens = (user: any & { role: any; branch?: any }) => {
+export const generateTokens = (
+  user: any & { role: any; branch?: any },
+  sessionId: string
+) => {
   const payload: JWTPayload = {
     userId: user.id,
     email: user.email,
     username: user.username,
+    sessionId,
   };
 
   const accessToken = jwt.sign(

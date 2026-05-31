@@ -35,17 +35,30 @@ export const login = async (req: Request, res: Response) => {
       throw createError('Invalid credentials', 401);
     }
 
-    // Generate tokens
-    const { accessToken, refreshToken } = generateTokens(user);
+    // Single-device login: revoke all existing sessions for this user
+    await prisma.userSession.deleteMany({
+      where: { userId: user.id },
+    });
 
-    // Create session in database for refresh token
-    await prisma.userSession.create({
+    const sessionExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    // Placeholder refresh token; replaced after JWT is generated with session id
+    const session = await prisma.userSession.create({
       data: {
         userId: user.id,
-        refreshToken,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        refreshToken: `pending-${user.id}-${Date.now()}`,
+        expiresAt: sessionExpiresAt,
         isActive: true,
+        ipAddress: req.ip || undefined,
+        userAgent: req.get('user-agent') || undefined,
       },
+    });
+
+    const { accessToken, refreshToken } = generateTokens(user, session.id);
+
+    await prisma.userSession.update({
+      where: { id: session.id },
+      data: { refreshToken },
     });
 
     const { password: _, ...userWithoutPassword } = user;
@@ -121,7 +134,10 @@ export const refreshToken = async (req: Request, res: Response) => {
     }
 
     // Generate new tokens
-    const { accessToken: newAccessToken, refreshToken: newRefreshToken } = generateTokens(session.user);
+    const { accessToken: newAccessToken, refreshToken: newRefreshToken } = generateTokens(
+      session.user,
+      session.id
+    );
 
     // Update session with new refresh token
     await prisma.userSession.update({

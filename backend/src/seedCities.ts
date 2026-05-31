@@ -454,6 +454,41 @@ interface CityStats {
 
 const prisma = new PrismaClient();
 
+/** Upsert a global city (no branch) — uses findFirst because unique is (code, branchId). */
+async function upsertGlobalCity(city: { name: string; code: string; state?: string | null }) {
+  const cityAddress = city.state ? `${city.name}, ${city.state}` : city.name;
+  const branchId = null;
+
+  const existing = await prisma.city.findFirst({
+    where: { code: city.code, branchId },
+  });
+
+  if (existing) {
+    return prisma.city.update({
+      where: { id: existing.id },
+      data: {
+        name: city.name,
+        state: city.state,
+        address: cityAddress,
+        number: null,
+        updatedAt: new Date(),
+      },
+    });
+  }
+
+  return prisma.city.create({
+    data: {
+      name: city.name,
+      code: city.code,
+      state: city.state,
+      address: cityAddress,
+      number: null,
+      isActive: true,
+      branchId,
+    },
+  });
+}
+
 async function seedCities() {
   console.log('==========================================');
   console.log('    CITIES SEEDING - PRODUCTION SAFE     ');
@@ -480,25 +515,7 @@ async function seedCities() {
 
       for (const city of batch) {
         try {
-          const cityAddress = city.state ? `${city.name}, ${city.state}` : city.name;
-          const result = await prisma.city.upsert({
-            where: { code: city.code },
-            update: {
-              name: city.name,
-              state: city.state,
-              address: cityAddress,
-              number: null, // Keep null for all existing cities
-              updatedAt: new Date(),
-            },
-            create: {
-              name: city.name,
-              code: city.code,
-              state: city.state,
-              address: cityAddress,
-              number: null, // Keep null for all existing cities
-              isActive: true,
-            },
-          });
+          const result = await upsertGlobalCity(city);
 
           if (result.createdAt.getTime() === result.updatedAt.getTime()) {
             stats.inserted++;

@@ -1042,6 +1042,18 @@ export const deleteCity = async (req: Request, res: Response) => {
       throw createError('Cannot delete city that is used in transactions', 400);
     }
 
+    const commissionRateCount = await prisma.commissionRate.count({
+      where: {
+        OR: [{ fromCityId: cityId }, { toCityId: cityId }],
+        isActive: true,
+        isDeleted: false,
+      },
+    });
+
+    if (commissionRateCount > 0) {
+      throw createError('Cannot delete city that is used in commission rates', 400);
+    }
+
     // Soft delete city
     await prisma.city.update({
       where: { id: cityId },

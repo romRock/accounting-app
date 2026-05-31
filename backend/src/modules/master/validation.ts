@@ -52,28 +52,40 @@ export const updateCitySchema = z.object({
   branchId: z.string().optional(),
 });
 
-// Party validation schemas
-export const createPartySchema = z.object({
-  name: z.string().min(1, 'Party name is required'),
-  phone: z.string().optional(),
-  email: z.string().email('Invalid email address').optional().or(z.literal('')),
-  address: z.string().optional(),
-  panNumber: z.string().optional(),
-  gstNumber: z.string().optional(),
-  city: z.string().optional(),
-  branchId: z.string().optional(),
-});
+// Party validation schemas (city is free text; cityId accepted for older clients)
+export const createPartySchema = z
+  .object({
+    name: z.string().min(1, 'Party name is required'),
+    phone: z.string().optional(),
+    email: z.string().email('Invalid email address').optional().or(z.literal('')),
+    address: z.string().optional(),
+    panNumber: z.string().optional(),
+    gstNumber: z.string().optional(),
+    city: z.string().optional(),
+    cityId: z.string().optional(),
+    branchId: z.string().optional(),
+  })
+  .transform(({ cityId, city, ...rest }) => ({
+    ...rest,
+    city: city ?? cityId,
+  }));
 
-export const updatePartySchema = z.object({
-  name: z.string().min(1, 'Party name is required').optional(),
-  phone: z.string().optional(),
-  email: z.string().email('Invalid email address').optional().or(z.literal('')),
-  address: z.string().optional(),
-  panNumber: z.string().optional(),
-  gstNumber: z.string().optional(),
-  city: z.string().optional(),
-  branchId: z.string().optional(),
-});
+export const updatePartySchema = z
+  .object({
+    name: z.string().min(1, 'Party name is required').optional(),
+    phone: z.string().optional(),
+    email: z.string().email('Invalid email address').optional().or(z.literal('')),
+    address: z.string().optional(),
+    panNumber: z.string().optional(),
+    gstNumber: z.string().optional(),
+    city: z.string().optional(),
+    cityId: z.string().optional(),
+    branchId: z.string().optional(),
+  })
+  .transform(({ cityId, city, ...rest }) => ({
+    ...rest,
+    ...(city !== undefined || cityId !== undefined ? { city: city ?? cityId } : {}),
+  }));
 
 // Branch validation schemas
 export const createBranchSchema = z.object({
@@ -168,7 +180,7 @@ export const validateUpdateCity = (req: any, res: any, next: any) => {
 
 export const validateCreateParty = (req: any, res: any, next: any) => {
   try {
-    createPartySchema.parse(req.body);
+    req.body = createPartySchema.parse(req.body);
     next();
   } catch (error) {
     next(error);
@@ -177,7 +189,7 @@ export const validateCreateParty = (req: any, res: any, next: any) => {
 
 export const validateUpdateParty = (req: any, res: any, next: any) => {
   try {
-    updatePartySchema.parse(req.body);
+    req.body = updatePartySchema.parse(req.body);
     next();
   } catch (error) {
     next(error);

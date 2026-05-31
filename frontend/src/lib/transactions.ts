@@ -54,8 +54,8 @@ interface Client {
   mobileNumber: string;
   city: string;
   notes?: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface Center {
@@ -385,13 +385,26 @@ export const transactionApi = {
 
     const result = await response.json();
     const parties = result.success ? result.data : [];
-    return parties.map((party: { id: string; name: string; phone?: string; city?: string; createdAt?: string; updatedAt?: string }) => ({
+    return parties.map((party: {
+      id: string;
+      name: string;
+      phone?: string;
+      city?: string;
+      createdAt?: string | Date;
+      updatedAt?: string | Date;
+    }) => ({
       id: party.id,
       name: party.name,
       mobileNumber: party.phone || '',
       city: party.city || '',
-      createdAt: party.createdAt || '',
-      updatedAt: party.updatedAt || '',
+      createdAt:
+        party.createdAt instanceof Date
+          ? party.createdAt.toISOString()
+          : party.createdAt,
+      updatedAt:
+        party.updatedAt instanceof Date
+          ? party.updatedAt.toISOString()
+          : party.updatedAt,
     }));
   },
 

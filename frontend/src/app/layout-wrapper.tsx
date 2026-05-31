@@ -806,8 +806,8 @@ export default function LayoutWrapper({
                     <div className="absolute top-full left-0 mt-2 w-64 bg-white backdrop-blur-2xl border-2 border-orange-300 rounded-2xl shadow-inner shadow-orange-300 z-50">
                       <div className="py-2">
                         {[
-                          { id: 'outward', name: 'Outward Report', permission: 'report_1' },
-                          { id: 'inward', name: 'Inward Report', permission: 'report_2' },
+                          { id: 'outward', name: 'Booking Report', permission: 'report_1' },
+                          { id: 'inward', name: 'Cutting Report', permission: 'report_2' },
                           { id: 'combo', name: 'Combo Report', permission: 'report_3' },
                           { id: 'amount-type', name: 'Amount Type Report', permission: 'report_4' },
                           { id: 'transaction', name: 'Transaction Report', permission: 'report_5' },

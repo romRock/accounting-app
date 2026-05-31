@@ -2020,6 +2020,8 @@ export const searchParties = async (req: Request, res: Response) => {
         phone: true,
         email: true,
         city: true,
+        createdAt: true,
+        updatedAt: true,
       },
     });
 

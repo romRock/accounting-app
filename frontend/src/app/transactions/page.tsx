@@ -48,8 +48,10 @@ const transactionSchema = z.object({
 
 type TransactionForm = z.infer<typeof transactionSchema>;
 
+const OUTWARD_MIN_COMMISSION = 50;
+
 function calculateOutwardCommissionsFromAmount(amount: number) {
-  const minCharge = 50;
+  const minCharge = OUTWARD_MIN_COMMISSION;
   let calculatedCommission = 0;
 
   if (amount <= 50000) {
@@ -72,6 +74,30 @@ function calculateOutwardCommissionsFromAmount(amount: number) {
   const centerCommission = calculatedCommission - bookingCommission;
 
   return { calculatedCommission, bookingCommission, centerCommission };
+}
+
+/**
+ * Manual outward split (Auto off):
+ * - Total below amount minimum → all to center
+ * - Total at/above minimum → center = auto center for amount, remainder = booking (extra is ours)
+ */
+function splitManualOutwardCommission(amount: number, totalCommission: number) {
+  const total = Math.max(0, totalCommission);
+  if (amount <= 0 || total === 0) {
+    return { bookingCommission: 0, centerCommission: 0 };
+  }
+
+  const { calculatedCommission, centerCommission: autoCenter } =
+    calculateOutwardCommissionsFromAmount(amount);
+
+  if (total < calculatedCommission) {
+    return { bookingCommission: 0, centerCommission: total };
+  }
+
+  return {
+    bookingCommission: Math.max(0, total - autoCenter),
+    centerCommission: autoCenter,
+  };
 }
 
 interface Center {
@@ -140,6 +166,27 @@ export default function TransactionsPage() {
       if (editingTransaction.center) {
         setSelectedCity(editingTransaction.center);
       }
+
+      setSelectedReceiverClient(null);
+      setSelectedSenderClient(null);
+      if (editingTransaction.amountType === 'CREDIT') {
+        if (editingTransaction.type === 'OUTWARD' && editingTransaction.senderClient) {
+          setSelectedSenderClient({
+            id: editingTransaction.senderClient.id,
+            name: editingTransaction.senderClient.name,
+            mobileNumber: editingTransaction.senderClient.phone,
+            city: editingTransaction.senderClient.city,
+          });
+        }
+        if (editingTransaction.type === 'INWARD' && editingTransaction.receiverClient) {
+          setSelectedReceiverClient({
+            id: editingTransaction.receiverClient.id,
+            name: editingTransaction.receiverClient.name,
+            mobileNumber: editingTransaction.receiverClient.phone,
+            city: editingTransaction.receiverClient.city,
+          });
+        }
+      }
     }
   }, [editingTransaction]);
 
@@ -149,6 +196,8 @@ export default function TransactionsPage() {
     reset,
     setValue,
     watch,
+    setError,
+    clearErrors,
     formState: { errors },
   } = useForm<TransactionForm>({
     resolver: zodResolver(transactionSchema),
@@ -179,7 +228,57 @@ export default function TransactionsPage() {
 
   const autoCommission = watch('autoCommission');
   const amount = watch('amount');
+  const amountType = watch('amountType');
   const commission = watch('commission');
+  const bookingCommission = watch('bookingCommission');
+  const centerCommission = watch('centerCommission');
+
+  const isCredit = amountType === 'CREDIT';
+  const receiverUsesClientPicker = isCredit && activeTab === 'inward';
+  const senderUsesClientPicker = isCredit && activeTab === 'outward';
+
+  const handleAmountTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    register('amountType').onChange(e);
+    const newType = e.target.value;
+    if (newType === 'CREDIT') {
+      if (activeTab === 'outward') {
+        setSelectedReceiverClient(null);
+      } else {
+        setSelectedSenderClient(null);
+      }
+    } else {
+      setSelectedReceiverClient(null);
+      setSelectedSenderClient(null);
+    }
+    clearErrors(['senderName', 'receiverName']);
+  };
+
+  const applyManualOutwardSplit = (totalCommission: number, amountValue = amount) => {
+    const { bookingCommission: booking, centerCommission: center } =
+      splitManualOutwardCommission(amountValue || 0, totalCommission);
+    setValue('bookingCommission', booking);
+    setValue('centerCommission', center);
+  };
+
+  const handleManualOutwardCommissionChange = (total: number) => {
+    const safeTotal = Math.max(0, total);
+    setValue('commission', safeTotal);
+    applyManualOutwardSplit(safeTotal);
+  };
+
+  const handleManualOutwardBookingChange = (booking: number) => {
+    const total = Math.max(0, commission || 0);
+    const safeBooking = Math.max(0, Math.min(booking, total));
+    setValue('bookingCommission', safeBooking);
+    setValue('centerCommission', Math.max(0, total - safeBooking));
+  };
+
+  const handleManualOutwardCenterChange = (center: number) => {
+    const total = Math.max(0, commission || 0);
+    const safeCenter = Math.max(0, Math.min(center, total));
+    setValue('centerCommission', safeCenter);
+    setValue('bookingCommission', Math.max(0, total - safeCenter));
+  };
 
   // Fetch next transaction IDs from backend
   const fetchNextIds = async (date: string, transactionType?: string) => {
@@ -278,13 +377,13 @@ export default function TransactionsPage() {
     }
   }, [amount, autoCommission, setValue, activeTab]);
 
-  // Manual outward: center stays auto-calculated; extra goes to booking commission
+  // Manual outward: center = auto minimum for amount; extra → booking; below minimum → all center
   useEffect(() => {
     if (!autoCommission && activeTab === 'outward' && amount > 0) {
-      const { centerCommission } = calculateOutwardCommissionsFromAmount(amount);
-      const totalCommission = commission || 0;
-      setValue('centerCommission', centerCommission);
-      setValue('bookingCommission', Math.max(0, totalCommission - centerCommission));
+      const { bookingCommission: booking, centerCommission: center } =
+        splitManualOutwardCommission(amount, commission || 0);
+      setValue('bookingCommission', booking);
+      setValue('centerCommission', center);
     }
   }, [amount, commission, autoCommission, activeTab, setValue]);
 
@@ -340,6 +439,17 @@ export default function TransactionsPage() {
 
   
   const onSubmit = async (data: TransactionForm) => {
+    if (data.amountType === 'CREDIT') {
+      if (activeTab === 'outward' && !selectedSenderClient) {
+        setError('senderName', { type: 'manual', message: 'Please select a client for sender' });
+        return;
+      }
+      if (activeTab === 'inward' && !selectedReceiverClient) {
+        setError('receiverName', { type: 'manual', message: 'Please select a client for receiver' });
+        return;
+      }
+    }
+
     try {
       setSubmitting(true);
 
@@ -349,12 +459,13 @@ export default function TransactionsPage() {
         statusTime: new Date().toISOString(),
       };
 
-      // Add client IDs if clients are selected
-      if (selectedSenderClient) {
-        transactionData.senderClientId = selectedSenderClient.id;
-      }
-      if (selectedReceiverClient) {
-        transactionData.receiverClientId = selectedReceiverClient.id;
+      if (data.amountType === 'CREDIT') {
+        if (activeTab === 'outward' && selectedSenderClient) {
+          transactionData.senderClientId = selectedSenderClient.id;
+        }
+        if (activeTab === 'inward' && selectedReceiverClient) {
+          transactionData.receiverClientId = selectedReceiverClient.id;
+        }
       }
 
       // For inward transactions, map cuttingCommission to bookingCommission
@@ -481,7 +592,27 @@ export default function TransactionsPage() {
     if (transaction.center) {
       setSelectedCity(transaction.center);
     }
-    
+
+    setSelectedReceiverClient(null);
+    setSelectedSenderClient(null);
+    if (transaction.amountType === 'CREDIT') {
+      if (transaction.type === 'OUTWARD' && transaction.senderClient) {
+        setSelectedSenderClient({
+          id: transaction.senderClient.id,
+          name: transaction.senderClient.name,
+          mobileNumber: transaction.senderClient.phone,
+          city: transaction.senderClient.city,
+        });
+      }
+      if (transaction.type === 'INWARD' && transaction.receiverClient) {
+        setSelectedReceiverClient({
+          id: transaction.receiverClient.id,
+          name: transaction.receiverClient.name,
+          mobileNumber: transaction.receiverClient.phone,
+          city: transaction.receiverClient.city,
+        });
+      }
+    }
   };
 
   // Filter transactions
@@ -689,6 +820,7 @@ export default function TransactionsPage() {
                     <select
                       id="amountType"
                       {...register('amountType')}
+                      onChange={handleAmountTypeChange}
                       className="w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-black text-sm"
                     >
                       <option value="CASH">CASH</option>
@@ -704,8 +836,15 @@ export default function TransactionsPage() {
                       type="number"
                       step="0.01"
                       placeholder=""
-                      value={watch('commission') || 0}
-                      onChange={(e) => setValue('commission', Number(e.target.value))}
+                      value={commission || 0}
+                      onChange={(e) => {
+                        const value = Number(e.target.value) || 0;
+                        if (autoCommission) {
+                          setValue('commission', value);
+                        } else {
+                          handleManualOutwardCommissionChange(value);
+                        }
+                      }}
                       readOnly={autoCommission}
                       autoComplete="off"
                       min="0"
@@ -751,23 +890,52 @@ export default function TransactionsPage() {
                 </div>
 
                 {activeTab === 'outward' ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                    <div>
-                      <Label className="text-sm font-medium text-gray-700">Booking Commission</Label>
-                      <Input
-                        value={watch('bookingCommission') || 0}
-                        readOnly
-                        className="border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-medium text-sm bg-gray-50 text-green-600"
-                      />
-                    </div>
-                    
-                    <div>
-                      <Label className="text-sm font-medium text-gray-700">Center Commission</Label>
-                      <Input
-                        value={watch('centerCommission') || 0}
-                        readOnly
-                        className="border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-medium text-sm bg-gray-50 text-green-600"
-                      />
+                  <div className="space-y-2">
+                    {!autoCommission && (
+                      <p className="text-xs text-gray-500">
+                        Manual: Below amount minimum → all to center. At/above minimum → center fixed, extra is booking. You can still edit any box.
+                      </p>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700">Booking Commission</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={bookingCommission || 0}
+                          readOnly={autoCommission}
+                          onChange={(e) =>
+                            handleManualOutwardBookingChange(Number(e.target.value) || 0)
+                          }
+                          onWheel={(e) => e.currentTarget.blur()}
+                          className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-medium text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                            autoCommission
+                              ? 'bg-gray-50 text-green-600'
+                              : 'bg-white text-green-700'
+                          }`}
+                        />
+                      </div>
+
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700">Center Commission</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={centerCommission || 0}
+                          readOnly={autoCommission}
+                          onChange={(e) =>
+                            handleManualOutwardCenterChange(Number(e.target.value) || 0)
+                          }
+                          onWheel={(e) => e.currentTarget.blur()}
+                          className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-medium text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                            autoCommission
+                              ? 'bg-gray-50 text-green-600'
+                              : 'bg-white text-green-700'
+                          }`}
+                        />
+                      </div>
                     </div>
                   </div>
                 ) : null}
@@ -779,24 +947,30 @@ export default function TransactionsPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div className="relative" style={{ zIndex: 101 }}>
-                    {watch('amountType') === 'CREDIT' ? (
-                      <ClientTypeahead
-                        id="receiverName"
-                        label="Receiver Name"
-                        value={watch('receiverName') || ''}
-                        onChange={(value: string, client?: Client) => {
-                          setValue('receiverName', value);
-                          if (client) {
-                            setSelectedReceiverClient(client);
-                            if (client.mobileNumber) {
-                              setValue('receiverNumber', client.mobileNumber);
+                    {receiverUsesClientPicker ? (
+                      <>
+                        <ClientTypeahead
+                          id="receiverName"
+                          label="Receiver Name"
+                          value={watch('receiverName') || ''}
+                          onChange={(value: string, client?: Client) => {
+                            setValue('receiverName', value);
+                            if (client) {
+                              setSelectedReceiverClient(client);
+                              clearErrors('receiverName');
+                              if (client.mobileNumber) {
+                                setValue('receiverNumber', client.mobileNumber);
+                              }
+                            } else {
+                              setSelectedReceiverClient(null);
                             }
-                          } else {
-                            setSelectedReceiverClient(null);
-                          }
-                        }}
-                        placeholder="Search receiver name..."
-                      />
+                          }}
+                          placeholder="Search receiver client..."
+                        />
+                        {errors.receiverName && (
+                          <p className="mt-1 text-sm text-red-600">{errors.receiverName.message}</p>
+                        )}
+                      </>
                     ) : (
                       <>
                         <Label htmlFor="receiverName" className="text-sm font-medium text-gray-700">Receiver Name</Label>
@@ -823,24 +997,30 @@ export default function TransactionsPage() {
                   </div>
 
                   <div className="relative" style={{ zIndex: 99 }}>
-                    {watch('amountType') === 'CREDIT' ? (
-                      <ClientTypeahead
-                        id="senderName"
-                        label="Sender Name"
-                        value={watch('senderName') || ''}
-                        onChange={(value: string, client?: Client) => {
-                          setValue('senderName', value);
-                          if (client) {
-                            setSelectedSenderClient(client);
-                            if (client.mobileNumber) {
-                              setValue('senderNumber', client.mobileNumber);
+                    {senderUsesClientPicker ? (
+                      <>
+                        <ClientTypeahead
+                          id="senderName"
+                          label="Sender Name"
+                          value={watch('senderName') || ''}
+                          onChange={(value: string, client?: Client) => {
+                            setValue('senderName', value);
+                            if (client) {
+                              setSelectedSenderClient(client);
+                              clearErrors('senderName');
+                              if (client.mobileNumber) {
+                                setValue('senderNumber', client.mobileNumber);
+                              }
+                            } else {
+                              setSelectedSenderClient(null);
                             }
-                          } else {
-                            setSelectedSenderClient(null);
-                          }
-                        }}
-                        placeholder="Search sender name..."
-                      />
+                          }}
+                          placeholder="Search sender client..."
+                        />
+                        {errors.senderName && (
+                          <p className="mt-1 text-sm text-red-600">{errors.senderName.message}</p>
+                        )}
+                      </>
                     ) : (
                       <>
                         <Label htmlFor="senderName" className="text-sm font-medium text-gray-700">Sender Name</Label>

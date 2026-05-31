@@ -14,8 +14,10 @@ export function formatCurrency(amount: number | string): string {
   }).format(num);
 }
 
-export function formatDate(date: string | Date): string {
+export function formatDate(date: string | Date | null | undefined, fallback = '-'): string {
+  if (date == null || date === '') return fallback;
   const d = typeof date === 'string' ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return fallback;
   return new Intl.DateTimeFormat('en-IN', {
     day: '2-digit',
     month: '2-digit',
@@ -23,8 +25,10 @@ export function formatDate(date: string | Date): string {
   }).format(d);
 }
 
-export function formatDateTime(date: string | Date): string {
+export function formatDateTime(date: string | Date | null | undefined, fallback = '-'): string {
+  if (date == null || date === '') return fallback;
   const d = typeof date === 'string' ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return fallback;
   return new Intl.DateTimeFormat('en-IN', {
     day: '2-digit',
     month: '2-digit',

@@ -80,6 +80,11 @@ interface ReportSummary {
   [key: string]: any;
 }
 
+/** Combo report: inward amount column = transaction amount + our commission. */
+function getComboInwardDisplayAmount(transaction: { amount?: number; bookingCommission?: number }) {
+  return (transaction.amount || 0) + (transaction.bookingCommission || 0);
+}
+
 export default function ReportsPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
@@ -1348,9 +1353,9 @@ export default function ReportsPage() {
                   }
                   break;
                 case 'INWARD AMOUNT':
-                  // Show amount only for inward transactions, empty for outward
+                  // Inward: amount + our commission (auto or manual)
                   if (txn.type === 'INWARD') {
-                    value = txn.amount.toString();
+                    value = getComboInwardDisplayAmount(txn).toString();
                   } else {
                     value = '';
                   }
@@ -1855,9 +1860,9 @@ export default function ReportsPage() {
         }
         return '-';
       case 'INWARD AMOUNT':
-        // Show amount only for inward transactions, empty for outward
+        // Inward: amount + our commission (auto or manual)
         if (transaction.type === 'INWARD') {
-          return formatCurrency(transaction.amount);
+          return formatCurrency(getComboInwardDisplayAmount(transaction));
         }
         return '-';
       case 'AMOUNT':
@@ -1984,7 +1989,7 @@ export default function ReportsPage() {
 
         const inwardTotal = filteredData
           .filter(item => item.type === 'INWARD')
-          .reduce((sum, item) => sum + (item.amount || 0), 0);
+          .reduce((sum, item) => sum + getComboInwardDisplayAmount(item), 0);
 
         summary = {
           totalRecords: filteredData.length,
@@ -2655,7 +2660,14 @@ export default function ReportsPage() {
               <div className="border-b border-gray-200 bg-gradient-to-r from-gray-50 via-blue-50 to-gray-50 px-4 py-2 flex items-center justify-between flex-shrink-0 relative">
                 <div className="flex items-center space-x-3">
                   <h1 className="text-lg font-bold text-gray-900">{selectedClient.name} - Ledger</h1>
-                  <span className="text-xs text-gray-500">From {formatDate(selectedClient.createdAt)}</span>
+                  <span className="text-xs text-gray-500">
+                    From{' '}
+                    {selectedClient.createdAt
+                      ? formatDate(selectedClient.createdAt)
+                      : filteredClientLedger.length > 0
+                        ? formatDate(filteredClientLedger[0].date)
+                        : 'N/A'}
+                  </span>
                   {filteredClientLedger.length > 0 && (
                     <div className={`px-6 py-1 rounded-lg font-bold text-xl shadow-lg border-2 ${
                       filteredClientLedger[filteredClientLedger.length - 1].balance >= 0 

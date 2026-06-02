@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -83,6 +83,40 @@ interface ReportSummary {
 /** Combo report: inward amount column = transaction amount + our commission. */
 function getComboInwardDisplayAmount(transaction: { amount?: number; bookingCommission?: number }) {
   return (transaction.amount || 0) + (transaction.bookingCommission || 0);
+}
+
+/** Combo report: outward amount column = transaction amount + center commission. */
+function getComboOutwardDisplayAmount(transaction: { amount?: number; centerCommission?: number }) {
+  return (transaction.amount || 0) + (transaction.centerCommission || 0);
+}
+
+function compareComboTransactionsByTimeAsc(a: Transaction, b: Transaction) {
+  const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime();
+  if (dateCompare !== 0) return dateCompare;
+  const timeA = a.time ? new Date(a.time).getTime() : 0;
+  const timeB = b.time ? new Date(b.time).getTime() : 0;
+  return timeA - timeB;
+}
+
+function compareComboTransactionsByTimeDesc(a: Transaction, b: Transaction) {
+  const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
+  if (dateCompare !== 0) return dateCompare;
+  const timeA = a.time ? new Date(a.time).getTime() : 0;
+  const timeB = b.time ? new Date(b.time).getTime() : 0;
+  return timeB - timeA;
+}
+
+/** Amount Type report (CASH): single amount = base + center + booking commission. */
+function getAmountTypeCashDisplayAmount(transaction: {
+  amount?: number;
+  centerCommission?: number;
+  bookingCommission?: number;
+}) {
+  return (
+    (transaction.amount || 0) +
+    (transaction.centerCommission || 0) +
+    (transaction.bookingCommission || 0)
+  );
 }
 
 export default function ReportsPage() {
@@ -480,14 +514,25 @@ export default function ReportsPage() {
       const accEntries = await accountingApi.getAccountEntries(clientHistoryParams);
       (accEntries.entries || []).forEach(entry => {
         const partyName = entry.party?.name?.toLowerCase() || '';
-        const entryDate = new Date(entry.date);
 
         if (partyName === clientName) {
           const isCredit = entry.type === 'INCOME';
-          const descParts = [entry.type, entry.category || 'General'];
+          const descParts = [entry.type];
+          const categoryName =
+            typeof entry.category === 'string'
+              ? entry.category
+              : entry.category?.name;
+          if (categoryName) descParts.push(categoryName);
+          if (entry.description?.trim()) descParts.push(`Remark: ${entry.description.trim()}`);
+
+          const timeSource = entry.statusTime || entry.time || entry.createdAt;
+          const accountingTime = timeSource
+            ? new Date(timeSource).toTimeString().slice(0, 5)
+            : '';
+
           ledgerEntries.push({
             date: entry.date,
-            time: entry.time ? new Date(entry.time).toTimeString().slice(0, 5) : '',
+            time: accountingTime,
             module: 'Accounting',
             description: descParts.join(' - '),
             debit: isCredit ? 0 : (entry.debitAmount || entry.amount || 0),
@@ -940,18 +985,9 @@ export default function ReportsPage() {
           })
         ]);
 
-        // Combine both transaction types and sort by time
+        // Combine both transaction types — newest first (current balance at top)
         const allTransactions = [...inwardResponse.transactions, ...outwardResponse.transactions]
-          .sort((a, b) => {
-            // Sort by date first, then by time
-            const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime();
-            if (dateCompare !== 0) return dateCompare;
-
-            // If same date, sort by time
-            const timeA = a.time ? new Date(a.time).getTime() : 0;
-            const timeB = b.time ? new Date(b.time).getTime() : 0;
-            return timeA - timeB;
-          });
+          .sort(compareComboTransactionsByTimeDesc);
 
         setReportData(allTransactions);
       } else if (activeReport === 'transaction') {
@@ -1322,7 +1358,7 @@ export default function ReportsPage() {
       // Create CSV content for Excel export
       if (format === 'excel') {
         const headers = activeReport === 'transaction' ? TXN_REPORT_COLUMNS.join(',') : getColumns().join(',');
-        const rows = (activeReport === 'transaction' ? txnReportFilteredRows : filteredData).map((row, index) => {
+        const rows = (activeReport === 'transaction' ? txnReportFilteredRows : reportTableData).map((row, index) => {
           const columns = activeReport === 'transaction' ? TXN_REPORT_COLUMNS : getColumns();
           return columns.map(column => {
             let value = '';
@@ -1367,12 +1403,22 @@ export default function ReportsPage() {
                     value = '';
                   }
                   break;
+                case 'BALANCE':
+                  if (activeReport === 'combo') {
+                    const balance = comboRunningBalances[index];
+                    value = balance !== undefined ? balance.toString() : '';
+                  } else {
+                    value = '';
+                  }
+                  break;
                 case 'AMOUNT':
                   // For inward reports, show only amount without center commission
                   if (activeReport === 'inward') {
                     value = txn.amount.toString();
+                  } else if (activeReport === 'amount-type' && filters.amountType?.toUpperCase() === 'CASH') {
+                    value = getAmountTypeCashDisplayAmount(txn).toString();
                   } else {
-                    // For outward and amount-type reports, show amount + center commission
+                    // For outward and amount-type (non-CASH), show amount + center commission
                     const totalAmount = txn.amount + (txn.centerCommission || 0);
                     value = totalAmount.toString();
                   }
@@ -1566,7 +1612,7 @@ export default function ReportsPage() {
             </tr>
           </thead>
           <tbody>
-            ${filteredData.map((transaction, index) => `
+            ${reportTableData.map((transaction, index) => `
               <tr>
                 ${columns.map(column => {
       let displayValue = renderCell(transaction, column, index);
@@ -1813,10 +1859,40 @@ export default function ReportsPage() {
     return matchesSearch && matchesDate && matchesCenter && matchesAmountType;
   });
 
+  // Combo report: newest first; balance computed chronologically then mapped to display order
+  const { comboDisplayData, comboRunningBalances } = useMemo(() => {
+    if (activeReport !== 'combo') {
+      return { comboDisplayData: [] as Transaction[], comboRunningBalances: [] as number[] };
+    }
+
+    const chronological = [...filteredData].sort(compareComboTransactionsByTimeAsc);
+    const balanceById = new Map<string, number>();
+    let runningBalance = 0;
+
+    chronological.forEach((transaction) => {
+      if (transaction.type === 'OUTWARD') {
+        runningBalance += getComboOutwardDisplayAmount(transaction);
+      } else if (transaction.type === 'INWARD') {
+        runningBalance -= getComboInwardDisplayAmount(transaction);
+      }
+      balanceById.set(transaction.id, runningBalance);
+    });
+
+    const comboDisplayData = [...filteredData].sort(compareComboTransactionsByTimeDesc);
+    const comboRunningBalances = comboDisplayData.map(
+      (transaction) => balanceById.get(transaction.id) ?? 0
+    );
+
+    return { comboDisplayData, comboRunningBalances };
+  }, [activeReport, filteredData]);
+
+  const reportTableData =
+    activeReport === 'combo' ? comboDisplayData : filteredData;
+
   // Get columns based on report type (for outward and inward transactions)
   const getColumns = () => {
     if (activeReport === 'combo') {
-      return ['TRANSACTION TYPE', 'TOKEN', 'DATE', 'TIME', 'CENTER', 'OUTWARD AMOUNT', 'INWARD AMOUNT'];
+      return ['TRANSACTION TYPE', 'TOKEN', 'DATE', 'TIME', 'CENTER', 'OUTWARD AMOUNT', 'INWARD AMOUNT', 'BALANCE'];
     }
     if (activeReport === 'outward') {
       return ['TOKEN', 'DATE', 'TIME', 'CENTER', 'AMOUNT', 'AMOUNT TYPE', 'OUR COMM', 'RECEIVER NAME', 'SENDER NAME', 'REMARKS'];
@@ -1825,6 +1901,10 @@ export default function ReportsPage() {
       return ['TOKEN', 'DATE', 'TIME', 'CENTER', 'AMOUNT', 'AMOUNT TYPE', 'CUTTING COMM', 'SENDER NAME', 'RECEIVER NAME', 'REMARKS'];
     }
     if (activeReport === 'amount-type') {
+      const isCashAmountType = filters.amountType?.toUpperCase() === 'CASH';
+      if (isCashAmountType) {
+        return ['TOKEN', 'DATE', 'TIME', 'CENTER', 'AMOUNT', 'AMOUNT TYPE', 'RECEIVER NAME', 'SENDER NAME', 'REMARKS'];
+      }
       return ['TOKEN', 'DATE', 'TIME', 'CENTER', 'AMOUNT', 'AMOUNT TYPE', 'OUR COMM', 'RECEIVER NAME', 'SENDER NAME', 'REMARKS'];
     }
     // New accounting reports - placeholder columns for now
@@ -1862,8 +1942,7 @@ export default function ReportsPage() {
       case 'OUTWARD AMOUNT':
         // Show amount only for outward transactions, empty for inward
         if (transaction.type === 'OUTWARD') {
-          const totalAmount = transaction.amount + (transaction.centerCommission || 0);
-          return formatCurrency(totalAmount);
+          return formatCurrency(getComboOutwardDisplayAmount(transaction));
         }
         return '-';
       case 'INWARD AMOUNT':
@@ -1872,12 +1951,22 @@ export default function ReportsPage() {
           return formatCurrency(getComboInwardDisplayAmount(transaction));
         }
         return '-';
+      case 'BALANCE':
+        if (activeReport === 'combo') {
+          const balance = comboRunningBalances[index];
+          return balance !== undefined ? formatCurrency(balance) : '-';
+        }
+        return '-';
       case 'AMOUNT':
         // For inward reports, show only amount without center commission
         if (activeReport === 'inward') {
           return transaction.amount.toString();
         }
-        // For outward and amount-type reports, show amount + center commission
+        // Amount Type + CASH: combined amount (base + center + booking commission)
+        if (activeReport === 'amount-type' && filters.amountType?.toUpperCase() === 'CASH') {
+          return formatCurrency(getAmountTypeCashDisplayAmount(transaction));
+        }
+        // For outward and amount-type (non-CASH), show amount + center commission
         const totalAmount = transaction.amount + (transaction.centerCommission || 0);
         return formatCurrency(totalAmount);
       case 'AMOUNT TYPE':
@@ -2010,6 +2099,15 @@ export default function ReportsPage() {
         summary = {
           totalRecords: refundSummary?.totalDeletedRecords || 0,
           totalAmount: 0,
+          totalCommission: 0,
+        };
+      } else if (activeReport === 'amount-type' && filters.amountType?.toUpperCase() === 'CASH') {
+        summary = {
+          totalRecords: filteredData.length,
+          totalAmount: filteredData.reduce(
+            (sum, item) => sum + getAmountTypeCashDisplayAmount(item),
+            0
+          ),
           totalCommission: 0,
         };
       } else {
@@ -2295,6 +2393,11 @@ export default function ReportsPage() {
                       <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.inwardTotal || 0)}</div>
                     </div>
                   </>
+                ) : activeReport === 'amount-type' && filters.amountType?.toUpperCase() === 'CASH' ? (
+                  <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <div className="text-sm font-medium text-gray-600">Total Amount</div>
+                    <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.totalAmount)}</div>
+                  </div>
                 ) : activeReport === 'inward' ? (
                   <>
                     <div className="bg-white p-4 rounded-lg border border-gray-200">
@@ -2624,7 +2727,7 @@ export default function ReportsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {filteredData.map((transaction, rowIndex) => (
+                      {reportTableData.map((transaction, rowIndex) => (
                         <tr key={rowIndex} className="hover:bg-gray-50">
                           {getColumns().map((column, colIndex) => {
                             const cellValue = renderCell(transaction, column, rowIndex);
@@ -2638,6 +2741,12 @@ export default function ReportsPage() {
                                       ? 'bg-green-100 text-green-800'
                                       : 'bg-red-100 text-red-800'
                                     }`}>
+                                    {cellValue}
+                                  </span>
+                                ) : column === 'BALANCE' && activeReport === 'combo' ? (
+                                  <span className={`font-semibold ${
+                                    (comboRunningBalances[rowIndex] ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                                  }`}>
                                     {cellValue}
                                   </span>
                                 ) : (

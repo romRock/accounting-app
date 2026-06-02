@@ -123,10 +123,10 @@ export function calculateClientBalance(client: { name: string }, moduleData: Mod
   return { balance, credit: totalCredit, debit: totalDebit };
 }
 
-const sortByAmountAsc = (rows: ClientBalanceRow[]) =>
-  [...rows].sort((a, b) => a.amount - b.amount);
+const sortByAmountDesc = (rows: ClientBalanceRow[]) =>
+  [...rows].sort((a, b) => b.amount - a.amount);
 
-/** Income / expense lists matching Final Balance Sheet; top N by ascending amount. */
+/** Dashboard customer review: top N clients by highest collection (income) or payout (expense) first. */
 export async function getDashboardCustomerReview(limit = 10): Promise<{
   incomeClients: ClientBalanceRow[];
   expenseClients: ClientBalanceRow[];
@@ -148,7 +148,7 @@ export async function getDashboardCustomerReview(limit = 10): Promise<{
   }
 
   return {
-    incomeClients: sortByAmountAsc(incomeClients).slice(0, limit),
-    expenseClients: sortByAmountAsc(expenseClients).slice(0, limit),
+    incomeClients: sortByAmountDesc(incomeClients).slice(0, limit),
+    expenseClients: sortByAmountDesc(expenseClients).slice(0, limit),
   };
 }

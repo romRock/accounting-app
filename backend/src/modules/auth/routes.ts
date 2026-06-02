@@ -9,8 +9,8 @@ const router = Router();
 router.post('/login', validateLogin, login);
 router.post('/refresh', validateRefreshToken, refreshToken);
 
-// Protected routes
-router.post('/logout', authenticateToken, logout);
+// Logout uses refresh token (no access token required when session already expired)
+router.post('/logout', logout);
 router.get('/profile', authenticateToken, getProfile);
 
 export default router;

@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 import { createError } from '../../middlewares/errorHandler';
 import { loginSchema } from './validation';
-import { generateTokens, verifyRefreshToken } from './utils';
+import { generateTokens, verifyRefreshToken, isCurrentUserSession } from './utils';
 
 const prisma = new PrismaClient();
 
@@ -35,23 +35,24 @@ export const login = async (req: Request, res: Response) => {
       throw createError('Invalid credentials', 401);
     }
 
-    // Single-device login: revoke all existing sessions for this user
-    await prisma.userSession.deleteMany({
-      where: { userId: user.id },
-    });
-
     const sessionExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-    // Placeholder refresh token; replaced after JWT is generated with session id
-    const session = await prisma.userSession.create({
-      data: {
-        userId: user.id,
-        refreshToken: `pending-${user.id}-${Date.now()}`,
-        expiresAt: sessionExpiresAt,
-        isActive: true,
-        ipAddress: req.ip || undefined,
-        userAgent: req.get('user-agent') || undefined,
-      },
+    // Single-device login: atomically revoke old sessions and create the new one
+    const session = await prisma.$transaction(async (tx) => {
+      await tx.userSession.deleteMany({
+        where: { userId: user.id },
+      });
+
+      return tx.userSession.create({
+        data: {
+          userId: user.id,
+          refreshToken: `pending-${user.id}-${Date.now()}`,
+          expiresAt: sessionExpiresAt,
+          isActive: true,
+          ipAddress: req.ip || undefined,
+          userAgent: req.get('user-agent') || undefined,
+        },
+      });
     });
 
     const { accessToken, refreshToken } = generateTokens(user, session.id);
@@ -79,14 +80,14 @@ export const login = async (req: Request, res: Response) => {
 export const logout = async (req: Request, res: Response) => {
   try {
     const { refreshToken } = req.body;
-    const userId = req.user?.id;
 
     if (refreshToken) {
       await prisma.userSession.deleteMany({
-        where: {
-          userId,
-          refreshToken,
-        },
+        where: { refreshToken },
+      });
+    } else if (req.user?.id) {
+      await prisma.userSession.deleteMany({
+        where: { userId: req.user.id },
       });
     }
 
@@ -131,6 +132,14 @@ export const refreshToken = async (req: Request, res: Response) => {
 
     if (!session) {
       throw createError('Invalid refresh token', 401);
+    }
+
+    if (
+      !decoded.sessionId ||
+      decoded.sessionId !== session.id ||
+      !(await isCurrentUserSession(decoded.userId, session.id))
+    ) {
+      throw createError('Session expired or logged in on another device', 401);
     }
 
     // Generate new tokens

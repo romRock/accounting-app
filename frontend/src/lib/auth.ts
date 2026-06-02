@@ -1,6 +1,13 @@
 // Real authentication service for backend API
 import API_BASE_URL, { safeJsonStringify } from './api';
 
+export const SESSION_REVOKED_MESSAGE =
+  'Session expired or logged in on another device';
+
+export function isSessionRevokedError(message: string): boolean {
+  return message.includes('another device') || message.includes('Session expired');
+}
+
 interface LoginResponse {
   user: {
     id: string;
@@ -95,12 +102,17 @@ export const authApi = {
     };
   },
 
-  async logout(refreshToken: string): Promise<void> {
+  async logout(refreshToken: string, accessToken?: string | null): Promise<void> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
     const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: safeJsonStringify({ refreshToken }),
     });
 
@@ -156,8 +168,8 @@ export const authApi = {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to get profile');
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || error.message || 'Failed to get profile');
     }
 
     return await response.json();

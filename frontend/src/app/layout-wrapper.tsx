@@ -26,6 +26,31 @@ export default function LayoutWrapper({
   useEffect(() => {
     setIsHydrated(true);
   }, []);
+
+  // Single-session: verify with server so another-device login clears this tab
+  useEffect(() => {
+    if (!isHydrated || pathname === '/login') return;
+
+    const { isAuthenticated: authed, verifySession } = useAuthStore.getState();
+    if (!authed) return;
+
+    let cancelled = false;
+
+    const checkSession = async () => {
+      const stillValid = await verifySession();
+      if (!cancelled && !stillValid) {
+        router.replace('/login?reason=session_revoked');
+      }
+    };
+
+    checkSession();
+    const interval = setInterval(checkSession, 30000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [isHydrated, pathname, router]);
   const [activeTransactionTab, setActiveTransactionTab] = useState<'outward' | 'inward'>('outward');
   const [activeReport, setActiveReport] = useState<'outward' | 'inward' | 'combo' | 'outward-centerwise' | 'inward-centerwise' | 'amount-type' | 'customer' | 'transaction-refund'>('outward');
   const [activeMasterTab, setActiveMasterTab] = useState<'users' | 'roles' | 'centers' | 'clients' | 'branches'>('users');

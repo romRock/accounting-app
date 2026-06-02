@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -37,6 +37,13 @@ export default function LoginPage() {
   const router = useRouter();
   const { login, isLoading } = useAuthStore();
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('reason') === 'session_revoked') {
+      setError('You were signed out because this account was used on another device.');
+    }
+  }, []);
 
   const {
     register,

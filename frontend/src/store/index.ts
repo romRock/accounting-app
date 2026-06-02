@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { authApi } from '@/lib/auth';
+import { authApi, isSessionRevokedError } from '@/lib/auth';
 
 interface User {
   id: string;
@@ -32,8 +32,9 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshAccessToken: () => Promise<void>;
+  verifySession: () => Promise<boolean>;
   setTokens: (accessToken: string, refreshToken: string) => void;
 }
 
@@ -75,12 +76,12 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: async () => {
-        const { refreshToken } = get();
+        const { refreshToken, accessToken } = get();
         
         // Call logout API if refresh token exists
         if (refreshToken) {
           try {
-            await authApi.logout(refreshToken);
+            await authApi.logout(refreshToken, accessToken);
           } catch (error) {
             console.error('Logout error:', error);
           }
@@ -115,8 +116,45 @@ export const useAuthStore = create<AuthState>()(
           });
         } catch (error) {
           // If refresh fails, logout user
-          get().logout();
+          await get().logout();
           throw error;
+        }
+      },
+
+      verifySession: async () => {
+        const { accessToken, refreshAccessToken, logout, isAuthenticated } = get();
+
+        if (!isAuthenticated || !accessToken) {
+          return false;
+        }
+
+        try {
+          await authApi.getProfile(accessToken);
+          return true;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '';
+
+          if (message.includes('Token expired')) {
+            try {
+              await refreshAccessToken();
+              const newToken = get().accessToken;
+              if (newToken) {
+                await authApi.getProfile(newToken);
+                return true;
+              }
+            } catch {
+              await logout();
+              return false;
+            }
+          }
+
+          if (isSessionRevokedError(message)) {
+            await logout();
+            return false;
+          }
+
+          await logout();
+          return false;
         }
       },
 
@@ -183,12 +221,24 @@ export const apiCall = async (url: string, options: RequestInit = {}) => {
     });
 
     if (response.status === 401 && token) {
-      // Token expired, try to refresh
-      await refreshAccessToken();
+      const errorBody = await response.clone().json().catch(() => ({}));
+      const errorMessage = (errorBody as { error?: string }).error || '';
+
+      if (isSessionRevokedError(errorMessage)) {
+        await useAuthStore.getState().logout();
+        return response;
+      }
+
+      // Token expired, try to refresh once
+      try {
+        await refreshAccessToken();
+      } catch {
+        return response;
+      }
+
       const newToken = useAuthStore.getState().accessToken;
-      
+
       if (newToken) {
-        // Retry with new token
         return fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${url}`, {
           ...options,
           headers: {

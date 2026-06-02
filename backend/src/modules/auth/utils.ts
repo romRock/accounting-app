@@ -49,6 +49,24 @@ export const verifyRefreshToken = (token: string): JWTPayload | null => {
   }
 };
 
+/** True when this session id is the user's only active server session (single-device login). */
+export const isCurrentUserSession = async (
+  userId: string,
+  sessionId: string
+): Promise<boolean> => {
+  const activeSession = await prisma.userSession.findFirst({
+    where: {
+      userId,
+      isActive: true,
+      isDeleted: false,
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return activeSession?.id === sessionId;
+};
+
 export const generateTransactionId = (): string => {
   const timestamp = Date.now().toString();
   const random = Math.random().toString(36).substring(2, 8);

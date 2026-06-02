@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 import { createError } from '../../middlewares/errorHandler';
+import { isCurrentUserSession } from './utils';
 
 const prisma = new PrismaClient();
 
@@ -68,17 +69,12 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
         throw createError('Invalid token', 401);
       }
 
-      const activeSession = await prisma.userSession.findFirst({
-        where: {
-          id: decoded.sessionId,
-          userId: decoded.userId,
-          isActive: true,
-          isDeleted: false,
-          expiresAt: { gt: new Date() },
-        },
-      });
+      const sessionValid = await isCurrentUserSession(
+        decoded.userId,
+        decoded.sessionId
+      );
 
-      if (!activeSession) {
+      if (!sessionValid) {
         throw createError('Session expired or logged in on another device', 401);
       }
     }

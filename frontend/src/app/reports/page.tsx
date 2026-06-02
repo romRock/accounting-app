@@ -517,7 +517,7 @@ export default function ReportsPage() {
 
         if (partyName === clientName) {
           const isCredit = entry.type === 'INCOME';
-          const descParts = [entry.type];
+          const descParts: string[] = entry.type ? [entry.type] : [];
           const categoryName =
             typeof entry.category === 'string'
               ? entry.category

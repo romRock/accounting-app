@@ -2,6 +2,11 @@ import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { generateAuditLog } from '../audit/auditService';
 import { token } from 'morgan';
+import {
+  applyEntryBranchScope,
+  isSuperAdminUser,
+  resolveUserBranchId,
+} from '../../utils/branchScope';
 
 const prisma = new PrismaClient();
 
@@ -65,7 +70,7 @@ export const getSpecialEntryNextIds = async (req: Request, res: Response) => {
     const branchId = req.user?.branchId;
 
     const dateStr = (date as string) || new Date().toISOString().split('T')[0];
-    const nextTokenNo = await generateSpecialEntryTokenNo(dateStr, branchId);
+    const nextTokenNo = await generateSpecialEntryTokenNo(dateStr, branchId || undefined);
 
     // Get last special entry globally for transaction ID
     const lastGlobalSpecialEntry = await prisma.specialEntry.findFirst({
@@ -104,7 +109,7 @@ export const getSpecialEntries = async (req: Request, res: Response) => {
 
     const userBranchId = req.user?.branchId;
     const userPermissions = req.user?.role?.permissions as any;
-    const isSuperAdmin = userPermissions?.masterData === 'full_access';
+    const isSuperAdmin = isSuperAdminUser(userPermissions);
 
     // Get current date in Indian timezone for default filtering
     const now = new Date();
@@ -120,14 +125,7 @@ export const getSpecialEntries = async (req: Request, res: Response) => {
     };
 
     // Filter by branch if user is not Super Admin
-    if (!isSuperAdmin) {
-      if (userBranchId) {
-        where.branchId = userBranchId;
-      } else {
-        // User has no branch assigned - return empty results
-        where.branchId = 'non-existent-branch-id-to-return-empty';
-      }
-    }
+    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin);
 
     // Add search filter
     if (search) {
@@ -248,7 +246,11 @@ export const createSpecialEntry = async (req: Request, res: Response) => {
       createdBy
     } = req.body;
 
-    const userBranchId = req.user?.branchId;
+    const userBranchId = await resolveUserBranchId(
+      prisma,
+      req.user?.id || '',
+      req.user?.branchId
+    );
 
     // Validation
     if (!date || !time || !partyA || !partyB || !partyC || !amountA || !amountB || !amountC) {
@@ -270,7 +272,7 @@ export const createSpecialEntry = async (req: Request, res: Response) => {
     const specialEntry = await prisma.specialEntry.create({
       data: {
         transactionId,
-        tokenNo: tokenNo ? parseInt(tokenNo.toString()) : await generateSpecialEntryTokenNo(date, userBranchId),
+        tokenNo: tokenNo ? parseInt(tokenNo.toString()) : await generateSpecialEntryTokenNo(date, userBranchId || undefined),
         date: new Date(date),
         time: new Date(`${date}T${time}`),
         partyA,

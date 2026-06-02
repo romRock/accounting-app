@@ -1,6 +1,11 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { createError } from '../../middlewares/errorHandler';
+import {
+  applyEntryBranchScope,
+  isSuperAdminUser,
+  resolveUserBranchId,
+} from '../../utils/branchScope';
 
 // Define enum values as strings since Prisma enums aren't being exported properly
 enum TransactionType {
@@ -44,7 +49,7 @@ export const createTransaction = async (req: Request, res: Response) => {
     } = req.body;
 
     const userId = req.user?.id;
-    const branchId = req.user?.branchId;
+    const branchId = await resolveUserBranchId(prisma, userId!, req.user?.branchId);
 
     // Find the actual center ID from city code/name
     let actualCenterId = centerId;
@@ -65,7 +70,7 @@ export const createTransaction = async (req: Request, res: Response) => {
     const transactionId = await generateTransactionIdByType(type);
 
     // Generate token number (daily reset, separate for outward/inward, branch-specific)
-    const tokenNo = await generateTokenNumberByType(date, type, branchId);
+    const tokenNo = await generateTokenNumberByType(date, type, branchId || undefined);
 
     // Calculate commission if auto is enabled
     let calculatedCommission = commission || 0;
@@ -232,7 +237,7 @@ export const getTransactions = async (req: Request, res: Response) => {
     const userRole = req.user?.role.name;
     const userBranchId = req.user?.branchId;
     const userPermissions = req.user?.role?.permissions as any;
-    const isSuperAdmin = userPermissions?.masterData === 'full_access';
+    const isSuperAdmin = isSuperAdminUser(userPermissions);
 
     // Get current date in Indian timezone for default filtering
     const now = new Date();
@@ -248,14 +253,7 @@ export const getTransactions = async (req: Request, res: Response) => {
     };
 
     // Filter by branch if user is not Super Admin
-    if (!isSuperAdmin) {
-      if (userBranchId) {
-        where.branchId = userBranchId;
-      } else {
-        // User has no branch assigned - return empty results
-        where.branchId = 'non-existent-branch-id-to-return-empty';
-      }
-    }
+    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin);
 
     if (type) where.type = type as TransactionType;
     if (status !== undefined) where.status = status === 'true';
@@ -592,7 +590,7 @@ export const getTransactionStats = async (req: Request, res: Response) => {
     const userBranchId = req.user?.branchId;
     const userRole = req.user?.role.name;
     const userPermissions = req.user?.role?.permissions as any;
-    const isSuperAdmin = userPermissions?.masterData === 'full_access';
+    const isSuperAdmin = isSuperAdminUser(userPermissions);
 
     const where: any = {
       isActive: true,
@@ -600,14 +598,7 @@ export const getTransactionStats = async (req: Request, res: Response) => {
     };
 
     // Filter by branch if user is not Super Admin
-    if (!isSuperAdmin) {
-      if (userBranchId) {
-        where.branchId = userBranchId;
-      } else {
-        // User has no branch assigned - return empty results
-        where.branchId = 'non-existent-branch-id-to-return-empty';
-      }
-    }
+    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin);
 
     if (dateFrom || dateTo) {
       where.date = {};

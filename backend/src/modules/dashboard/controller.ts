@@ -1,5 +1,10 @@
 import { PrismaClient } from '@prisma/client';
 import { Request, Response } from 'express';
+import {
+  getEntryBranchFilter,
+  getMasterBranchFilter,
+  isSuperAdminUser,
+} from '../../utils/branchScope';
 
 const prisma = new PrismaClient();
 
@@ -354,18 +359,14 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
     // Get user branch info for filtering
     const userBranchId = (req as any).user?.branchId;
     const userPermissions = (req as any).user?.role?.permissions as any;
-    const isSuperAdmin = userPermissions?.masterData === 'full_access';
+    const isSuperAdmin = isSuperAdminUser(userPermissions);
     
-    // Build branch filter
-    const branchFilter: any = {};
-    if (!isSuperAdmin) {
-      if (userBranchId) {
-        branchFilter.branchId = userBranchId;
-      } else {
-        // User has no branch assigned - return empty results
-        branchFilter.branchId = 'non-existent-branch-id-to-return-empty';
-      }
-    }
+    const entryBranchFilter = await getEntryBranchFilter(
+      prisma,
+      userBranchId,
+      isSuperAdmin
+    );
+    const masterBranchFilter = getMasterBranchFilter(userBranchId, isSuperAdmin);
     
     // Use Indian timezone (Asia/Kolkata) for date calculations
     const now = new Date();
@@ -393,7 +394,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
           gte: today,
           lt: tomorrow,
         },
-        ...branchFilter,
+        ...entryBranchFilter,
       },
       _sum: {
         bookingCommission: true,
@@ -410,7 +411,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
           gte: today,
           lt: tomorrow,
         },
-        ...branchFilter,
+        ...entryBranchFilter,
       },
       _sum: {
         bookingCommission: true,
@@ -427,7 +428,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
           gte: today,
           lt: tomorrow,
         },
-        ...branchFilter,
+        ...entryBranchFilter,
       },
     });
 
@@ -440,7 +441,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
           gte: today,
           lt: tomorrow,
         },
-        ...branchFilter,
+        ...entryBranchFilter,
       },
     });
 
@@ -452,7 +453,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
           gte: today,
           lt: tomorrow,
         },
-        ...branchFilter,
+        ...entryBranchFilter,
       },
     });
 
@@ -464,7 +465,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
           gte: today,
           lt: tomorrow,
         },
-        ...branchFilter,
+        ...entryBranchFilter,
       },
     });
 
@@ -476,7 +477,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
           gte: today,
           lt: tomorrow,
         },
-        ...branchFilter,
+        ...entryBranchFilter,
       },
     });
 
@@ -487,7 +488,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
       where: {
         isActive: true,
         isDeleted: false,
-        ...branchFilter,
+        ...masterBranchFilter,
       },
     });
 
@@ -496,7 +497,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
       where: {
         isActive: true,
         isDeleted: false,
-        ...branchFilter,
+        ...masterBranchFilter,
       },
     });
 

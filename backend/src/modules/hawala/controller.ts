@@ -1,6 +1,11 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { generateAuditLog } from '../audit/auditService';
+import {
+  applyEntryBranchScope,
+  isSuperAdminUser,
+  resolveUserBranchId,
+} from '../../utils/branchScope';
 
 const prisma = new PrismaClient();
 
@@ -74,8 +79,12 @@ export const createHawala = async (req: Request, res: Response) => {
 
     // Get authenticated user from JWT token
     const authenticatedUser = (req as any).user;
-    const createdBy = authenticatedUser?.email || authenticatedUser?.id || 'system';
-    const userBranchId = authenticatedUser?.branchId;
+    const createdBy = authenticatedUser?.id || 'system';
+    const userBranchId = await resolveUserBranchId(
+      prisma,
+      authenticatedUser?.id || '',
+      authenticatedUser?.branchId
+    );
 
     // Validate required fields (transactionId is optional - backend will generate it)
     if (!date || !time || !partyA || !partyB || !amount) {
@@ -121,7 +130,7 @@ export const createHawala = async (req: Request, res: Response) => {
     const hawala = await prisma.hawala.create({
       data: {
         transactionId: finalTransactionId,
-        tokenNo: tokenNo ? parseInt(tokenNo) : await generateHawalaTokenNo(date, userBranchId),
+        tokenNo: tokenNo ? parseInt(tokenNo) : await generateHawalaTokenNo(date, userBranchId || undefined),
         date: new Date(date),
         time: new Date(`${date}T${time}`),
         partyA,
@@ -231,7 +240,7 @@ export const getHawalaEntries = async (req: Request, res: Response) => {
 
     const userBranchId = req.user?.branchId;
     const userPermissions = req.user?.role?.permissions as any;
-    const isSuperAdmin = userPermissions?.masterData === 'full_access';
+    const isSuperAdmin = isSuperAdminUser(userPermissions);
 
     // Get current date in Indian timezone for default filtering
     const now = new Date();
@@ -247,14 +256,7 @@ export const getHawalaEntries = async (req: Request, res: Response) => {
     };
 
     // Filter by branch if user is not Super Admin
-    if (!isSuperAdmin) {
-      if (userBranchId) {
-        where.branchId = userBranchId;
-      } else {
-        // User has no branch assigned - return empty results
-        where.branchId = 'non-existent-branch-id-to-return-empty';
-      }
-    }
+    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin);
 
     // Add search filter
     if (search) {

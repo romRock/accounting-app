@@ -1706,6 +1706,9 @@ app.get('/api/users', async (req, res) => {
         roleId: user.roleId,
         status: user.isActive ? 'Active' : 'Inactive',
         role: user.role?.name || '',
+        branchId: user.branchId || null,
+        branchName: user.branch?.name || '',
+        branchCode: user.branch?.code || '',
         createdAt: user.createdAt,
         updatedAt: user.updatedAt
       }))
@@ -1728,7 +1731,7 @@ app.post('/api/users/add', authenticateToken, requireRole(['Admin', 'Super Admin
     console.log('Request body:', req.body);
     console.log('User from token:', req.user?.email, 'Role:', req.user?.role?.name);
     
-    const { fullName, mobileNumber, email, password, roleId } = req.body;
+    const { fullName, mobileNumber, email, password, roleId, branchId } = req.body;
     
     if (!fullName || !mobileNumber || !password || !roleId) {
       return res.status(400).json({
@@ -1776,6 +1779,7 @@ app.post('/api/users/add', authenticateToken, requireRole(['Admin', 'Super Admin
             id: roleId
           }
         },
+        ...(branchId ? { branch: { connect: { id: branchId } } } : {}),
         isActive: true,
         isDeleted: false
       }
@@ -1792,6 +1796,7 @@ app.post('/api/users/add', authenticateToken, requireRole(['Admin', 'Super Admin
         mobileNumber: mobileNumber,
         email: email || '',
         roleId: roleId,
+        branchId: newUser.branchId || branchId || null,
         status: 'Active',
         createdAt: newUser.createdAt,
         updatedAt: newUser.updatedAt
@@ -1815,7 +1820,7 @@ app.post('/api/users/update', authenticateToken, requireRole(['Admin', 'Super Ad
     console.log('Request body:', req.body);
     console.log('User from token:', req.user?.email, 'Role:', req.user?.role?.name);
     
-    const { id, fullName, mobileNumber, email, password, roleId } = req.body;
+    const { id, fullName, mobileNumber, email, password, roleId, branchId } = req.body;
     
     if (!id || !fullName || !mobileNumber || !roleId) {
       return res.status(400).json({
@@ -1870,6 +1875,10 @@ app.post('/api/users/update', authenticateToken, requireRole(['Admin', 'Super Ad
       email: email || null,
       roleId: roleId
     };
+
+    if (branchId !== undefined) {
+      updateData.branchId = branchId || null;
+    }
     
     // Update password only if provided
     if (password && password.trim() !== '') {
@@ -1895,6 +1904,7 @@ app.post('/api/users/update', authenticateToken, requireRole(['Admin', 'Super Ad
         mobileNumber: mobileNumber,
         email: email || '',
         roleId: roleId,
+        branchId: updatedUser.branchId ?? branchId ?? null,
         status: 'Active',
         createdAt: updatedUser.createdAt,
         updatedAt: updatedUser.updatedAt

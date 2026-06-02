@@ -1,6 +1,11 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { createError } from '../../middlewares/errorHandler';
+import {
+  applyEntryBranchScope,
+  isSuperAdminUser,
+  resolveUserBranchId,
+} from '../../utils/branchScope';
 
 const prisma = new PrismaClient();
 
@@ -70,7 +75,7 @@ export const getLedgerEntries = async (req: Request, res: Response) => {
     const userRole = req.user?.role.name;
     const userBranchId = req.user?.branchId;
     const userPermissions = req.user?.role?.permissions as any;
-    const isSuperAdmin = userPermissions?.masterData === 'full_access';
+    const isSuperAdmin = isSuperAdminUser(userPermissions);
 
     // Build where clause
     const where: any = {
@@ -78,15 +83,7 @@ export const getLedgerEntries = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    // Filter by branch if user is not Super Admin
-    if (!isSuperAdmin) {
-      if (userBranchId) {
-        where.branchId = userBranchId;
-      } else {
-        // User has no branch assigned - return empty results
-        where.branchId = 'non-existent-branch-id-to-return-empty';
-      }
-    }
+    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin);
 
     if (accountId) where.accountId = accountId as string;
     if (accountType) where.accountType = accountType as string;
@@ -590,7 +587,7 @@ export const createAccountEntry = async (req: Request, res: Response) => {
       entryId,
     } = req.body;
     const userId = req.user?.id;
-    const branchId = req.user?.branchId;
+    const branchId = await resolveUserBranchId(prisma, userId!, req.user?.branchId);
 
     // Validate required fields
     if (!date || !categoryId || !amount || !type) {
@@ -828,7 +825,7 @@ export const getAccountEntries = async (req: Request, res: Response) => {
 
     const userBranchId = req.user?.branchId;
     const userPermissions = req.user?.role?.permissions as any;
-    const isSuperAdmin = userPermissions?.masterData === 'full_access';
+    const isSuperAdmin = isSuperAdminUser(userPermissions);
 
     // Get current date in Indian timezone for default filtering
     const now = new Date();
@@ -842,15 +839,7 @@ export const getAccountEntries = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    // Filter by branch if user is not Super Admin
-    if (!isSuperAdmin) {
-      if (userBranchId) {
-        where.branchId = userBranchId;
-      } else {
-        // User has no branch assigned - return empty results
-        where.branchId = 'non-existent-branch-id-to-return-empty';
-      }
-    }
+    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin);
 
     // Map accounting params to AccountEntry fields
     if (categoryId) where.categoryId = categoryId as string;

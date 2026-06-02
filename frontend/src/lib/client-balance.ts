@@ -21,12 +21,13 @@ export interface ModuleDataCache {
 
 export async function fetchAllModuleData(): Promise<ModuleDataCache> {
   try {
+    const historyParams = { page: 1, limit: 1000, allDates: true as const };
     const [outwardTxns, inwardTxns, accEntries, hawalaEntries, splEntries] = await Promise.all([
-      transactionApi.getTransactions({ type: 'OUTWARD', page: 1, limit: 1000 }),
-      transactionApi.getTransactions({ type: 'INWARD', page: 1, limit: 1000 }),
-      accountingApi.getAccountEntries({ page: 1, limit: 1000 }),
-      getHawalaEntries({ page: 1, limit: 1000 }),
-      getSpecialEntries({ page: 1, limit: 1000 }),
+      transactionApi.getTransactions({ type: 'OUTWARD', ...historyParams }),
+      transactionApi.getTransactions({ type: 'INWARD', ...historyParams }),
+      accountingApi.getAccountEntries(historyParams),
+      getHawalaEntries(historyParams),
+      getSpecialEntries(historyParams),
     ]);
 
     const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];

@@ -60,6 +60,7 @@ export const getSpecialEntries = async (params?: {
   partyA?: string;
   partyB?: string;
   status?: 'all' | 'pending' | 'completed';
+  allDates?: boolean;
 }): Promise<SpecialEntryResponse> => {
   try {
     const queryParams = new URLSearchParams();
@@ -72,6 +73,7 @@ export const getSpecialEntries = async (params?: {
     if (params?.partyA) queryParams.set('partyA', params.partyA);
     if (params?.partyB) queryParams.set('partyB', params.partyB);
     if (params?.status) queryParams.set('status', params.status);
+    if (params?.allDates) queryParams.set('allDates', 'true');
 
     const { accessToken } = useAuthStore.getState();
     const headers: HeadersInit = {

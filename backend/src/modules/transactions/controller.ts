@@ -225,6 +225,7 @@ export const getTransactions = async (req: Request, res: Response) => {
       dateFrom,
       dateTo,
       search,
+      allDates,
     } = req.query;
 
     const userId = req.user?.id;
@@ -262,8 +263,10 @@ export const getTransactions = async (req: Request, res: Response) => {
     if (receiverClientId) where.receiverClientId = receiverClientId as string;
     if (senderClientId) where.senderClientId = senderClientId as string;
 
-    // If date range is specified, use it; otherwise filter to current day (Indian timezone)
-    if (dateFrom || dateTo) {
+    // allDates=true skips date filter (used by customer report / balance sheet for cumulative balances)
+    if (allDates === 'true') {
+      // no date filter
+    } else if (dateFrom || dateTo) {
       where.date = {};
       if (dateFrom) where.date.gte = new Date(dateFrom as string);
       if (dateTo) where.date.lte = new Date(dateTo as string);

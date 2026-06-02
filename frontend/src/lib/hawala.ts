@@ -74,6 +74,7 @@ export interface HawalaFilters {
   dateTo?: string;
   partyA?: string;
   partyB?: string;
+  allDates?: boolean;
 }
 
 // Get auth token from store
@@ -127,6 +128,7 @@ export const getHawalaEntries = async (filters: HawalaFilters = {}): Promise<Haw
     if (filters.dateTo) queryParams.append('dateTo', filters.dateTo);
     if (filters.partyA) queryParams.append('partyA', filters.partyA);
     if (filters.partyB) queryParams.append('partyB', filters.partyB);
+    if (filters.allDates) queryParams.append('allDates', 'true');
 
     const response = await fetch(`${API_URL}/api/hawala?${queryParams}`, {
       method: 'GET',

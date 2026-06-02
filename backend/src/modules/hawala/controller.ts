@@ -225,7 +225,7 @@ export const createHawala = async (req: Request, res: Response) => {
 export const getHawalaEntries = async (req: Request, res: Response) => {
   try {
 
-    const { page = 1, limit = 100, search, dateFrom, dateTo, partyA, partyB } = req.query;
+    const { page = 1, limit = 100, search, dateFrom, dateTo, partyA, partyB, allDates } = req.query;
 
     const skip = (Number(page) - 1) * Number(limit);
 
@@ -266,8 +266,10 @@ export const getHawalaEntries = async (req: Request, res: Response) => {
       ];
     }
 
-    // If date range is specified, use it; otherwise filter to current day (Indian timezone)
-    if (dateFrom || dateTo) {
+    // allDates=true skips date filter (used by customer report / balance sheet for cumulative balances)
+    if (allDates === 'true') {
+      // no date filter
+    } else if (dateFrom || dateTo) {
       where.date = {};
       if (dateFrom) where.date.gte = new Date(dateFrom as string);
       if (dateTo) where.date.lte = new Date(dateTo as string);

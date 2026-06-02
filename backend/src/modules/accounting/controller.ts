@@ -823,6 +823,7 @@ export const getAccountEntries = async (req: Request, res: Response) => {
       dateFrom,
       dateTo,
       search,
+      allDates,
     } = req.query;
 
     const userBranchId = req.user?.branchId;
@@ -856,8 +857,10 @@ export const getAccountEntries = async (req: Request, res: Response) => {
     if (type) where.type = type as string;
     if (partyId) where.partyId = partyId as string;
 
-    // If date range is specified, use it; otherwise filter to current day (Indian timezone)
-    if (dateFrom || dateTo) {
+    // allDates=true skips date filter (used by customer report / balance sheet for cumulative balances)
+    if (allDates === 'true') {
+      // no date filter
+    } else if (dateFrom || dateTo) {
       where.date = {};
       if (dateFrom) where.date.gte = new Date(dateFrom as string);
       if (dateTo) where.date.lte = new Date(dateTo as string);

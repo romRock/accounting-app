@@ -88,6 +88,7 @@ export const accountingApi = {
     dateFrom?: string;
     dateTo?: string;
     search?: string;
+    allDates?: boolean;
   }): Promise<{ entries: AccountingEntry[]; pagination: any }> => {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append('page', params.page.toString());
@@ -98,6 +99,7 @@ export const accountingApi = {
     if (params?.dateFrom) queryParams.append('dateFrom', params.dateFrom);
     if (params?.dateTo) queryParams.append('dateTo', params.dateTo);
     if (params?.search) queryParams.append('search', params.search);
+    if (params?.allDates) queryParams.append('allDates', 'true');
 
     const cacheBuster = `_t=${Date.now()}`;
     const query = queryParams.toString();

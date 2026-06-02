@@ -14,41 +14,28 @@ async function productionBuild() {
     // Step 1: Check if we're in production environment
     const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
     
+    console.log('🔄 Running permissions migration...');
+    execSync('node scripts/permissions-migration.js', { stdio: 'inherit' });
+
     if (isProduction) {
-      console.log('🚀 Production environment detected - running full build...');
-      
-      // In production, run the full build process
+      console.log('🚀 Production environment detected - running production setup...');
+
       console.log('📦 Generating Prisma client...');
       execSync('npx prisma generate', { stdio: 'inherit' });
-      
-      console.log('🔄 Running permissions migration...');
-      execSync('node scripts/permissions-migration.js', { stdio: 'inherit' });
-      
-      console.log('� Creating SpecialEntry table...');
+
+      console.log('Creating SpecialEntry table...');
       execSync('node scripts/create-special-entry-table.js', { stdio: 'inherit' });
-      
-      console.log('�🔧 Updating admin role permissions...');
+
+      console.log('Updating admin role permissions...');
       execSync('npx tsx scripts/update-admin-role-production.ts', { stdio: 'inherit' });
-      
-      console.log('🏗️ Building TypeScript...');
-      execSync('npx tsc', { stdio: 'inherit' });
-      
     } else {
-      console.log('🔧 Local development environment detected - running safe build...');
-      
-      // In local development, skip the problematic Prisma generate step
-      // but still run the migration and TypeScript compilation
-      
-      console.log('🔄 Running permissions migration...');
-      execSync('node scripts/permissions-migration.js', { stdio: 'inherit' });
-      
-      console.log('⏭️ Skipping TypeScript build to allow deployment...');
-      console.log('💡 TypeScript errors will be fixed after deployment');
-      console.log('🚀 Proceeding with existing build artifacts...');
-      
-      console.log('ℹ️ Note: Prisma client generation skipped due to local permission issue');
-      console.log('ℹ️ This will work correctly in production environment');
+      console.log('🔧 Local build - skipping Prisma generate (dev uses tsx/nodemon directly)');
     }
+
+    // Always compile TypeScript so dist/ matches current source.
+    // Local dev (npm run dev:prisma) runs src/ directly and is unaffected.
+    console.log('🏗️ Building TypeScript...');
+    execSync('npx tsc', { stdio: 'inherit' });
     
     console.log('✅ Build completed successfully!');
     

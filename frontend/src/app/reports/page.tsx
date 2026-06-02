@@ -173,6 +173,9 @@ export default function ReportsPage() {
     }
   };
 
+  // Fetch all historical entries (not today-only) for cumulative client balances
+  const clientHistoryParams = { page: 1, limit: 1000, allDates: true as const };
+
   // Calculate balance for a single client from all 4 modules
   const calculateClientBalance = async (client: any) => {
     let totalCredit = 0;
@@ -183,8 +186,8 @@ export default function ReportsPage() {
       // 1. Transactions Module - reduced limit for production compatibility
       try {
         const [outwardTxns, inwardTxns] = await Promise.all([
-          transactionApi.getTransactions({ type: 'OUTWARD', page: 1, limit: 100 }),
-          transactionApi.getTransactions({ type: 'INWARD', page: 1, limit: 100 })
+          transactionApi.getTransactions({ type: 'OUTWARD', ...clientHistoryParams }),
+          transactionApi.getTransactions({ type: 'INWARD', ...clientHistoryParams })
         ]);
 
         const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];
@@ -223,7 +226,7 @@ export default function ReportsPage() {
 
       // 2. Accounting Module - reduced limit for production compatibility
       try {
-        const accEntries = await accountingApi.getAccountEntries({ page: 1, limit: 100 });
+        const accEntries = await accountingApi.getAccountEntries(clientHistoryParams);
         (accEntries.entries || []).forEach(entry => {
           const partyName = entry.party?.name?.toLowerCase() || '';
           if (partyName === clientName) {
@@ -240,7 +243,7 @@ export default function ReportsPage() {
 
       // 3. Hawala Module - reduced limit for production compatibility
       try {
-        const hawalaEntries = await getHawalaEntries({ page: 1, limit: 100 });
+        const hawalaEntries = await getHawalaEntries(clientHistoryParams);
         (hawalaEntries.data || []).forEach(entry => {
           const partyA = entry.partyA?.toLowerCase() || '';
           const partyB = entry.partyB?.toLowerCase() || '';
@@ -260,7 +263,7 @@ export default function ReportsPage() {
 
       // 4. Special Entry Module - reduced limit for production compatibility
       try {
-        const splEntries = await getSpecialEntries({ page: 1, limit: 100 });
+        const splEntries = await getSpecialEntries(clientHistoryParams);
         (splEntries.data || []).forEach(entry => {
           const partyA = entry.partyA?.toLowerCase() || '';
           const partyB = entry.partyB?.toLowerCase() || '';
@@ -303,11 +306,11 @@ export default function ReportsPage() {
     try {
       // Fetch all data from all 4 modules ONCE (instead of per-client)
       const [outwardTxns, inwardTxns, accEntries, hawalaEntries, splEntries] = await Promise.all([
-        transactionApi.getTransactions({ type: 'OUTWARD', page: 1, limit: 500 }),
-        transactionApi.getTransactions({ type: 'INWARD', page: 1, limit: 500 }),
-        accountingApi.getAccountEntries({ page: 1, limit: 500 }),
-        getHawalaEntries({ page: 1, limit: 500 }),
-        getSpecialEntries({ page: 1, limit: 500 })
+        transactionApi.getTransactions({ type: 'OUTWARD', ...clientHistoryParams }),
+        transactionApi.getTransactions({ type: 'INWARD', ...clientHistoryParams }),
+        accountingApi.getAccountEntries(clientHistoryParams),
+        getHawalaEntries(clientHistoryParams),
+        getSpecialEntries(clientHistoryParams)
       ]);
 
       const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];
@@ -409,8 +412,8 @@ export default function ReportsPage() {
     try {
       // 1. Transactions Module - reduced limit for performance
       const [outwardTxns, inwardTxns] = await Promise.all([
-        transactionApi.getTransactions({ type: 'OUTWARD', page: 1, limit: 500 }),
-        transactionApi.getTransactions({ type: 'INWARD', page: 1, limit: 500 })
+        transactionApi.getTransactions({ type: 'OUTWARD', ...clientHistoryParams }),
+        transactionApi.getTransactions({ type: 'INWARD', ...clientHistoryParams })
       ]);
 
       const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];
@@ -474,7 +477,7 @@ export default function ReportsPage() {
       });
 
       // 2. Accounting Module - reduced limit for performance
-      const accEntries = await accountingApi.getAccountEntries({ page: 1, limit: 500 });
+      const accEntries = await accountingApi.getAccountEntries(clientHistoryParams);
       (accEntries.entries || []).forEach(entry => {
         const partyName = entry.party?.name?.toLowerCase() || '';
         const entryDate = new Date(entry.date);
@@ -496,7 +499,7 @@ export default function ReportsPage() {
       });
 
       // 3. Hawala Module - reduced limit for performance
-      const hawalaEntries = await getHawalaEntries({ page: 1, limit: 500 });
+      const hawalaEntries = await getHawalaEntries(clientHistoryParams);
       (hawalaEntries.data || []).forEach(entry => {
         const partyA = entry.partyA?.toLowerCase() || '';
         const partyB = entry.partyB?.toLowerCase() || '';
@@ -520,7 +523,7 @@ export default function ReportsPage() {
       });
 
       // 4. Special Entry Module - reduced limit for performance
-      const splEntries = await getSpecialEntries({ page: 1, limit: 500 });
+      const splEntries = await getSpecialEntries(clientHistoryParams);
       (splEntries.data || []).forEach(entry => {
         const partyA = entry.partyA?.toLowerCase() || '';
         const partyB = entry.partyB?.toLowerCase() || '';
@@ -648,14 +651,16 @@ export default function ReportsPage() {
 
     if (filteredClientLedger.length === 0) return groups;
 
+    const getIndianDateKey = (dateStr: string) => {
+      const entryDate = new Date(dateStr);
+      const indianDate = new Date(entryDate.getTime() + (5.5 * 60 * 60 * 1000));
+      return indianDate.toISOString().split('T')[0];
+    };
+
     // Group by date using Indian timezone (12:00 AM cutoff)
     const dateGroups: Record<string, any[]> = {};
     filteredClientLedger.forEach(entry => {
-      // Convert to Indian timezone (UTC+5:30)
-      const entryDate = new Date(entry.date);
-      const indianDate = new Date(entryDate.getTime() + (5.5 * 60 * 60 * 1000)); // Add 5.5 hours for IST
-      const dateKey = indianDate.toISOString().split('T')[0];
-      
+      const dateKey = getIndianDateKey(entry.date);
       if (!dateGroups[dateKey]) {
         dateGroups[dateKey] = [];
       }
@@ -665,20 +670,16 @@ export default function ReportsPage() {
     // Convert to array and sort by date ascending (oldest first) for correct opening balance calculation
     const sortedDatesAsc = Object.keys(dateGroups).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
-    // Calculate opening balance for each day chronologically
-    let runningBalance = 0;
+    // Opening balance for each day = cumulative balance from ALL entries before that day
+    const allEntriesSorted = [...clientLedger].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
     const balanceMap: Record<string, number> = {};
 
     sortedDatesAsc.forEach((date) => {
-      const entries = dateGroups[date];
-      // Opening balance for this day is the running balance before processing this day's entries
-      // This carries forward the previous day's closing balance
-      balanceMap[date] = runningBalance;
-
-      // Update running balance with this day's entries
-      entries.forEach(entry => {
-        runningBalance += (entry.credit || 0) - (entry.debit || 0);
-      });
+      balanceMap[date] = allEntriesSorted
+        .filter(entry => getIndianDateKey(entry.date) < date)
+        .reduce((sum, entry) => sum + (entry.credit || 0) - (entry.debit || 0), 0);
     });
 
     // Create groups with calculated opening balances, sorted descending for display

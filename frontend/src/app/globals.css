@@ -79,3 +79,119 @@ input[fdprocessedid] {
   }
 }
 
+/* Login page — fixed viewport, static bg, animated card interior only */
+@keyframes login-border-glow {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes login-inner-shimmer {
+  0%,
+  100% {
+    transform: translate(0, 0);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate(6%, 4%);
+    opacity: 0.95;
+  }
+}
+
+@keyframes login-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-6px);
+  }
+  40%,
+  80% {
+    transform: translateX(6px);
+  }
+}
+
+.login-page-root {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+.login-page-bg {
+  background-color: #020617;
+  background-image: url('/images/login-background.svg');
+  /* Full width stretch; height scales with aspect ratio — no cover crop */
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+}
+
+.login-glass-card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    145deg,
+    rgba(3, 7, 18, 0.94) 0%,
+    rgba(15, 23, 42, 0.9) 45%,
+    rgba(30, 58, 138, 0.55) 100%
+  );
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.login-glass-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(96, 165, 250, 0.55),
+    transparent 38%,
+    transparent 62%,
+    rgba(79, 70, 229, 0.45)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: login-border-glow 5s ease-in-out infinite;
+}
+
+.login-glass-card::after {
+  content: '';
+  position: absolute;
+  top: -40%;
+  left: -20%;
+  width: 60%;
+  height: 60%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.22) 0%, transparent 70%);
+  pointer-events: none;
+  animation: login-inner-shimmer 8s ease-in-out infinite;
+}
+
+.login-error-shake {
+  animation: login-shake 0.5s ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-glass-card::before,
+  .login-glass-card::after,
+  .login-error-shake {
+    animation: none;
+  }
+}
+

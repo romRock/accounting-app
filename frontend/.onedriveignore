@@ -1,0 +1,4 @@
+# Keep Next.js build output local — prevents EBUSY lock errors during `npm run dev`
+.next
+node_modules
+out

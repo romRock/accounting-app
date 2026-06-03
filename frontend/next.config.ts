@@ -1,4 +1,8 @@
 import type { NextConfig } from 'next';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const frontendRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -12,6 +16,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  outputFileTracingRoot: frontendRoot,
   webpack: (config) => config,
   reactStrictMode: false,
   async rewrites() {

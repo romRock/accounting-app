@@ -5,6 +5,8 @@
   "private": true,
   "scripts": {
     "dev": "node scripts/free-port.js 3001 && concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:clean": "node scripts/clean-frontend-next.js && node scripts/free-port.js 3001 && concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "clean:next": "node scripts/clean-frontend-next.js",
     "dev:backend": "cd backend && npm run dev:prisma",
     "dev:frontend": "cd frontend && npm run dev",
     

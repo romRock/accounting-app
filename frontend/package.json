@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
+    "dev:clean": "node ../scripts/clean-frontend-next.js && next dev --webpack",
+    "clean:next": "node ../scripts/clean-frontend-next.js",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint"

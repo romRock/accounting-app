@@ -668,6 +668,13 @@ export default function AccountingPage() {
                 </div>
                 <div className="flex justify-end gap-2 mt-4">
                       <Button
+                        onClick={saveTransaction}
+                        className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        {selectedTransaction ? 'Update' : 'Save'}
+                      </Button>
+                      <Button
                         onClick={clearForm}
                         className="bg-red-600 hover:bg-red-700 text-white border-red-600 w-full sm:w-auto"
                       >
@@ -681,13 +688,6 @@ export default function AccountingPage() {
                       >
                         <Trash2 className="w-4 h-4 mr-2" />
                         Delete
-                      </Button>
-                      <Button
-                        onClick={saveTransaction}
-                        className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
-                      >
-                        <Save className="w-4 h-4 mr-2" />
-                        {selectedTransaction ? 'Update' : 'Save'}
                       </Button>
                     </div>
               </CardContent>

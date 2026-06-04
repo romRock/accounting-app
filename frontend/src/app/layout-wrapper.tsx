@@ -60,6 +60,14 @@ export default function LayoutWrapper({
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const reportDropdownRef = useRef<HTMLDivElement>(null);
 
+  const getSelectedReportButtonLabel = (
+    report: typeof activeReport
+  ): string => {
+    if (report === 'outward') return 'Booking Report';
+    if (report === 'inward') return 'Cutting Report';
+    return `${report.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())} Report`;
+  };
+
   // Close report dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -278,6 +286,11 @@ export default function LayoutWrapper({
     return <>{children}</>;
   }
 
+  // Client ledger opens in its own tab — fullscreen view without app chrome
+  if (pathname.startsWith('/reports/client-ledger')) {
+    return <>{children}</>;
+  }
+
   const allNavigation = [
     { 
       name: 'Dashboard', 
@@ -440,7 +453,7 @@ export default function LayoutWrapper({
                       <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+D ]</span>
                     )}
                     {item.name === 'Transactions' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+T ]</span>
+                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+X ]</span>
                     )}
                     {item.name === 'Accounting' && (
                       <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+A ]</span>
@@ -821,7 +834,7 @@ export default function LayoutWrapper({
                     onClick={() => setReportDropdownOpen(!reportDropdownOpen)}
                     className="relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 bg-gradient-to-br from-orange-500 via-orange-400 to-orange-500 text-white backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm flex space-x-2"
                   >
-                    <span className="relative z-10">{activeReport.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())} Report</span>
+                    <span className="relative z-10">{getSelectedReportButtonLabel(activeReport)}</span>
                     <svg className="w-4 h-4 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>

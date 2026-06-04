@@ -683,6 +683,13 @@ export default function HawalaPage() {
             {/* Action Buttons */}
             <div className="flex justify-end gap-2">
               <Button
+                onClick={handleSave}
+                className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {editingId ? 'Update' : 'Save'}
+              </Button>
+              <Button
                 onClick={handleClear}
                 className="bg-red-600 hover:bg-red-700 text-white border-red-600 w-full sm:w-auto"
               >
@@ -698,13 +705,7 @@ export default function HawalaPage() {
                   Delete
                 </Button>
               )}
-              <Button
-                onClick={handleSave}
-                className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
-              >
-                <Save className="w-4 h-4 mr-2" />
-                {editingId ? 'Update' : 'Save'}
-              </Button>
+              
             </div>
           </CardContent>
         </Card>

@@ -708,6 +708,10 @@ export default function SPLPage() {
 
             {/* Action Buttons */}
             <div className="flex justify-end gap-3 mt-6">
+            <Button onClick={saveEntry} className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto">
+                <Save className="w-4 h-4 mr-2" />
+                {selectedEntry ? 'Update' : 'Save'}
+              </Button>
               <Button onClick={clearForm} variant="outline" className="bg-red-600 hover:bg-red-700 text-white border-red-600 w-full sm:w-auto">
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Clear
@@ -716,10 +720,7 @@ export default function SPLPage() {
                 <Trash2 className="w-4 h-4 mr-2" />
                 Delete
               </Button>
-              <Button onClick={saveEntry} className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto">
-                <Save className="w-4 h-4 mr-2" />
-                {selectedEntry ? 'Update' : 'Save'}
-              </Button>
+              
             </div>
           </CardContent>
         </Card>

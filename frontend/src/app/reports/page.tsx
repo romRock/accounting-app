@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import React from 'react';
@@ -15,6 +15,8 @@ import { transactionApi, Transaction } from '@/lib/transactions';
 import { accountingApi, AccountingEntry } from '@/lib/accounting';
 import { getHawalaEntries, HawalaEntry } from '@/lib/hawala';
 import { getSpecialEntries, SpecialEntry } from '@/lib/specialEntry';
+import { CLIENT_HISTORY_PARAMS } from '@/lib/client-ledger';
+import { showErrorToast, showSuccessToast, Toaster } from '@/lib/toast';
 
 // Unified row used only by Transaction Report (report #5)
 type TxnReportModule = 'transaction' | 'accounting' | 'hawala' | 'special';
@@ -43,6 +45,19 @@ interface TxnReportRow {
 
 // Report Types
 type ReportType = 'outward' | 'inward' | 'combo' | 'amount-type' | 'transaction' | 'customer' | 'transaction-refund';
+
+/** UI labels for outward/inward reports (dropdown uses Booking/Cutting; ids stay outward/inward). */
+function getReportDisplayName(report: ReportType): string {
+  if (report === 'outward') return 'Booking';
+  if (report === 'inward') return 'Cutting';
+  return report.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+function getReportExportTitle(report: ReportType): string {
+  if (report === 'outward') return 'BOOKING REPORT';
+  if (report === 'inward') return 'CUTTING REPORT';
+  return report.replace('-', ' ').toUpperCase() + ' REPORT';
+}
 
 interface ReportFilters {
   dateFrom: string;
@@ -152,19 +167,6 @@ export default function ReportsPage() {
   // ----- Customer Report dedicated state -----
   const [clients, setClients] = useState<any[]>([]);
   const [clientBalances, setClientBalances] = useState<Record<string, { balance: number; credit: number; debit: number }>>({});
-  const [selectedClient, setSelectedClient] = useState<any | null>(null);
-  const [clientLedger, setClientLedger] = useState<any[]>([]);
-
-  // Client ledger filter state
-  const [ledgerFilterByDate, setLedgerFilterByDate] = useState(false);
-  const [ledgerDateFilter, setLedgerDateFilter] = useState('');
-  const [ledgerStartDate, setLedgerStartDate] = useState('');
-  const [ledgerEndDate, setLedgerEndDate] = useState('');
-  const [ledgerIsSelectingRange, setLedgerIsSelectingRange] = useState(false);
-  const [ledgerSearchTerm, setLedgerSearchTerm] = useState('');
-  const [ledgerExporting, setLedgerExporting] = useState(false);
-  const [checkedRows, setCheckedRows] = useState<Set<number>>(new Set());
-
   // Transaction Refund Report state
   const [refundReportData, setRefundReportData] = useState<any[]>([]);
   const [refundSummary, setRefundSummary] = useState<any>(null);
@@ -208,7 +210,7 @@ export default function ReportsPage() {
   };
 
   // Fetch all historical entries (not today-only) for cumulative client balances
-  const clientHistoryParams = { page: 1, limit: 1000, allDates: true as const };
+  const clientHistoryParams = CLIENT_HISTORY_PARAMS;
 
   // Calculate balance for a single client from all 4 modules
   const calculateClientBalance = async (client: any) => {
@@ -436,526 +438,19 @@ export default function ReportsPage() {
     }
   };
 
-  // Fetch ledger entries for a specific client from all modules
-  const fetchClientLedger = async (client: any) => {
-    setLoading(true);
-    const ledgerEntries: any[] = [];
-    const clientName = client.name.toLowerCase();
-    const clientCreatedDate = new Date(client.createdAt);
-
-    try {
-      // 1. Transactions Module - reduced limit for performance
-      const [outwardTxns, inwardTxns] = await Promise.all([
-        transactionApi.getTransactions({ type: 'OUTWARD', ...clientHistoryParams }),
-        transactionApi.getTransactions({ type: 'INWARD', ...clientHistoryParams })
-      ]);
-
-      const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];
-
-      allTxns.forEach(txn => {
-        const receiverName = txn.receiverName?.toLowerCase() || '';
-        const senderName = txn.senderName?.toLowerCase() || '';
-        const txnDate = new Date(txn.date);
-
-        if (receiverName === clientName || senderName === clientName) {
-          let isCredit = false;
-          let debitAmount = 0;
-          let creditAmount = 0;
-
-          if (txn.type === 'OUTWARD') {
-            // OUTWARD: Check amountType to determine debit/credit
-            if (txn.amountType === 'CREDIT' && senderName === clientName) {
-              // CREDIT + Sender is client: Client owes us money (DEBIT)
-              isCredit = false;
-              debitAmount = (txn.amount || 0) + (txn.commission || 0);
-              creditAmount = 0;
-            } else {
-              // CASH or Receiver is client: Normal outward (credit to receiver)
-              isCredit = true;
-              debitAmount = 0;
-              creditAmount = (txn.amount || 0) + (txn.centerCommission || 0);
-            }
-          } else if (txn.type === 'INWARD') {
-            // INWARD: Check amountType to determine debit/credit
-            if (txn.amountType === 'CREDIT' && receiverName === clientName) {
-              // CREDIT + Receiver is client: We receive money for client (CREDIT)
-              // Credit: Amount only (commission is our profit)
-              isCredit = true;
-              debitAmount = 0;
-              creditAmount = (txn.amount || 0);
-            } else {
-              // CASH or Sender is client: Normal inward (debit to sender)
-              isCredit = false;
-              debitAmount = (txn.amount || 0);
-              creditAmount = 0;
-            }
-          }
-
-          const otherParty = receiverName === clientName ? senderName : receiverName;
-          const descParts = [txn.type, otherParty];
-          if (txn.center?.name) descParts.push(`Center: ${txn.center.name}`);
-          else if (txn.centerId) descParts.push(`Center: ${txn.centerId}`);
-          if (txn.amountType) descParts.push(txn.amountType);
-          if (txn.remark) descParts.push(`Remark: ${txn.remark}`);
-          ledgerEntries.push({
-            date: txn.date,
-            time: txn.time ? new Date(txn.time).toTimeString().slice(0, 5) : '',
-            module: 'Transaction',
-            description: descParts.join(' - '),
-            debit: debitAmount,
-            credit: creditAmount,
-            balance: 0,
-            reference: txn.transactionId || txn.id,
-          });
-        }
-      });
-
-      // 2. Accounting Module - reduced limit for performance
-      const accEntries = await accountingApi.getAccountEntries(clientHistoryParams);
-      (accEntries.entries || []).forEach(entry => {
-        const partyName = entry.party?.name?.toLowerCase() || '';
-
-        if (partyName === clientName) {
-          const isCredit = entry.type === 'INCOME';
-          const descParts: string[] = entry.type ? [entry.type] : [];
-          const categoryName =
-            typeof entry.category === 'string'
-              ? entry.category
-              : entry.category?.name;
-          if (categoryName) descParts.push(categoryName);
-          if (entry.description?.trim()) descParts.push(`Remark: ${entry.description.trim()}`);
-
-          const timeSource = entry.statusTime || entry.time || entry.createdAt;
-          const accountingTime = timeSource
-            ? new Date(timeSource).toTimeString().slice(0, 5)
-            : '';
-
-          ledgerEntries.push({
-            date: entry.date,
-            time: accountingTime,
-            module: 'Accounting',
-            description: descParts.join(' - '),
-            debit: isCredit ? 0 : (entry.debitAmount || entry.amount || 0),
-            credit: isCredit ? (entry.creditAmount || entry.amount || 0) : 0,
-            balance: 0,
-            reference: entry.id,
-          });
-        }
-      });
-
-      // 3. Hawala Module - reduced limit for performance
-      const hawalaEntries = await getHawalaEntries(clientHistoryParams);
-      (hawalaEntries.data || []).forEach(entry => {
-        const partyA = entry.partyA?.toLowerCase() || '';
-        const partyB = entry.partyB?.toLowerCase() || '';
-        const entryDate = new Date(entry.date);
-
-        if (partyA === clientName || partyB === clientName) {
-          const isCredit = partyA === clientName; // Party A (receiver) gets credit
-          const descParts = [entry.partyA, 'from', entry.partyB];
-          if (entry.remark) descParts.push(`Remark: ${entry.remark}`);
-          ledgerEntries.push({
-            date: entry.date,
-            time: entry.time ? new Date(entry.time).toTimeString().slice(0, 5) : '',
-            module: 'Hawala',
-            description: descParts.join(' - '),
-            debit: isCredit ? 0 : (entry.amount || 0),
-            credit: isCredit ? (entry.amount || 0) : 0,
-            balance: 0,
-            reference: entry.id,
-          });
-        }
-      });
-
-      // 4. Special Entry Module - reduced limit for performance
-      const splEntries = await getSpecialEntries(clientHistoryParams);
-      (splEntries.data || []).forEach(entry => {
-        const partyA = entry.partyA?.toLowerCase() || '';
-        const partyB = entry.partyB?.toLowerCase() || '';
-        const partyC = entry.partyC?.toLowerCase() || '';
-        const entryDate = new Date(entry.date);
-
-        if (partyA === clientName || partyB === clientName || partyC === clientName) {
-          let isCredit = false;
-          let amount = 0;
-          let descParts: string[] = [];
-
-          if (partyA === clientName) {
-            // Party A: Expense/Debit (-)
-            isCredit = false;
-            amount = entry.amountA || 0;
-            descParts = ['SPL', `Expense to ${entry.partyB}`, `Amount A: ${amount}`];
-          } else if (partyB === clientName) {
-            // Party B: Income/Credit (+)
-            isCredit = true;
-            amount = entry.amountB || 0;
-            descParts = ['SPL', `Income from ${entry.partyA}`, `Amount B: ${amount}`];
-          } else if (partyC === clientName) {
-            // Party C: Dynamic based on amountC sign
-            const amountC = entry.amountC || 0;
-            isCredit = amountC > 0;
-            amount = Math.abs(amountC);
-            descParts = ['SPL', `${isCredit ? 'Income' : 'Expense'} (Remaining A-B)`, `Amount C: ${amountC}`];
-          }
-
-          if (entry.remark) descParts.push(`Remark: ${entry.remark}`);
-          ledgerEntries.push({
-            date: entry.date,
-            time: entry.time ? new Date(entry.time).toTimeString().slice(0, 5) : '',
-            module: 'Special Entry',
-            description: descParts.join(' - '),
-            debit: isCredit ? 0 : amount,
-            credit: isCredit ? amount : 0,
-            balance: 0,
-            reference: entry.id,
-          });
-        }
-      });
-
-      // Sort by date ascending (oldest first) and calculate running balance
-      ledgerEntries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      let runningBalance = 0;
-      ledgerEntries.forEach(entry => {
-        runningBalance += (entry.credit || 0) - (entry.debit || 0);
-        entry.balance = runningBalance;
-      });
-
-      setClientLedger(ledgerEntries);
-    } catch (error) {
-      setClientLedger([]);
-    } finally {
-      setLoading(false);
+  // Open client ledger in a new tab so the user can keep working in this tab
+  const handleClientClick = (client: { id: string; name?: string }) => {
+    const url = `/reports/client-ledger?clientId=${encodeURIComponent(client.id)}`;
+    // Do not pass noopener/noreferrer — those make window.open return null even when the tab opens
+    const opened = window.open(url, '_blank');
+    if (!opened) {
+      showErrorToast('Please allow popups to open the client ledger in a new tab.');
+      return;
     }
+    const label = client.name?.trim() || 'Client';
+    showSuccessToast(`${label} ledger opened in a new tab`);
   };
 
-  // Handle client row click
-  const handleClientClick = (client: any) => {
-    setSelectedClient(client);
-    fetchClientLedger(client);
-  };
-
-  // Close ledger modal
-  const closeLedger = () => {
-    setSelectedClient(null);
-    setClientLedger([]);
-    // Reset ledger filters
-    setLedgerFilterByDate(false);
-    setLedgerDateFilter('');
-    setLedgerStartDate('');
-    setLedgerEndDate('');
-    setLedgerIsSelectingRange(false);
-    setLedgerSearchTerm('');
-    setCheckedRows(new Set());
-  };
-
-  // Toggle row check
-  const toggleRowCheck = (index: number) => {
-    const newCheckedRows = new Set(checkedRows);
-    if (newCheckedRows.has(index)) {
-      newCheckedRows.delete(index);
-    } else {
-      newCheckedRows.add(index);
-    }
-    setCheckedRows(newCheckedRows);
-  };
-
-  // Filter client ledger entries
-  const filteredClientLedger = clientLedger.filter(entry => {
-    // Search filter
-    if (ledgerSearchTerm) {
-      const searchLower = ledgerSearchTerm.toLowerCase();
-      const matchesSearch =
-        entry.module?.toLowerCase().includes(searchLower) ||
-        entry.description?.toLowerCase().includes(searchLower) ||
-        entry.reference?.toLowerCase().includes(searchLower);
-      if (!matchesSearch) return false;
-    }
-
-    // Date filter
-    if (ledgerFilterByDate) {
-      const entryDate = new Date(entry.date).toISOString().split('T')[0];
-
-      if (ledgerIsSelectingRange) {
-        if (ledgerStartDate && entryDate < ledgerStartDate) return false;
-        if (ledgerEndDate && entryDate > ledgerEndDate) return false;
-      } else {
-        if (ledgerDateFilter && entryDate !== ledgerDateFilter) return false;
-      }
-    }
-
-    return true;
-  });
-
-  // Group filtered ledger entries by day with opening balance
-  const groupedLedgerEntries = (() => {
-    const groups: Array<{
-      date: string;
-      openingBalance: number;
-      entries: any[];
-    }> = [];
-
-    if (filteredClientLedger.length === 0) return groups;
-
-    const getIndianDateKey = (dateStr: string) => {
-      const entryDate = new Date(dateStr);
-      const indianDate = new Date(entryDate.getTime() + (5.5 * 60 * 60 * 1000));
-      return indianDate.toISOString().split('T')[0];
-    };
-
-    // Group by date using Indian timezone (12:00 AM cutoff)
-    const dateGroups: Record<string, any[]> = {};
-    filteredClientLedger.forEach(entry => {
-      const dateKey = getIndianDateKey(entry.date);
-      if (!dateGroups[dateKey]) {
-        dateGroups[dateKey] = [];
-      }
-      dateGroups[dateKey].push(entry);
-    });
-
-    // Convert to array and sort by date ascending (oldest first) for correct opening balance calculation
-    const sortedDatesAsc = Object.keys(dateGroups).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-
-    // Opening balance for each day = cumulative balance from ALL entries before that day
-    const allEntriesSorted = [...clientLedger].sort(
-      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
-    const balanceMap: Record<string, number> = {};
-
-    sortedDatesAsc.forEach((date) => {
-      balanceMap[date] = allEntriesSorted
-        .filter(entry => getIndianDateKey(entry.date) < date)
-        .reduce((sum, entry) => sum + (entry.credit || 0) - (entry.debit || 0), 0);
-    });
-
-    // Create groups with calculated opening balances, sorted descending for display
-    const sortedDatesDesc = Object.keys(dateGroups).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-
-    sortedDatesDesc.forEach((date) => {
-      groups.push({
-        date,
-        openingBalance: balanceMap[date],
-        entries: dateGroups[date],
-      });
-    });
-
-    return groups;
-  })();
-
-  // Export client ledger
-  const exportClientLedger = async (format: 'excel' | 'pdf') => {
-    setLedgerExporting(true);
-    try {
-      const dataToExport = filteredClientLedger;
-
-      if (format === 'excel') {
-        // Create CSV content for Excel export
-        const headers = ['Date', 'Module', 'Description', 'Debit', 'Credit', 'Balance'].join(',');
-        const rows = dataToExport.map(entry => {
-          const date = formatDate(entry.date);
-          const module = entry.module || '-';
-          const description = entry.description || '-';
-          const debit = entry.debit > 0 ? entry.debit.toString() : '0';
-          const credit = entry.credit > 0 ? entry.credit.toString() : '0';
-          const balance = entry.balance.toString();
-
-          return [date, module, description, debit, credit, balance].map(v => escapeCSV(v)).join(',');
-        }).join('\n');
-
-        const csvContent = `${headers}\n${rows}`;
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${selectedClient?.name || 'client'}-ledger.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-      } else {
-        // Generate PDF using HTML-to-PDF approach
-        generateClientLedgerPDF();
-      }
-    } catch (error) {
-      alert('Export failed');
-    } finally {
-      setLedgerExporting(false);
-    }
-  };
-
-  // Generate client ledger PDF using print window approach
-  const generateClientLedgerPDF = () => {
-    const clientName = selectedClient?.name || 'Client';
-    const reportTitle = `${clientName} - LEDGER REPORT`;
-    const dataToExport = filteredClientLedger;
-
-    // Calculate summary
-    let totalDebit = 0;
-    let totalCredit = 0;
-    dataToExport.forEach(entry => {
-      totalDebit += entry.debit || 0;
-      totalCredit += entry.credit || 0;
-    });
-    const netBalance = totalCredit - totalDebit;
-
-    // Create HTML content for PDF
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>${reportTitle}</title>
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            color: #333;
-          }
-          .header {
-            text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #333;
-            padding-bottom: 20px;
-          }
-          .header h1 {
-            margin: 0;
-            font-size: 24px;
-            font-weight: bold;
-          }
-          .header p {
-            margin: 5px 0 0 0;
-            color: #666;
-            font-size: 14px;
-          }
-          .summary {
-            margin-bottom: 30px;
-            display: flex;
-            justify-content: space-around;
-            background: #f5f5f5;
-            padding: 15px;
-            border-radius: 5px;
-          }
-          .summary-item {
-            text-align: center;
-          }
-          .summary-item .label {
-            font-size: 12px;
-            color: #666;
-            margin-bottom: 5px;
-          }
-          .summary-item .value {
-            font-size: 18px;
-            font-weight: bold;
-            color: #333;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-          }
-          th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-          }
-          th {
-            background-color: #f2f2f2;
-            font-weight: bold;
-            font-size: 12px;
-            text-transform: uppercase;
-          }
-          td {
-            font-size: 12px;
-          }
-          .text-right {
-            text-align: right;
-          }
-          .text-green {
-            color: #28a745;
-          }
-          .text-red {
-            color: #dc3545;
-          }
-          .footer {
-            margin-top: 30px;
-            text-align: center;
-            font-size: 10px;
-            color: #666;
-            border-top: 1px solid #ddd;
-            padding-top: 10px;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>${reportTitle}</h1>
-          <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
-          <p>From ${selectedClient?.createdAt ? formatDate(selectedClient.createdAt) : 'N/A'}</p>
-          ${ledgerFilterByDate ? `<p>Filter Period: ${ledgerIsSelectingRange ? `${formatDate(ledgerStartDate)} to ${formatDate(ledgerEndDate)}` : formatDate(ledgerDateFilter)}</p>` : ''}
-        </div>
-        
-        <div class="summary">
-          <div class="summary-item">
-            <div class="label">Total Records</div>
-            <div class="value">${dataToExport.length}</div>
-          </div>
-          <div class="summary-item">
-            <div class="label">Total Debit</div>
-            <div class="value text-red">${formatCurrency(totalDebit)}</div>
-          </div>
-          <div class="summary-item">
-            <div class="label">Total Credit</div>
-            <div class="value text-green">${formatCurrency(totalCredit)}</div>
-          </div>
-          <div class="summary-item">
-            <div class="label">Net Balance</div>
-            <div class="value ${netBalance >= 0 ? 'text-green' : 'text-red'}">${formatCurrency(netBalance)}</div>
-          </div>
-        </div>
-        
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Module</th>
-              <th>Description</th>
-              <th class="text-right">Expense</th>
-              <th class="text-right">Income</th>
-              <th class="text-right">Balance</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${dataToExport.map(entry => `
-              <tr>
-                <td>${formatDate(entry.date)}</td>
-                <td>${entry.module || '-'}</td>
-                <td>${entry.description || '-'}</td>
-                <td class="text-right ${entry.debit > 0 ? 'text-red' : ''}">${entry.debit > 0 ? formatCurrency(entry.debit) : '-'}</td>
-                <td class="text-right ${entry.credit > 0 ? 'text-green' : ''}">${entry.credit > 0 ? formatCurrency(entry.credit) : '-'}</td>
-                <td class="text-right ${entry.balance >= 0 ? 'text-green' : 'text-red'}">${formatCurrency(entry.balance)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-        
-        <div class="footer">
-          <p>This is a computer-generated report. For any discrepancies, please contact the administrator.</p>
-        </div>
-      </body>
-      </html>
-    `;
-
-    // Open in new window for printing
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(htmlContent);
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => {
-        printWindow.print();
-      }, 500);
-    } else {
-      alert('Please allow popups to generate PDF');
-    }
-  };
   const fetchTransactions = async () => {
     setLoading(true);
     try {
@@ -985,7 +480,7 @@ export default function ReportsPage() {
           })
         ]);
 
-        // Combine both transaction types — newest first (current balance at top)
+        // Combine both transaction types â€” newest first (current balance at top)
         const allTransactions = [...inwardResponse.transactions, ...outwardResponse.transactions]
           .sort(compareComboTransactionsByTimeDesc);
 
@@ -1483,7 +978,7 @@ export default function ReportsPage() {
   // Generate PDF using print window approach
   const generatePDF = () => {
     const columns = getColumns();
-    const reportTitle = activeReport.replace('-', ' ').toUpperCase() + ' REPORT';
+    const reportTitle = getReportExportTitle(activeReport);
 
     // Create HTML content for PDF
     const htmlContent = `
@@ -1600,7 +1095,7 @@ export default function ReportsPage() {
           </div>
           <div class="summary-item">
             <div class="label">Average Amount</div>
-            <div class="value">${summary.totalRecords > 0 ? formatCurrency(summary.totalAmount / summary.totalRecords) : '₹0.00'}</div>
+            <div class="value">${summary.totalRecords > 0 ? formatCurrency(summary.totalAmount / summary.totalRecords) : 'â‚¹0.00'}</div>
           </div>
         </div>
         ` : ''}
@@ -2137,6 +1632,7 @@ export default function ReportsPage() {
   }
 
   return (
+    <>
     <div className="bg-white min-h-screen w-full">
       <div className="pt-16 space-y-4 sm:space-y-6">
 
@@ -2362,7 +1858,7 @@ export default function ReportsPage() {
                 Report Summary
               </CardTitle>
               <CardDescription className="text-gray-600">
-                Summary of the generated {activeReport.replace('-', ' ')} report
+                Summary of the generated {getReportDisplayName(activeReport).toLowerCase()} report
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -2681,7 +2177,7 @@ export default function ReportsPage() {
               <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
                 <div>
                   <CardTitle className="text-xl font-semibold text-gray-900">
-                    {activeReport.replace('-', ' ')} Report Data
+                    {getReportDisplayName(activeReport)} Report Data
                   </CardTitle>
                   <CardDescription className="text-gray-600">
                     {filteredData.length} records found
@@ -2764,272 +2260,9 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
         )}
-
-        {/* Client Ledger Full Screen White Board */}
-        {selectedClient && (
-          <>
-            <style jsx global>{`
-              body { overflow: hidden !important; margin: 0 !important; padding: 0 !important; }
-            `}</style>
-            <div className="fixed top-0 inset-0 bg-white z-[1000000000] flex flex-col overflow-hidden" style={{ marginTop: 0 }}>
-              {/* Compact Header */}
-              <div className="border-b border-gray-200 bg-gradient-to-r from-gray-50 via-blue-50 to-gray-50 px-4 py-2 flex items-center justify-between flex-shrink-0 relative">
-                <div className="flex items-center space-x-3">
-                  <h1 className="text-lg font-bold text-gray-900">{selectedClient.name} - Ledger</h1>
-                  <span className="text-xs text-gray-500">
-                    From{' '}
-                    {selectedClient.createdAt
-                      ? formatDate(selectedClient.createdAt)
-                      : filteredClientLedger.length > 0
-                        ? formatDate(filteredClientLedger[0].date)
-                        : 'N/A'}
-                  </span>
-                  {filteredClientLedger.length > 0 && (
-                    <div className={`px-6 py-1 rounded-lg font-bold text-xl shadow-lg border-2 ${
-                      filteredClientLedger[filteredClientLedger.length - 1].balance >= 0 
-                        ? 'bg-gradient-to-r from-green-400 to-green-600 border-green-700 text-white' 
-                        : 'bg-gradient-to-r from-red-400 to-red-600 border-red-700 text-white'
-                    }`}>
-                      Balance: {formatCurrency(filteredClientLedger[filteredClientLedger.length - 1].balance)}
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={closeLedger}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-full p-2 transition-colors"
-                  title="Close"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Compact Filters - One Row */}
-              <div className="border-b border-gray-200 bg-white px-4 py-2 flex-shrink-0">
-                <div className="flex items-center space-x-3 flex-wrap gap-2">
-                  {/* Date Filter */}
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="ledgerFilterByDate"
-                      checked={ledgerFilterByDate}
-                      onChange={(e) => {
-                        setLedgerFilterByDate(e.target.checked);
-                        if (e.target.checked) {
-                          const today = new Date();
-                          const currentDate = today.getFullYear() + '-' +
-                            String(today.getMonth() + 1).padStart(2, '0') + '-' +
-                            String(today.getDate()).padStart(2, '0');
-                          setLedgerDateFilter(currentDate);
-                          setLedgerStartDate('');
-                          setLedgerEndDate('');
-                          setLedgerIsSelectingRange(false);
-                        } else {
-                          setLedgerDateFilter('');
-                          setLedgerStartDate('');
-                          setLedgerEndDate('');
-                          setLedgerIsSelectingRange(false);
-                        }
-                      }}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <Label htmlFor="ledgerFilterByDate" className="text-sm font-medium text-gray-700">Date</Label>
-                    {ledgerFilterByDate && (
-                      <div className="flex items-center space-x-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLedgerStartDate('');
-                            setLedgerEndDate('');
-                            setLedgerDateFilter('');
-                            setLedgerIsSelectingRange(false);
-                          }}
-                          className={`px-2 py-1 text-xs rounded ${!ledgerIsSelectingRange && !ledgerDateFilter
-                              ? 'bg-blue-500 text-white'
-                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                            }`}
-                        >
-                          Single
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLedgerStartDate('');
-                            setLedgerEndDate('');
-                            setLedgerDateFilter('');
-                            setLedgerIsSelectingRange(true);
-                          }}
-                          className={`px-2 py-1 text-xs rounded ${ledgerIsSelectingRange
-                              ? 'bg-blue-500 text-white'
-                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                            }`}
-                        >
-                          Range
-                        </button>
-                        {!ledgerIsSelectingRange ? (
-                          <Input
-                            type="date"
-                            value={ledgerDateFilter}
-                            onChange={(e) => setLedgerDateFilter(e.target.value)}
-                            className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm w-36"
-                          />
-                        ) : (
-                          <div className="flex items-center space-x-1">
-                            <Input
-                              type="date"
-                              value={ledgerStartDate}
-                              onChange={(e) => setLedgerStartDate(e.target.value)}
-                              className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm w-36"
-                            />                            <span className="text-gray-500 text-xs">to</span>
-                            <Input
-                              type="date"
-                              value={ledgerEndDate}
-                              onChange={(e) => setLedgerEndDate(e.target.value)}
-                              className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm w-36"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Search Input */}
-                  <Input
-                    placeholder="Search..."
-                    value={ledgerSearchTerm}
-                    onChange={(e) => setLedgerSearchTerm(e.target.value)}
-                    className="bg-white h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm w-48 placeholder:text-gray-600"
-                  />
-
-                  {/* Action Buttons */}
-                  <Button
-                    onClick={() => {
-                      setLedgerFilterByDate(false);
-                      setLedgerDateFilter('');
-                      setLedgerStartDate('');
-                      setLedgerEndDate('');
-                      setLedgerIsSelectingRange(false);
-                      setLedgerSearchTerm('');
-                    }}
-                    variant="outline"
-                    className="bg-black hover:bg-gray-800 text-white border border-gray-300 hover:border-gray-400 h-8 text-sm px-3"
-                  >
-                    Reset
-                  </Button>
-                  <Button
-                    onClick={() => exportClientLedger('excel')}
-                    disabled={ledgerExporting || filteredClientLedger.length === 0}
-                    variant="outline"
-                    className="bg-green-600 hover:bg-green-700 text-white border border-green-300 hover:border-green-400 h-8 text-sm px-3"
-                  >
-                    Excel
-                  </Button>
-                  <Button
-                    onClick={() => exportClientLedger('pdf')}
-                    disabled={ledgerExporting || filteredClientLedger.length === 0}
-                    variant="outline"
-                    className="bg-red-600 hover:bg-red-700 text-white border border-red-300 hover:border-red-400 h-8 text-sm px-3"
-                  >
-                    PDF
-                  </Button>
-                </div>
-              </div>
-
-              {/* Ledger Data Table - Full Height */}
-              <div className="flex-1 overflow-auto p-4">
-                <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10 h-full flex flex-col">
-                  <div className="px-4 py-2 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-900">Ledger Data ({filteredClientLedger.length} records)</span>
-                  </div>
-                  <div className="flex-1 overflow-auto">
-                    {loading ? (
-                      <AccountingLoader message="Loading ledger..." />
-                    ) : filteredClientLedger.length === 0 ? (
-                      <div className="text-center py-8">
-                        <p className="text-gray-500">No ledger entries found. Please try adjusting your filters.</p>
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full bg-white border border-gray-200 rounded-lg">
-                          <thead className="bg-gray-50 border-b border-gray-200">
-                            <tr>
-                              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 w-10">Check</th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Date</th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Time</th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Module</th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Description</th>
-                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Expense</th>
-                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Income</th>
-                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {groupedLedgerEntries.map((group, groupIndex) => (
-                              <React.Fragment key={`group-${groupIndex}`}>
-                                {/* Day header with opening balance */}
-                                <tr className={`${group.openingBalance >= 0 ? 'bg-green-300 border-b-2 border-green-200' : 'bg-red-300 border-b-2 border-red-200'}`}>
-                                  <td colSpan={5} className="px-3 py-2 text-sm font-bold text-gray-900">
-                                    {formatDate(group.date)}
-                                  </td>
-                                  <td colSpan={3} className={`px-3 py-2 text-sm font-bold text-right ${group.openingBalance >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                                    <span className={group.openingBalance < 0 ? 'animate-pulse' : ''}>
-                                      Opening Balance: {formatCurrency(group.openingBalance)}
-                                    </span>
-                                  </td>
-                                </tr>
-                                {/* Entries for this day */}
-                                {group.entries.map((entry, entryIndex) => {
-                                  const globalIndex = filteredClientLedger.indexOf(entry);
-                                  return (
-                                    <tr
-                                      key={`entry-${groupIndex}-${entryIndex}`}
-                                      className={`hover:bg-gray-50 cursor-pointer ${checkedRows.has(globalIndex) ? 'bg-blue-50' : ''}`}
-                                      onClick={() => toggleRowCheck(globalIndex)}
-                                    >
-                                      <td className="px-2 py-2 border-r border-gray-200">
-                                        <input
-                                          type="checkbox"
-                                          checked={checkedRows.has(globalIndex)}
-                                          onChange={() => toggleRowCheck(globalIndex)}
-                                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
-                                          onClick={(e) => e.stopPropagation()}
-                                        />
-                                      </td>
-                                      <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200">{formatDate(entry.date)}</td>
-                                      <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200">{entry.time || '-'}</td>
-                                      <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200">{entry.module}</td>
-                                      <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200">{entry.description}</td>
-                                      <td className={`px-3 py-2 text-sm text-right border-r border-gray-200 ${entry.debit > 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                                        {entry.debit > 0 ? formatCurrency(entry.debit) : '-'}
-                                      </td>
-                                      <td className={`px-3 py-2 text-sm text-right border-r border-gray-200 ${entry.credit > 0 ? 'text-green-600' : 'text-gray-900'}`}>
-                                        {entry.credit > 0 ? formatCurrency(entry.credit) : '-'}
-                                      </td>
-                                      <td className={`px-3 py-2 text-sm text-right font-medium ${entry.balance >= 0 ? 'text-green-600' : 'text-red-600'
-                                        }`}>
-                                        {formatCurrency(entry.balance)}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                                {/* Day separator line */}
-                                <tr className="border-b-2 border-gray-300">
-                                  <td colSpan={8} className="py-1"></td>
-                                </tr>
-                              </React.Fragment>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                </Card>
-              </div>
-            </div>
-          </>
-        )}
       </div>
     </div>
+    <Toaster />
+    </>
   );
 }

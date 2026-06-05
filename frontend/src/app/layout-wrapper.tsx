@@ -9,6 +9,8 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { Button } from '@/components/ui/button';
 import { Calendar } from 'lucide-react';
 import ScrollToTop from '@/components/ScrollToTop';
+import { SidebarStars } from '@/components/layout/sidebar-stars';
+import { ExcelExportIcon, PdfExportIcon } from '@/components/icons/export-format-icons';
 
 export default function LayoutWrapper({
   children,
@@ -417,10 +419,10 @@ export default function LayoutWrapper({
   return (
     <div className="min-h-screen bg-white flex">
       {/* Sidebar - Collapsible on desktop */}
-      <div className={`hidden lg:flex bg-white border-r border-gray-200 flex-col h-screen fixed left-0 top-0 transition-all duration-300 ${
+      <div className={`hidden lg:flex sidebar-shell flex-col h-screen fixed left-0 top-0 transition-all duration-300 ${
         isSidebarCollapsed ? 'w-16' : 'w-1/5'
       }`}>
-        <div className={`flex items-center justify-center h-20 bg-white/80 backdrop-blur-md border-b border-orange-200/50 flex-shrink-0 ${isSidebarCollapsed ? 'px-2' : ''}`}>
+        <div className={`sidebar-header flex items-center justify-center h-20 flex-shrink-0 ${isSidebarCollapsed ? 'px-2' : ''}`}>
           {isSidebarCollapsed ? (
             <AppLogo width={50} height={50} className="object-contain" priority />
           ) : (
@@ -428,53 +430,50 @@ export default function LayoutWrapper({
           )}
         </div>
         
-        <nav className="flex-1 pt-4 overflow-hidden relative bg-gradient-to-br from-gray-50 via-white to-gray-100 animate-gradient">
-          <div className={`space-y-1 relative z-10 ${isSidebarCollapsed ? 'px-2' : 'px-4'}`}>
+        <nav className="sidebar-nav pt-4 pb-3 min-h-0">
+          <SidebarStars />
+          <div className={`space-y-1.5 relative z-[2] ${isSidebarCollapsed ? 'px-2' : 'px-3'}`}>
             {navigation.map((item) => (
               <Link
                 key={item.name}
                 href={item.href}
-                className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
-                  pathname === item.href
-                    ? 'bg-orange-500 text-white border border-white'
-                    : 'text-gray-700 hover:bg-orange-500 hover:text-white'
+                className={`sidebar-nav-link group flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-300 ${
+                  pathname === item.href ? 'sidebar-nav-link--active' : ''
                 } ${isSidebarCollapsed ? 'justify-center' : ''}`}
                 title={isSidebarCollapsed ? item.name : ''}
               >
-                <span className={`transition-transform duration-200 group-hover:scale-110 ${
-                  pathname === item.href ? 'text-white' : 'text-gray-500 group-hover:text-white'
-                }`}>
+                <span className="sidebar-nav-icon">
                   {item.icon}
                 </span>
                 {!isSidebarCollapsed && (
                   <>
                     <span className="ml-3 truncate">{item.name}</span>
                     {item.name === 'Dashboard' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+D ]</span>
+                      <span className="sidebar-kbd ml-auto text-xs px-2 py-1 rounded-md hidden lg:block">[ Ctrl+D ]</span>
                     )}
                     {item.name === 'Transactions' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+X ]</span>
+                      <span className="sidebar-kbd ml-auto text-xs px-2 py-1 rounded-md hidden lg:block">[ Ctrl+X ]</span>
                     )}
                     {item.name === 'Accounting' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+A ]</span>
+                      <span className="sidebar-kbd ml-auto text-xs px-2 py-1 rounded-md hidden lg:block">[ Ctrl+A ]</span>
                     )}
                     {item.name === 'Hawala' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+H ]</span>
+                      <span className="sidebar-kbd ml-auto text-xs px-2 py-1 rounded-md hidden lg:block">[ Ctrl+H ]</span>
                     )}
                     {item.name === 'Special Entry' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+S ]</span>
+                      <span className="sidebar-kbd ml-auto text-xs px-2 py-1 rounded-md hidden lg:block">[ Ctrl+S ]</span>
                     )}
                     {item.name === 'Reports' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+R ]</span>
+                      <span className="sidebar-kbd ml-auto text-xs px-2 py-1 rounded-md hidden lg:block">[ Ctrl+R ]</span>
                     )}
                     {item.name === 'Balance Sheet' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+B ]</span>
+                      <span className="sidebar-kbd ml-auto text-xs px-2 py-1 rounded-md hidden lg:block">[ Ctrl+B ]</span>
                     )}
                     {item.name === 'Master Data' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+M ]</span>
+                      <span className="sidebar-kbd ml-auto text-xs px-2 py-1 rounded-md hidden lg:block">[ Ctrl+M ]</span>
                     )}
                     {item.name === 'Help' && (
-                      <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden lg:block">[ Ctrl+P ]</span>
+                      <span className="sidebar-kbd ml-auto text-xs px-2 py-1 rounded-md hidden lg:block">[ Ctrl+P ]</span>
                     )}
                   </>
                 )}
@@ -483,16 +482,17 @@ export default function LayoutWrapper({
           </div>
         </nav>
 
-        <div className={`p-4  shadow-inner shadow-orange-400 border border-orange-200 flex-shrink-0 ${isSidebarCollapsed ? 'px-2' : ''}`}>
+        <div className={`sidebar-user-section p-4 ${isSidebarCollapsed ? 'px-2' : ''}`}>
+          <div className="sidebar-user-content">
           {isSidebarCollapsed ? (
             <div className="flex flex-col items-center space-y-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center text-white text-sm font-medium shadow-lg">
+              <div className="sidebar-avatar w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-medium">
                 {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
               </div>
               <Button
                 onClick={logout}
                 variant="outline"
-                className="p-2 border-gray-300 bg-gradient-to-br from-orange-500 to-orange-700 text-gray-50 hover:bg-gray-100 hover:text-gray-900 hover:border-gray-400 transition-all duration-200"
+                className="sidebar-signout p-2"
                 title="Sign Out"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -503,17 +503,17 @@ export default function LayoutWrapper({
           ) : (
             <>
               <div className="flex items-center mb-4">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center text-white text-sm font-medium shadow-lg">
+                <div className="sidebar-avatar w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-medium">
                   {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
                 </div>
                 <div className="ml-3 flex-1 min-w-0">
-                  <div className="text-sm font-medium text-gray-900 truncate">
+                  <div className="text-sm font-semibold text-slate-800 truncate">
                     {user?.firstName} {user?.lastName}
                   </div>
-                  <div className="text-xs text-gray-500 truncate">
+                  <div className="text-xs text-slate-500 truncate">
                     {user?.email}
                   </div>
-                  <div className="text-xs text-blue-600 font-medium">
+                  <div className="sidebar-role text-xs font-medium">
                     {(() => {
                       try {
                         const roleName = user?.role?.name;
@@ -536,7 +536,7 @@ export default function LayoutWrapper({
               <Button
                 onClick={logout}
                 variant="outline"
-                className="w-full border-gray-300 bg-gradient-to-br from-orange-500 to-orange-700 text-gray-50 hover:bg-gray-100 hover:text-gray-900 hover:border-gray-400 transition-all duration-200"
+                className="sidebar-signout w-full"
               >
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -545,6 +545,7 @@ export default function LayoutWrapper({
               </Button>
             </>
           )}
+          </div>
         </div>
       </div>
 
@@ -553,8 +554,8 @@ export default function LayoutWrapper({
         isSidebarCollapsed ? 'lg:ml-16' : 'lg:ml-[20%]'
       }`}>
         {/* Top Bar */}
-        <div className="bg-white/30 backdrop-blur-md border-b border-gray-200/50 shadow-inner shadow-gray-400 flex-shrink-0 fixed w-full top-0 z-50" style={{ zIndex: 9999999 }}>
-          <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-20 bg-white/30 backdrop-blur-md">
+        <div className="app-main-header flex-shrink-0 fixed w-full top-0 z-50" style={{ zIndex: 9999999 }}>
+          <div className="app-main-header-inner flex items-center justify-between px-4 sm:px-6 lg:px-8 h-20">
             <div className="flex items-center space-x-4">
               <Button
                 variant="ghost"
@@ -718,44 +719,33 @@ export default function LayoutWrapper({
                 </div>
               )}
               
-              {/* Balance Sheet Tabs - Only show on balance sheet page */}
+              {/* Balance Sheet export — icon buttons only */}
               {pathname === '/balance-sheet' && (
-                <div className="flex items-center justify-between w-full">
+                <div className="flex items-center space-x-2">
                   <button
+                    type="button"
                     onClick={() => {
-                      setActiveBalanceSheetTab('final');
-                      // Dispatch event for balance sheet page
-                      const event = new CustomEvent('setBalanceSheetTab', { detail: 'final' });
+                      const event = new CustomEvent('exportBalanceSheet', { detail: 'excel' });
                       window.dispatchEvent(event);
                     }}
-                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 mr-4 font-medium text-sm ${
-                      activeBalanceSheetTab === 'final'
-                        ? 'bg-orange-600 border-orange-400 text-white'
-                        : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
-                    }`}
+                    className="relative overflow-hidden flex items-center justify-center rounded-2xl border border-green-500/30 bg-gradient-to-br from-green-500 via-green-600 to-green-700 text-white backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-green-400/60 hover:text-white hover:from-green-400 hover:via-green-500 hover:to-green-600 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(34,197,94,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 p-2.5"
+                    title="Export Excel"
+                    aria-label="Export Excel"
                   >
-                    <span className="relative z-10">Final Balance Sheet</span>
+                    <ExcelExportIcon className="h-6 w-6 relative z-10" />
                   </button>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => {
-                        const event = new CustomEvent('exportBalanceSheet', { detail: 'excel' });
-                        window.dispatchEvent(event);
-                      }}
-                      className="relative overflow-hidden items-center justify-center rounded-2xl border border-green-500/30 bg-gradient-to-br from-green-500 via-green-600 to-green-700 text-white backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-green-400/60 hover:text-white hover:from-green-400 hover:via-green-500 hover:to-green-600 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(34,197,94,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-3 py-1.5 font-medium text-xs"
-                    >
-                      <span className="relative z-10">Export Excel</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        const event = new CustomEvent('exportBalanceSheet', { detail: 'pdf' });
-                        window.dispatchEvent(event);
-                      }}
-                      className="relative overflow-hidden items-center justify-center rounded-2xl border border-red-500/30 bg-gradient-to-br from-red-500 via-red-600 to-red-700 text-white backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-red-400/60 hover:text-white hover:from-red-400 hover:via-red-500 hover:to-red-600 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(239,68,68,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-3 py-1.5 font-medium text-xs"
-                    >
-                      <span className="relative z-10">Export PDF</span>
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const event = new CustomEvent('exportBalanceSheet', { detail: 'pdf' });
+                      window.dispatchEvent(event);
+                    }}
+                    className="relative overflow-hidden flex items-center justify-center rounded-2xl border border-red-500/30 bg-gradient-to-br from-red-500 via-red-600 to-red-700 text-white backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-red-400/60 hover:text-white hover:from-red-400 hover:via-red-500 hover:to-red-600 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(239,68,68,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 p-2.5"
+                    title="Export PDF"
+                    aria-label="Export PDF"
+                  >
+                    <PdfExportIcon className="h-6 w-6 relative z-10" />
+                  </button>
                 </div>
               )}
               
@@ -829,7 +819,7 @@ export default function LayoutWrapper({
               
               {/* Reports Dropdown - Only show on reports page */}
               {pathname === '/reports' && (
-                <div className="relative" ref={reportDropdownRef}>
+                <div className="relative z-[200]" ref={reportDropdownRef}>
                   <button
                     onClick={() => setReportDropdownOpen(!reportDropdownOpen)}
                     className="relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 bg-gradient-to-br from-orange-500 via-orange-400 to-orange-500 text-white backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm flex space-x-2"
@@ -841,7 +831,7 @@ export default function LayoutWrapper({
                   </button>
                   
                   {reportDropdownOpen && (
-                    <div className="absolute top-full left-0 mt-2 w-64 bg-white backdrop-blur-2xl border-2 border-orange-300 rounded-2xl shadow-inner shadow-orange-300 z-50">
+                    <div className="absolute top-full left-0 mt-2 w-64 bg-white backdrop-blur-2xl border-2 border-orange-300 rounded-2xl shadow-xl shadow-orange-200/50 z-[210]">
                       <div className="py-2">
                         {[
                           { id: 'outward', name: 'Booking Report', permission: 'report_1' },
@@ -895,76 +885,73 @@ export default function LayoutWrapper({
         sidebarOpen ? 'block' : 'hidden'
       }`}>
         <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setSidebarOpen(false)} />
-        <div className="fixed inset-y-0 left-0 w-full max-w-sm bg-white">
-          <div className="flex items-center justify-center h-16 bg-white border-b border-gray-200">
+        <div className="fixed inset-y-0 left-0 w-full max-w-sm sidebar-shell flex flex-col">
+          <div className="sidebar-header flex items-center justify-center h-16 flex-shrink-0">
             <AppLogo width={160} height={40} className="object-contain" priority />
           </div>
           
-          <nav className="mt-8 px-4">
-            <div className="space-y-1">
+          <nav className="sidebar-nav flex-1 mt-2 px-2 pb-3 min-h-0">
+            <SidebarStars count={56} />
+            <div className="space-y-1.5 relative z-[2] px-2">
               {navigation.map((item) => (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
-                    pathname === item.href
-                      ? 'bg-orange-50 text-orange-600 border border-orange-200'
-                      : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                  className={`sidebar-nav-link group flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-300 ${
+                    pathname === item.href ? 'sidebar-nav-link--active' : ''
                   }`}
                   onClick={() => setSidebarOpen(false)}
                 >
-                  <span className={`mr-3 transition-transform duration-200 group-hover:scale-110 ${
-                    pathname === item.href ? 'text-orange-600' : 'text-gray-500 group-hover:text-gray-600'
-                  }`}>
+                  <span className="sidebar-nav-icon mr-3">
                     {item.icon}
                   </span>
                   <span className="truncate">{item.name}</span>
                 {item.name === 'Dashboard' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden">[ Ctrl+D ]</span>
+                  <span className="sidebar-kbd ml-auto text-xs px-2 py-1 rounded-md hidden">[ Ctrl+D ]</span>
                 )}
                 {item.name === 'Transactions' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden">[ Ctrl+T ]</span>
+                  <span className="sidebar-kbd ml-auto text-xs px-2 py-1 rounded-md hidden">[ Ctrl+T ]</span>
                 )}
                 {item.name === 'Accounting' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden">[ Ctrl+A ]</span>
+                  <span className="sidebar-kbd ml-auto text-xs px-2 py-1 rounded-md hidden">[ Ctrl+A ]</span>
                 )}
                 {item.name === 'Hawala' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden">[ Ctrl+H ]</span>
+                  <span className="sidebar-kbd ml-auto text-xs px-2 py-1 rounded-md hidden">[ Ctrl+H ]</span>
                 )}
                 {item.name === 'Special Entry' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden">[ Ctrl+S ]</span>
+                  <span className="sidebar-kbd ml-auto text-xs px-2 py-1 rounded-md hidden">[ Ctrl+S ]</span>
                 )}
                 {item.name === 'Reports' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden">[ Ctrl+R ]</span>
+                  <span className="sidebar-kbd ml-auto text-xs px-2 py-1 rounded-md hidden">[ Ctrl+R ]</span>
                 )}
                 {item.name === 'Balance Sheet' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden">[ Ctrl+B ]</span>
+                  <span className="sidebar-kbd ml-auto text-xs px-2 py-1 rounded-md hidden">[ Ctrl+B ]</span>
                 )}
                 {item.name === 'Master Data' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden">[ Ctrl+M ]</span>
+                  <span className="sidebar-kbd ml-auto text-xs px-2 py-1 rounded-md hidden">[ Ctrl+M ]</span>
                 )}
                 {item.name === 'Help' && (
-                  <span className="ml-auto text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-md hidden">[ Ctrl+P ]</span>
+                  <span className="sidebar-kbd ml-auto text-xs px-2 py-1 rounded-md hidden">[ Ctrl+P ]</span>
                 )}
                 </Link>
               ))}
             </div>
           </nav>
 
-          <div className="absolute bottom-0 left-0 right-0 p-4">
-            <div className="border-t border-gray-800 pt-4">
+          <div className="sidebar-user-section p-4 flex-shrink-0">
+            <div className="sidebar-user-content">
               <div className="flex items-center mb-4">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-medium shadow-lg">
+                <div className="sidebar-avatar w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-medium">
                   {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
                 </div>
                 <div className="ml-3 flex-1 min-w-0">
-                  <div className="text-sm font-medium text-white truncate">
+                  <div className="text-sm font-semibold text-slate-800 truncate">
                     {user?.firstName} {user?.lastName}
                   </div>
-                  <div className="text-xs text-gray-400 truncate">
+                  <div className="text-xs text-slate-500 truncate">
                     {user?.email}
                   </div>
-                  <div className="text-xs text-blue-400 font-medium">
+                  <div className="sidebar-role text-xs font-medium">
                     {(() => {
                       try {
                         const roleName = user?.role?.name;
@@ -987,7 +974,7 @@ export default function LayoutWrapper({
               <Button
                 onClick={logout}
                 variant="outline"
-                className="w-full border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white hover:border-gray-600 transition-all duration-200"
+                className="sidebar-signout w-full"
               >
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

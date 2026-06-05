@@ -17,6 +17,7 @@ import { getHawalaEntries, HawalaEntry } from '@/lib/hawala';
 import { getSpecialEntries, SpecialEntry } from '@/lib/specialEntry';
 import { CLIENT_HISTORY_PARAMS } from '@/lib/client-ledger';
 import { showErrorToast, showSuccessToast, Toaster } from '@/lib/toast';
+import { ExcelExportIcon, PdfExportIcon } from '@/components/icons/export-format-icons';
 
 // Unified row used only by Transaction Report (report #5)
 type TxnReportModule = 'transaction' | 'accounting' | 'hawala' | 'special';
@@ -1638,7 +1639,7 @@ export default function ReportsPage() {
 
         {/* Filter Section */}
         {activeReport !== 'transaction-refund' && (
-          <Card className={`shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative overflow-visible ${
+          <Card className={`shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative overflow-visible ${
             activeReport === 'outward' || activeReport === 'inward' ? 'z-30' : 'z-10'
           }`}>
             <CardHeader className="pb-4">
@@ -1696,7 +1697,7 @@ export default function ReportsPage() {
                             setIsSelectingRange(false);
                           }}
                           className={`px-3 py-1 text-xs rounded ${!isSelectingRange && !dateFilter
-                              ? 'bg-blue-500 text-white'
+                              ? 'bg-orange-600 text-white'
                               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                             }`}
                         >
@@ -1711,7 +1712,7 @@ export default function ReportsPage() {
                             setIsSelectingRange(true);
                           }}
                           className={`px-3 py-1 text-xs rounded ${isSelectingRange
-                              ? 'bg-blue-500 text-white'
+                              ? 'bg-orange-600 text-white'
                               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                             }`}
                         >
@@ -1816,7 +1817,7 @@ export default function ReportsPage() {
                 <Button
                   onClick={generateReport}
                   disabled={loading}
-                  className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                  className="bg-orange-600 hover:bg-orange-700 text-white shadow-sm"
                 >
                   {loading ? 'Generating...' : 'Apply Filters'}
                 </Button>
@@ -1827,22 +1828,26 @@ export default function ReportsPage() {
                 >
                   Reset Filters
                 </Button>
-                <Button
+                <button
+                  type="button"
                   onClick={() => exportReport('excel')}
                   disabled={exporting || (activeReport === 'transaction' ? txnReportFilteredRows.length === 0 : reportData.length === 0)}
-                  variant="outline"
-                  className="bg-green-600 hover:bg-green-700 text-white border border-green-300 hover:border-green-400 shadow-sm"
+                  className="relative overflow-hidden flex items-center justify-center rounded-2xl border border-green-500/30 bg-gradient-to-br from-green-500 via-green-600 to-green-700 text-white backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-green-400/60 hover:text-white hover:from-green-400 hover:via-green-500 hover:to-green-600 active:scale-95 disabled:opacity-50 disabled:pointer-events-none disabled:hover:scale-100 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(34,197,94,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 p-2.5"
+                  title={exporting ? 'Exporting...' : 'Export Excel'}
+                  aria-label="Export Excel"
                 >
-                  {exporting ? 'Exporting...' : 'Export Excel'}
-                </Button>
-                <Button
+                  <ExcelExportIcon className="h-6 w-6 relative z-10" />
+                </button>
+                <button
+                  type="button"
                   onClick={() => exportReport('pdf')}
                   disabled={exporting || (activeReport === 'transaction' ? txnReportFilteredRows.length === 0 : reportData.length === 0)}
-                  variant="outline"
-                  className="bg-red-600 hover:bg-red-700 text-white border border-red-300 hover:border-red-400 shadow-sm"
+                  className="relative overflow-hidden flex items-center justify-center rounded-2xl border border-red-500/30 bg-gradient-to-br from-red-500 via-red-600 to-red-700 text-white backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-red-400/60 hover:text-white hover:from-red-400 hover:via-red-500 hover:to-red-600 active:scale-95 disabled:opacity-50 disabled:pointer-events-none disabled:hover:scale-100 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(239,68,68,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 p-2.5"
+                  title={exporting ? 'Exporting...' : 'Export PDF'}
+                  aria-label="Export PDF"
                 >
-                  {exporting ? 'Exporting...' : 'Export PDF'}
-                </Button>
+                  <PdfExportIcon className="h-6 w-6 relative z-10" />
+                </button>
               </div>
             </CardContent>
           </Card>
@@ -1850,7 +1855,7 @@ export default function ReportsPage() {
 
         {/* Report Summary */}
         {summary && activeReport !== 'transaction-refund' && (
-          <Card className={`shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative ${
+          <Card className={`shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative ${
             activeReport === 'outward' || activeReport === 'inward' ? 'z-0' : 'z-10'
           }`}>
             <CardHeader className="pb-4">
@@ -1863,51 +1868,51 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="bg-gradient-to-br from-white to-orange-50/80 p-4 rounded-lg border border-orange-200/60">
                   <div className="text-sm font-medium text-gray-600">Total Records</div>
                   <div className="text-2xl font-bold text-gray-900 mt-1">{summary.totalRecords}</div>
                 </div>
                 {activeReport === 'customer' ? (
                   <>
-                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <div className="bg-gradient-to-br from-white to-orange-50/80 p-4 rounded-lg border border-orange-200/60">
                       <div className="text-sm font-medium text-gray-600">Total Credit (Devana Paisa)</div>
                       <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.totalAmount)}</div>
                     </div>
-                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <div className="bg-gradient-to-br from-white to-orange-50/80 p-4 rounded-lg border border-orange-200/60">
                       <div className="text-sm font-medium text-gray-600">Total Debit (Levana Paisa)</div>
                       <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.totalCommission)}</div>
                     </div>
                   </>
                 ) : activeReport === 'combo' ? (
                   <>
-                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <div className="bg-gradient-to-br from-white to-orange-50/80 p-4 rounded-lg border border-orange-200/60">
                       <div className="text-sm font-medium text-gray-600">Outward Total</div>
                       <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.outwardTotal || 0)}</div>
                     </div>
-                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <div className="bg-gradient-to-br from-white to-orange-50/80 p-4 rounded-lg border border-orange-200/60">
                       <div className="text-sm font-medium text-gray-600">Inward Total</div>
                       <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.inwardTotal || 0)}</div>
                     </div>
                   </>
                 ) : activeReport === 'amount-type' && filters.amountType?.toUpperCase() === 'CASH' ? (
-                  <div className="bg-white p-4 rounded-lg border border-gray-200">
+                  <div className="bg-gradient-to-br from-white to-orange-50/80 p-4 rounded-lg border border-orange-200/60">
                     <div className="text-sm font-medium text-gray-600">Total Amount</div>
                     <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.totalAmount)}</div>
                   </div>
                 ) : activeReport === 'inward' ? (
                   <>
-                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <div className="bg-gradient-to-br from-white to-orange-50/80 p-4 rounded-lg border border-orange-200/60">
                       <div className="text-sm font-medium text-gray-600">Amount + Commission</div>
                       <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.totalAmount + summary.totalCommission)}</div>
                     </div>
                   </>
                 ) : (
                   <>
-                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <div className="bg-gradient-to-br from-white to-orange-50/80 p-4 rounded-lg border border-orange-200/60">
                       <div className="text-sm font-medium text-gray-600">Total Amount</div>
                       <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.totalAmount)}</div>
                     </div>
-                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <div className="bg-gradient-to-br from-white to-orange-50/80 p-4 rounded-lg border border-orange-200/60">
                       <div className="text-sm font-medium text-gray-600">Total Commission</div>
                       <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.totalCommission)}</div>
                     </div>
@@ -1920,7 +1925,7 @@ export default function ReportsPage() {
 
         {/* Report Data Table */}
         {activeReport === 'transaction' ? (
-          <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
+          <Card className="shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative z-10">
             <CardHeader className="pb-4">
               <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
                 <div>
@@ -1950,13 +1955,13 @@ export default function ReportsPage() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full bg-white border border-gray-200 rounded-lg">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
+                  <table className="w-full border border-orange-200/60 rounded-lg overflow-hidden">
+                    <thead>
+                      <tr className="bg-gradient-to-r from-orange-600 via-orange-700 to-orange-800 text-white">
                         {TXN_REPORT_COLUMNS.map((column, index) => (
                           <th
                             key={index}
-                            className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 last:border-r-0 whitespace-nowrap"
+                            className="px-3 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-orange-500/30 last:border-r-0 whitespace-nowrap"
                           >
                             {column}
                           </th>
@@ -1964,8 +1969,8 @@ export default function ReportsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {txnReportFilteredRows.map((row) => (
-                        <tr key={row.key} className="hover:bg-gray-50">
+                      {txnReportFilteredRows.map((row, index) => (
+                        <tr key={row.key} className={`border-b transition-colors ${index % 2 === 0 ? 'bg-white/90 hover:bg-orange-50/70' : 'bg-orange-50/45 hover:bg-orange-100/55'}`}>
                           {TXN_REPORT_COLUMNS.map((column, colIndex) => {
                             const cellValue = renderTxnReportCell(row, column);
                             return (
@@ -2001,7 +2006,7 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
         ) : activeReport === 'customer' ? (
-          <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
+          <Card className="shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative z-10">
             <CardHeader className="pb-4">
               <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
                 <div>
@@ -2031,13 +2036,13 @@ export default function ReportsPage() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full bg-white border border-gray-200 rounded-lg">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
+                  <table className="w-full border border-orange-200/60 rounded-lg overflow-hidden">
+                    <thead>
+                      <tr className="bg-gradient-to-r from-orange-600 via-orange-700 to-orange-800 text-white">
                         {getColumns().map((column, index) => (
                           <th
                             key={index}
-                            className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 last:border-r-0"
+                            className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-orange-500/30 last:border-r-0"
                           >
                             {column}
                           </th>
@@ -2057,11 +2062,11 @@ export default function ReportsPage() {
                           const balanceB = clientBalances[b.id]?.balance || 0;
                           return balanceA - balanceB; // Ascending order: most negative first
                         })
-                        .map((client) => {
+                        .map((client, index) => {
                           const balanceData = clientBalances[client.id] || { balance: 0, credit: 0, debit: 0 };
                           const isPositive = balanceData.balance >= 0;
                           return (
-                            <tr key={client.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => handleClientClick(client)}>
+                            <tr key={client.id} className={`border-b cursor-pointer transition-colors ${index % 2 === 0 ? 'bg-white/90 hover:bg-orange-50/70' : 'bg-orange-50/45 hover:bg-orange-100/55'}`} onClick={() => handleClientClick(client)}>
                               <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200">
                                 {client.name}
                               </td>
@@ -2079,7 +2084,7 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
         ) : activeReport === 'transaction-refund' ? (
-          <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
+          <Card className="shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative z-10">
             <CardHeader className="pb-4">
               <div>
                 <CardTitle className="text-xl font-semibold text-gray-900">
@@ -2102,19 +2107,19 @@ export default function ReportsPage() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full bg-white border border-gray-200 rounded-lg">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Module</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">ID</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Deleted At</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Deleted By</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Details</th>
+                  <table className="w-full border border-orange-200/60 rounded-lg overflow-hidden">
+                    <thead>
+                      <tr className="bg-gradient-to-r from-orange-600 via-orange-700 to-orange-800 text-white">
+                        <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-orange-500/30">Module</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-orange-500/30">ID</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-orange-500/30">Deleted At</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-orange-500/30">Deleted By</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-orange-500/30">Details</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {refundReportData.map((entry: any, index: number) => (
-                        <tr key={index} className="hover:bg-gray-50">
+                        <tr key={index} className={`border-b transition-colors ${index % 2 === 0 ? 'bg-white/90 hover:bg-orange-50/70' : 'bg-orange-50/45 hover:bg-orange-100/55'}`}>
                           <td className="px-4 py-3 text-sm border-r border-gray-200">
                             <span
                               className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${entry.moduleName === 'Transactions'
@@ -2172,7 +2177,7 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
         ) : (
-          <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
+          <Card className="shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative z-10">
             <CardHeader className="pb-4">
               <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
                 <div>
@@ -2209,13 +2214,13 @@ export default function ReportsPage() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full bg-white border border-gray-200 rounded-lg">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
+                  <table className="w-full border border-orange-200/60 rounded-lg overflow-hidden">
+                    <thead>
+                      <tr className="bg-gradient-to-r from-orange-600 via-orange-700 to-orange-800 text-white">
                         {getColumns().map((column, index) => (
                           <th
                             key={index}
-                            className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 last:border-r-0"
+                            className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-orange-500/30 last:border-r-0"
                           >
                             {column}
                           </th>
@@ -2224,7 +2229,7 @@ export default function ReportsPage() {
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {reportTableData.map((transaction, rowIndex) => (
-                        <tr key={rowIndex} className="hover:bg-gray-50">
+                        <tr key={rowIndex} className={`border-b transition-colors ${rowIndex % 2 === 0 ? 'bg-white/90 hover:bg-orange-50/70' : 'bg-orange-50/45 hover:bg-orange-100/55'}`}>
                           {getColumns().map((column, colIndex) => {
                             const cellValue = renderCell(transaction, column, rowIndex);
                             return (

@@ -322,13 +322,11 @@ export default function BalanceSheetPage() {
           .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
           .header h1 { margin: 0; font-size: 24px; font-weight: bold; }
           .header p { margin: 5px 0 0 0; color: #666; font-size: 14px; }
-          .summary { display: flex; justify-content: space-around; margin-bottom: 30px; padding: 20px; background-color: #f9fafb; border-radius: 8px; }
+          .summary { display: flex; justify-content: center; margin-bottom: 30px; padding: 20px; background-color: #fff7ed; border-radius: 8px; border: 1px solid #fdba74; }
           .summary-item { text-align: center; }
           .summary-label { font-size: 14px; color: #666; margin-bottom: 5px; }
-          .summary-value { font-size: 24px; font-weight: bold; }
-          .income { color: #059669; }
-          .expense { color: #dc2626; }
-          .net { color: #059669; }
+          .summary-value { font-size: 28px; font-weight: bold; }
+          .net { color: #ea580c; }
           .table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
           .table th { background-color: #1e40af; color: white; padding: 12px; text-align: left; font-weight: bold; }
           .table td { padding: 10px; border-bottom: 1px solid #ddd; }
@@ -345,14 +343,6 @@ export default function BalanceSheetPage() {
         </div>
 
         <div class="summary">
-          <div class="summary-item">
-            <div class="summary-label">Total Income</div>
-            <div class="summary-value income">${formatCurrency(totals.totalIncome)}</div>
-          </div>
-          <div class="summary-item">
-            <div class="summary-label">Total Expense</div>
-            <div class="summary-value expense">${formatCurrency(totals.totalExpense)}</div>
-          </div>
           <div class="summary-item">
             <div class="summary-label">Net Payable</div>
             <div class="summary-value net">${formatCurrency(totals.netPayable)}</div>
@@ -382,10 +372,8 @@ export default function BalanceSheetPage() {
               `;
             }).join('')}
             <tr class="totals">
-              <td class="text-left">TOTALS</td>
-              <td class="text-right">${formatCurrency(totals.totalIncome)}</td>
-              <td class="text-left">TOTALS</td>
-              <td class="text-right">${formatCurrency(totals.totalExpense)}</td>
+              <td class="text-left" colspan="3">Net Payable</td>
+              <td class="text-right">${formatCurrency(totals.netPayable)}</td>
             </tr>
           </tbody>
         </table>
@@ -436,11 +424,11 @@ export default function BalanceSheetPage() {
         const csvContent = [
           'Final Balance Sheet',
           `Generated on,${escapeCSV(formatDate(new Date()))}`,
+          `Net Payable,,,${escapeCSV(formatCurrency(totals.netPayable))}`,
           '',
           headerRow,
           ...dataRows,
           '',
-          ['TOTALS', formatCurrency(totals.totalIncome), 'TOTALS', formatCurrency(totals.totalExpense)].map(escapeCSV).join(','),
           ['Net Payable', '', '', formatCurrency(totals.netPayable)].map(escapeCSV).join(','),
         ].join('\n');
 
@@ -517,8 +505,8 @@ export default function BalanceSheetPage() {
       <div className="pt-16 space-y-4 sm:space-y-6">
 
         {/* Summary Card - Net Payable Only */}
-        <div className="flex justify-center">
-          <div className={`px-8 py-4 rounded-2xl font-bold text-3xl shadow-2xl border-2 backdrop-blur-md ${
+        <div className="flex justify-center mt-4">
+          <div className={`px-8 py-4 rounded-2xl font-bold text-3xl shadow-md border-2 backdrop-blur-md ${
             totals.netPayable > 0
               ? 'bg-gradient-to-r from-green-400/80 to-green-600/80 border-green-700 text-white'
               : totals.netPayable < 0
@@ -530,15 +518,15 @@ export default function BalanceSheetPage() {
         </div>
 
         {/* Balance Sheet Table */}
-        <Card className="shadow-sm border-gray-200 bg-gray-100">
+        <Card className="shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative z-10">
           <CardContent className="p-6">
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 {/* Table Header */}
                 <thead>
-                  <tr className="bg-blue-900 text-white">
+                  <tr className="bg-gradient-to-r from-orange-600 via-orange-700 to-orange-800 text-white">
                     <th
-                      className="px-4 py-3 text-left font-semibold text-sm cursor-pointer hover:bg-blue-800"
+                      className="px-4 py-3 text-left font-semibold text-sm cursor-pointer hover:bg-orange-900/50"
                       onClick={() => handleSort('accountName')}
                     >
                       Income Side (To Collect)
@@ -547,7 +535,7 @@ export default function BalanceSheetPage() {
                       )}
                     </th>
                     <th
-                      className="px-4 py-3 text-right font-semibold text-sm cursor-pointer hover:bg-blue-800"
+                      className="px-4 py-3 text-right font-semibold text-sm cursor-pointer hover:bg-orange-900/50"
                       onClick={() => handleSort('amount')}
                     >
                       Amount
@@ -556,7 +544,7 @@ export default function BalanceSheetPage() {
                       )}
                     </th>
                     <th
-                      className="px-4 py-3 text-left font-semibold text-sm cursor-pointer hover:bg-blue-800"
+                      className="px-4 py-3 text-left font-semibold text-sm cursor-pointer hover:bg-orange-900/50"
                       onClick={() => handleSort('accountName')}
                     >
                       Expense Side (To Pay)
@@ -565,7 +553,7 @@ export default function BalanceSheetPage() {
                       )}
                     </th>
                     <th
-                      className="px-4 py-3 text-right font-semibold text-sm cursor-pointer hover:bg-blue-800"
+                      className="px-4 py-3 text-right font-semibold text-sm cursor-pointer hover:bg-orange-900/50"
                       onClick={() => handleSort('amount')}
                     >
                       Amount
@@ -584,8 +572,8 @@ export default function BalanceSheetPage() {
                     return (
                       <tr
                         key={index}
-                        className={`border-b hover:bg-gray-50 transition-colors ${
-                          index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                        className={`border-b transition-colors ${
+                          index % 2 === 0 ? 'bg-white/90 hover:bg-orange-50/70' : 'bg-orange-50/45 hover:bg-orange-100/55'
                         }`}
                       >
                         <td className="px-4 py-3 text-left text-sm font-medium text-gray-900">
@@ -605,7 +593,7 @@ export default function BalanceSheetPage() {
                   })}
 
                   {/* Totals Row */}
-                  <tr className="bg-gray-100 border-t-2 border-gray-300">
+                  <tr className="bg-orange-100/70 border-t-2 border-orange-300">
                     <td className="px-4 py-3 text-left text-sm font-bold text-gray-900">
                       TOTALS
                     </td>

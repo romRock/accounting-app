@@ -552,7 +552,7 @@ export default function AccountingPage() {
           <>
 
             {/* Transaction Entry Form */}
-            <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
+            <Card className="shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative z-10">
               <CardContent className="p-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {/* Row 1 */}
@@ -695,7 +695,7 @@ export default function AccountingPage() {
 
 
             {/* Data Table */}
-            <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
+            <Card className="shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative z-10">
               <CardHeader className="pb-0">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="text-lg font-semibold text-gray-900">Accounting Entries</div>
@@ -734,7 +734,7 @@ export default function AccountingPage() {
                               setIsSelectingRange(false);
                             }}
                             className={`px-3 py-1 text-xs rounded ${!isSelectingRange && !dateFilter
-                              ? 'bg-blue-500 text-white'
+                              ? 'bg-orange-600 text-white'
                               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                               }`}
                           >
@@ -749,7 +749,7 @@ export default function AccountingPage() {
                               setIsSelectingRange(true);
                             }}
                             className={`px-3 py-1 text-xs rounded ${isSelectingRange
-                              ? 'bg-blue-500 text-white'
+                              ? 'bg-orange-600 text-white'
                               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                               }`}
                           >
@@ -800,7 +800,7 @@ export default function AccountingPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse">
                     <thead>
-                      <tr className="bg-blue-900 text-white">
+                      <tr className="bg-gradient-to-r from-orange-600 via-orange-700 to-orange-800 text-white">
                         <th className="px-4 py-3 text-left text-sm font-bold">Date</th>
                         <th className="px-4 py-3 text-left text-sm font-bold">Time</th>
                         <th className="px-4 py-3 text-left text-sm font-bold">Type</th>
@@ -816,7 +816,7 @@ export default function AccountingPage() {
                         <tr
                           key={transaction.id}
                           className={`border-b cursor-pointer transition-colors ${
-                            index % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-50 hover:bg-gray-100'
+                            index % 2 === 0 ? 'bg-white/90 hover:bg-orange-50/70' : 'bg-orange-50/45 hover:bg-orange-100/55'
                           }`}
                           onClick={() => updateTransaction(transaction)}
                         >
@@ -857,7 +857,7 @@ export default function AccountingPage() {
         {/* TAB 2: CATEGORY MANAGEMENT */}
         {activeTab === 'category' && (
           <>
-            <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
+            <Card className="shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative z-10">
               <CardContent className="p-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -909,12 +909,12 @@ export default function AccountingPage() {
               </CardContent>
             </Card>
 
-            <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
+            <Card className="shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative z-10">
               <CardContent className="p-4">
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse">
                     <thead>
-                      <tr className="bg-blue-900 text-white">
+                      <tr className="bg-gradient-to-r from-orange-600 via-orange-700 to-orange-800 text-white">
                         <th className="px-4 py-3 text-left text-sm font-bold">Category Name</th>
                         <th className="px-4 py-3 text-left text-sm font-bold">Type</th>
                         <th className="px-4 py-3 text-left text-sm font-bold">Actions</th>
@@ -925,7 +925,7 @@ export default function AccountingPage() {
                         <tr
                           key={category.id}
                           className={`border-b cursor-pointer transition-colors ${
-                            index % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-50 hover:bg-gray-100'
+                            index % 2 === 0 ? 'bg-white/90 hover:bg-orange-50/70' : 'bg-orange-50/45 hover:bg-orange-100/55'
                           }`}
                         >
                           <td className="px-4 py-3 text-sm text-gray-900">{category.name}</td>

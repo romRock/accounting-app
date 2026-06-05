@@ -793,7 +793,7 @@ export default function TransactionsPage() {
       <div className="bg-white min-h-screen w-full">
         <div className="pt-16 space-y-4 sm:space-y-6">
           {/* Transaction Form */}
-          <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
+          <Card className="shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative z-10">
             <CardHeader className="pb-4">
               <CardTitle className="text-xl font-semibold text-gray-900">
                 {editingTransaction
@@ -1290,7 +1290,7 @@ export default function TransactionsPage() {
           </Card>
 
           {/* Section 4: Recent Transactions */}
-          <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10">
+          <Card className="shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative z-10">
             <CardHeader className="pb-4">
               <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
                 <div>
@@ -1424,7 +1424,7 @@ export default function TransactionsPage() {
                     <div className="w-full overflow-x-auto">
                       <table className="w-full border-collapse">
                         <thead>
-                          <tr className="bg-blue-900 text-white">
+                          <tr className="bg-gradient-to-r from-orange-600 via-orange-700 to-orange-800 text-white">
                             <th className="px-4 py-3 text-left text-sm font-bold">
                               Token
                             </th>
@@ -1478,8 +1478,8 @@ export default function TransactionsPage() {
                               onClick={() => handleRowClick(transaction)}
                               className={`border-b cursor-pointer transition-colors ${
                                 index % 2 === 0
-                                  ? "bg-white hover:bg-gray-50"
-                                  : "bg-gray-50 hover:bg-gray-100"
+                                  ? "bg-white/90 hover:bg-orange-50/70"
+                                  : "bg-orange-50/45 hover:bg-orange-100/55"
                               }`}
                             >
                               <td className="px-4 py-3 text-sm text-gray-900">
@@ -1604,7 +1604,7 @@ export default function TransactionsPage() {
                     <div className="w-full overflow-x-auto">
                       <table className="w-full border-collapse">
                         <thead>
-                          <tr className="bg-blue-900 text-white">
+                          <tr className="bg-gradient-to-r from-orange-600 via-orange-700 to-orange-800 text-white">
                             <th className="px-4 py-3 text-left text-sm font-bold">
                               Token
                             </th>
@@ -1658,8 +1658,8 @@ export default function TransactionsPage() {
                               onClick={() => handleRowClick(transaction)}
                               className={`border-b cursor-pointer transition-colors ${
                                 index % 2 === 0
-                                  ? "bg-white hover:bg-gray-50"
-                                  : "bg-gray-50 hover:bg-gray-100"
+                                  ? "bg-white/90 hover:bg-orange-50/70"
+                                  : "bg-orange-50/45 hover:bg-orange-100/55"
                               }`}
                             >
                               <td className="px-4 py-3 text-sm text-gray-900">
@@ -1785,7 +1785,7 @@ export default function TransactionsPage() {
                       <div
                         key={transaction.id}
                         onClick={() => handleRowClick(transaction)}
-                        className="bg-white border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors duration-150"
+                        className="bg-gradient-to-br from-white to-orange-50/80 border border-orange-200/60 rounded-lg p-4 hover:bg-orange-50/90 cursor-pointer transition-colors duration-150"
                       >
                         <div className="flex justify-between items-start mb-3">
                           <div>

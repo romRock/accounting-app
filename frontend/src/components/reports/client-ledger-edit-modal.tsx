@@ -404,8 +404,6 @@ export default function ClientLedgerEditModal({
         case 'Hawala': {
           const original = sourceRecord as HawalaEntry;
           await updateHawala(entry.sourceId, {
-            transactionId: original.transactionId,
-            tokenNo: original.tokenNo ?? undefined,
             date: hawalaForm.date,
             time: hawalaForm.time,
             partyA: hawalaForm.partyA,
@@ -419,8 +417,6 @@ export default function ClientLedgerEditModal({
         case 'Special Entry': {
           const original = sourceRecord as SpecialEntry;
           await updateSpecialEntry(entry.sourceId, {
-            transactionId: original.transactionId,
-            tokenNo: original.tokenNo ?? undefined,
             date: splForm.date,
             time: splForm.time,
             partyA: splForm.partyA,

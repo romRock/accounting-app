@@ -13,6 +13,9 @@ import {
   fetchClientLedgerEntries,
 } from '@/lib/client-ledger';
 import { showErrorToast, Toaster } from '@/lib/toast';
+import ClientLedgerEditModal from '@/components/reports/client-ledger-edit-modal';
+import UpdatedEntryBadge from '@/components/reports/updated-entry-badge';
+import { Edit } from 'lucide-react';
 
 function escapeCSV(value: string): string {
   if (value.includes(',') || value.includes('"') || value.includes('\n')) {
@@ -23,6 +26,23 @@ function escapeCSV(value: string): string {
 
 interface ClientLedgerViewProps {
   client: ClientLedgerClient;
+}
+
+function renderLedgerDescription(description: string) {
+  const remarkMarker = 'Remark: ';
+  const remarkIndex = description.indexOf(remarkMarker);
+  if (remarkIndex === -1) {
+    return description;
+  }
+
+  return (
+    <>
+      {description.slice(0, remarkIndex)}
+      <span className="font-bold text-orange-900 bg-orange-50 px-1.5 py-0.5 rounded-md">
+        {description.slice(remarkIndex)}
+      </span>
+    </>
+  );
 }
 
 export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
@@ -36,6 +56,15 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
   const [ledgerSearchTerm, setLedgerSearchTerm] = useState('');
   const [ledgerExporting, setLedgerExporting] = useState(false);
   const [checkedRows, setCheckedRows] = useState<Set<number>>(new Set());
+  const [editingEntry, setEditingEntry] = useState<ClientLedgerEntry | null>(null);
+
+  const reloadLedger = () => {
+    setLoading(true);
+    fetchClientLedgerEntries(client)
+      .then((entries) => setClientLedger(entries))
+      .catch(() => setClientLedger([]))
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -514,6 +543,9 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
                         <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Balance
                         </th>
+                        <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Edit
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -526,7 +558,7 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
                               {formatDate(group.date)}
                             </td>
                             <td
-                              colSpan={3}
+                              colSpan={4}
                               className={`px-3 py-2 text-sm font-bold text-right ${group.openingBalance >= 0 ? 'text-green-700' : 'text-red-700'}`}
                             >
                               <span className={group.openingBalance < 0 ? 'animate-pulse' : ''}>
@@ -539,7 +571,7 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
                             return (
                               <tr
                                 key={`entry-${groupIndex}-${entryIndex}`}
-                                className={`hover:bg-gray-50 cursor-pointer ${checkedRows.has(globalIndex) ? 'bg-blue-50' : ''}`}
+                                className={`hover:bg-gray-50 cursor-pointer ${checkedRows.has(globalIndex) ? 'bg-blue-200' : ''}`}
                                 onClick={() => toggleRowCheck(globalIndex)}
                               >
                                 <td className="px-2 py-2 border-r border-gray-200">
@@ -558,10 +590,16 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
                                   {entry.time || '-'}
                                 </td>
                                 <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200">
-                                  {entry.module}
+                                  <span className="inline-flex items-center">
+                                    {entry.module}
+                                    <UpdatedEntryBadge
+                                      createdAt={entry.createdAt}
+                                      updatedAt={entry.updatedAt}
+                                    />
+                                  </span>
                                 </td>
                                 <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200">
-                                  {entry.description}
+                                  {renderLedgerDescription(entry.description)}
                                 </td>
                                 <td
                                   className={`px-3 py-2 text-sm text-right border-r border-gray-200 ${entry.debit > 0 ? 'text-red-600' : 'text-gray-900'}`}
@@ -577,6 +615,19 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
                                   className={`px-3 py-2 text-sm text-right font-medium ${entry.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}
                                 >
                                   {formatCurrency(entry.balance)}
+                                </td>
+                                <td className="px-2 py-2 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingEntry(entry);
+                                    }}
+                                    className="inline-flex items-center justify-center rounded-lg border border-orange-300 bg-orange-50 p-1.5 text-orange-700 hover:bg-orange-100"
+                                    title="Edit entry"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </button>
                                 </td>
                               </tr>
                             );
@@ -596,9 +647,10 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
                                 : '-'}
                             </td>
                             <td className="px-3 py-2 text-sm text-right text-gray-500">-</td>
+                            <td className="px-3 py-2 text-sm text-center text-gray-500">-</td>
                           </tr>
                           <tr className="border-b-2 border-gray-300">
-                            <td colSpan={8} className="py-1"></td>
+                            <td colSpan={9} className="py-1"></td>
                           </tr>
                         </React.Fragment>
                       ))}
@@ -609,6 +661,12 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
             </div>
           </Card>
         </div>
+        <ClientLedgerEditModal
+          entry={editingEntry}
+          open={!!editingEntry}
+          onClose={() => setEditingEntry(null)}
+          onSaved={reloadLedger}
+        />
       </div>
       <Toaster />
     </>

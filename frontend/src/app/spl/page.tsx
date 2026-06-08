@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, matchesTableSearch } from '@/lib/utils';
 import { RefreshCw, Trash2, Save } from 'lucide-react';
+import UpdatedEntryBadge from '@/components/reports/updated-entry-badge';
 import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
 import API_BASE_URL from '@/lib/api';
 import { useAuthStore } from '@/store/index';
@@ -229,7 +230,6 @@ export default function SPLPage() {
         const response = await getSpecialEntries({
           page: 1,
           limit: 1000,
-          search: searchTerm || undefined,
           status: statusFilter === 'all' ? undefined : statusFilter,
           dateFrom,
           dateTo,
@@ -246,7 +246,7 @@ export default function SPLPage() {
     };
 
     fetchSpecialEntries();
-  }, [searchTerm, statusFilter, filterByDate, dateFilter, startDate, endDate, isSelectingRange]);
+  }, [statusFilter, filterByDate, dateFilter, startDate, endDate, isSelectingRange]);
 
   // Generate transaction ID based on latest SPL entries
   const generateTransactionId = () => {
@@ -525,15 +525,48 @@ export default function SPLPage() {
 
   // Filter and sort entries
   const filteredEntries = splEntries
-    .filter(entry => {
-      const matchesSearch = entry.partyA.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           entry.partyB.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           entry.partyC.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           (entry.remark && entry.remark.toLowerCase().includes(searchTerm.toLowerCase()));
-
-      return matchesSearch;
-    })
+    .filter((entry) =>
+      matchesTableSearch(
+        searchTerm,
+        entry.tokenNo,
+        entry.transactionId,
+        formatDate(entry.date),
+        entry.date,
+        formatTime(entry.time),
+        entry.time,
+        entry.amountA,
+        entry.amountB,
+        entry.amountC,
+        formatCurrency(entry.amountA || 0),
+        formatCurrency(entry.amountB || 0),
+        formatCurrency(entry.amountC || 0),
+        entry.partyA,
+        entry.partyB,
+        entry.partyC,
+        entry.remark,
+      ),
+    )
     .sort((a, b) => (a.tokenNo || 0) - (b.tokenNo || 0)); // Sort by tokenNo in ascending order
+
+  const amountCDelta =
+    parseFloat(formData.amountA || '0') - parseFloat(formData.amountB || '0');
+  const isAmountCPositive = amountCDelta >= 0;
+
+  const glassBase =
+    'rounded-2xl backdrop-blur-md transition-all duration-200 shadow-[inset_0_2px_8px_rgba(15,23,42,0.07)]';
+  const inactiveFieldClass = `${glassBase} bg-slate-100/80 border border-slate-200/90 text-slate-500 cursor-not-allowed`;
+  const inactiveLookClass = `${glassBase} bg-slate-100/80 border border-slate-200/90 text-slate-500`;
+  const datePickerClass = `${glassBase} h-10 border border-blue-200/80 bg-gradient-to-br from-blue-50/70 via-slate-100/50 to-slate-100/70 text-slate-600 hover:from-blue-50 hover:via-blue-50/80 hover:to-slate-100/80 hover:text-slate-700 shadow-[inset_0_2px_8px_rgba(59,130,246,0.12)]`;
+  const expenseFieldClass = `${glassBase} bg-red-50/85 border border-red-300/80 text-red-900 placeholder:text-red-400 focus:ring-2 focus:ring-red-500/35 focus:border-red-500 shadow-[inset_0_2px_8px_rgba(239,68,68,0.12)]`;
+  const incomeFieldClass = `${glassBase} bg-emerald-50/75 border border-emerald-300/80 text-emerald-950 placeholder:text-emerald-500/70 focus:ring-2 focus:ring-emerald-500/35 focus:border-emerald-500 shadow-[inset_0_2px_8px_rgba(16,185,129,0.12)]`;
+  const expenseReadonlyClass = `${glassBase} bg-red-100/70 border border-red-200/80 text-red-800 cursor-not-allowed`;
+  const incomeReadonlyClass = `${glassBase} bg-emerald-100/65 border border-emerald-200/80 text-emerald-800 cursor-not-allowed`;
+  const remarkFieldClass = `${glassBase} bg-white/95 border border-gray-200/90 text-gray-900 placeholder:text-gray-500 focus:ring-2 focus:ring-orange-400/30 focus:border-orange-300 shadow-[inset_0_2px_8px_rgba(0,0,0,0.05)]`;
+  const expenseTypeaheadClass = `${glassBase} !rounded-2xl !bg-red-50/85 !border-red-300/80 !text-red-900 placeholder:!text-red-400 focus:!ring-2 focus:!ring-red-500/35 focus:!border-red-500 shadow-[inset_0_2px_8px_rgba(239,68,68,0.12)]`;
+  const incomeTypeaheadClass = `${glassBase} !rounded-2xl !bg-emerald-50/75 !border-emerald-300/80 !text-emerald-950 placeholder:!text-emerald-500/70 focus:!ring-2 focus:!ring-emerald-500/35 focus:!border-emerald-500 shadow-[inset_0_2px_8px_rgba(16,185,129,0.12)]`;
+  const amountCFieldClass = isAmountCPositive ? incomeReadonlyClass : expenseReadonlyClass;
+  const partyCTypeaheadClass = isAmountCPositive ? incomeTypeaheadClass : expenseTypeaheadClass;
+  const amountCLabelClass = isAmountCPositive ? 'text-emerald-800' : 'text-red-800';
 
   return (
     <>
@@ -545,29 +578,30 @@ export default function SPLPage() {
         <Card className="shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative z-10">
           <CardHeader></CardHeader>
           <CardContent className="p-4">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-sm">
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {/* Row 1 */}
               <div>
-                <Label htmlFor="transactionId" className="text-sm font-medium text-gray-700">Transaction ID</Label>
+                <Label htmlFor="transactionId" className="text-sm font-medium text-slate-500">Transaction ID</Label>
                 <Input
                   id="transactionId"
                   value={formData.transactionId || generateTransactionId()}
                   readOnly
-                  className="bg-white border-gray-300 text-gray-600 mt-1 placeholder:text-gray-600"
+                  className={`mt-1 ${inactiveFieldClass} text-sm`}
                 />
               </div>
               <div>
-                <Label htmlFor="tokenNo" className="text-sm font-medium text-gray-700">Token No</Label>
+                <Label htmlFor="tokenNo" className="text-sm font-medium text-slate-500">Token No</Label>
                 <Input
                   id="tokenNo"
                   type="number"
                   value={formData.tokenNo || generateTokenNo()}
                   readOnly
-                  className="bg-white border-gray-300 text-gray-600 mt-1 placeholder:text-gray-600"
+                  className={`mt-1 ${inactiveFieldClass} text-sm`}
                 />
               </div>
               <div>
-                <Label htmlFor="date" className="text-sm font-medium text-gray-700">Date</Label>
+                <Label htmlFor="date" className="text-sm font-medium text-slate-500">Date</Label>
                 <DatePicker
                   id="date"
                   value={formData.date}
@@ -577,24 +611,25 @@ export default function SPLPage() {
                       fetchNextTokenForDate(newDate);
                     }
                   }}
-                  className="mt-1 h-9 text-sm"
+                  className={`mt-1 text-sm font-medium ${datePickerClass}`}
+                  iconClassName="text-blue-500 drop-shadow-sm"
                 />
               </div>
               <div>
-                <Label htmlFor="time" className="text-sm font-medium text-gray-700">Time</Label>
+                <Label htmlFor="time" className="text-sm font-medium text-slate-500">Time</Label>
                 <Input
                   id="time"
                   type="time"
                   value={formData.time}
                   onChange={(e) => setFormData(prev => ({ ...prev, time: e.target.value }))}
-                  className="bg-white border-gray-300 mt-1 text-black placeholder:text-gray-600"
+                  className={`mt-1 ${inactiveLookClass} text-sm`}
                 />
               </div>
               
 
               {/* Row 2 */}
               <div>
-                <Label htmlFor="amountA" className="text-sm font-medium text-red-700">Amount A (UDHAR) *</Label>
+                <Label htmlFor="amountA" className="text-sm font-medium text-red-800">Amount A (UDHAR) *</Label>
                 <Input
                   id="amountA"
                   ref={amountInputRef}
@@ -604,11 +639,11 @@ export default function SPLPage() {
                   onChange={(e) => setFormData(prev => ({ ...prev, amountA: e.target.value }))}
                   min="0"
                   onWheel={(e) => e.currentTarget.blur()}
-                  className="bg-white border-gray-300 mt-1 font-bold text-red-700 text-lg placeholder:text-red-700 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className={`mt-1 ${expenseFieldClass} font-bold text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
                 />
               </div>
               <div>
-                <Label htmlFor="partyA" className="text-sm font-medium text-red-700">Party A ( UDHAR PARTY )</Label>
+                <Label htmlFor="partyA" className="text-sm font-medium text-red-800">Party A ( UDHAR PARTY )</Label>
                 <div className="relative" style={{ zIndex: 101 }}>
                 <ClientTypeahead
                   id="partyA"
@@ -621,12 +656,12 @@ export default function SPLPage() {
                     console.log('Setting partyA to:', partyAValue);
                     setFormData(prev => ({ ...prev, partyA: partyAValue }));
                   }}
-                  className="mt-1 bg-white border-gray-300 text-sm font-medium text-red-700 placeholder:text-red-500"
+                  className={`mt-1 h-10 ${expenseTypeaheadClass}`}
                 />
                 </div>
               </div>
               <div>
-                <Label htmlFor="amountB" className="text-sm font-medium text-green-700">Amount B (JAMA) *</Label>
+                <Label htmlFor="amountB" className="text-sm font-medium text-emerald-800">Amount B (JAMA) *</Label>
                 <Input
                   id="amountB"
                   type="number"
@@ -635,11 +670,11 @@ export default function SPLPage() {
                   onChange={(e) => setFormData(prev => ({ ...prev, amountB: e.target.value }))}
                   min="0"
                   onWheel={(e) => e.currentTarget.blur()}
-                  className="bg-white border-gray-300 mt-1 font-bold text-green-700 text-lg placeholder:text-green-700 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className={`mt-1 ${incomeFieldClass} font-bold text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
                 />
               </div>
               <div>
-                <Label htmlFor="partyB" className="text-sm font-medium text-green-700">Party B ( JAMA PARTY )</Label>
+                <Label htmlFor="partyB" className="text-sm font-medium text-emerald-800">Party B ( JAMA PARTY )</Label>
                 <ClientTypeahead
                   id="partyB"
                   label=""
@@ -651,27 +686,23 @@ export default function SPLPage() {
                     console.log('Setting partyB to:', partyBValue);
                     setFormData(prev => ({ ...prev, partyB: partyBValue }));
                   }}
-                  className="mt-1 bg-white border-gray-300 text-sm font-medium text-green-700 placeholder:text-green-500"
+                  className={`mt-1 h-10 ${incomeTypeaheadClass}`}
                 />
               </div>
               <div>
-                <Label htmlFor="amountC" className="text-sm font-medium text-green-700">Amount C (A - B) *</Label>
+                <Label htmlFor="amountC" className={`text-sm font-medium ${amountCLabelClass}`}>Amount C (A - B) *</Label>
                 <Input
                   id="amountC"
                   type="number"
                   placeholder=""
-                  value={parseFloat(formData.amountA || '0') - parseFloat(formData.amountB || '0')}
+                  value={amountCDelta}
                   readOnly
                   onWheel={(e) => e.currentTarget.blur()}
-                  className={`bg-white border-gray-300 mt-1 font-bold text-lg placeholder:text-gray-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                    (parseFloat(formData.amountA || '0') - parseFloat(formData.amountB || '0')) >= 0
-                      ? 'text-green-700'
-                      : 'text-red-700'
-                  }`}
+                  className={`mt-1 ${amountCFieldClass} font-bold text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
                 />
               </div>
               <div>
-                <Label htmlFor="partyC" className="text-sm font-medium text-green-700">Party C ( +/- PARTY )</Label>
+                <Label htmlFor="partyC" className={`text-sm font-medium ${amountCLabelClass}`}>Party C ( +/- PARTY )</Label>
                 <div className="relative" style={{ zIndex: 99 }}>
                 <ClientTypeahead
                   id="partyC"
@@ -684,11 +715,7 @@ export default function SPLPage() {
                     console.log('Setting partyC to:', partyCValue);
                     setFormData(prev => ({ ...prev, partyC: partyCValue }));
                   }}
-                  className={`bg-white border-gray-300 mt-1 text-sm font-medium placeholder:text-gray-500 ${
-                    (parseFloat(formData.amountA || '0') - parseFloat(formData.amountB || '0')) >= 0 
-                      ? 'text-green-700' 
-                      : 'text-red-700'
-                  }`}
+                  className={`mt-1 h-10 ${partyCTypeaheadClass}`}
                 />
                 </div>
               </div>
@@ -699,11 +726,12 @@ export default function SPLPage() {
                   id="remark"
                   value={formData.remark}
                   onChange={(e) => setFormData(prev => ({ ...prev, remark: e.target.value }))}
-                  className="bg-white border-gray-300 mt-1 text-black placeholder:text-gray-600"
+                  className={`mt-1 ${remarkFieldClass} text-sm`}
                   placeholder="Enter remark"
                 />
               </div>
 
+            </div>
             </div>
 
             {/* Action Buttons */}
@@ -823,7 +851,7 @@ export default function SPLPage() {
                       placeholder="Search SPL entries..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="bg-white w-48 lg:w-64 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                      className={`${remarkFieldClass} w-48 lg:w-64 text-sm`}
                     />
                   </div>
                 </div>
@@ -856,7 +884,15 @@ export default function SPLPage() {
                       } ${selectedEntry?.id === entry.id ? 'bg-orange-100/70' : ''}`}
                       onClick={() => editEntry(entry)}
                     >
-                      <td className="px-4 py-3 text-sm text-gray-900">{entry.tokenNo}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        <span className="inline-flex items-center">
+                          {entry.tokenNo}
+                          <UpdatedEntryBadge
+                            createdAt={entry.createdAt}
+                            updatedAt={entry.updatedAt}
+                          />
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-sm text-gray-900">{formatDate(entry.date)}</td>
                       <td className="px-4 py-3 text-sm text-gray-900">{formatTime(entry.time)}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-blue-600">{formatCurrency(entry.amountA || 0)}</td>

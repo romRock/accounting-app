@@ -23,6 +23,7 @@ interface ClientTypeaheadProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  dropdownZIndex?: number;
 }
 
 export function ClientTypeahead({ 
@@ -32,7 +33,8 @@ export function ClientTypeahead({
   onChange, 
   placeholder = "Search client...", 
   disabled = false,
-  className = ""
+  className = "",
+  dropdownZIndex = 99999,
 }: ClientTypeaheadProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState(value || '');
@@ -220,9 +222,11 @@ export function ClientTypeahead({
   return (
     <>
       <div className="relative" ref={containerRef}>
-        <Label htmlFor={id} className="text-sm font-medium text-gray-700">
-          {label}
-        </Label>
+        {label ? (
+          <Label htmlFor={id} className="text-sm font-medium text-gray-700">
+            {label}
+          </Label>
+        ) : null}
         <div className="relative">
           <Input
             id={id}
@@ -261,7 +265,7 @@ export function ClientTypeahead({
             top: dropdownPosition.top, 
             left: dropdownPosition.left, 
             width: dropdownPosition.width,
-            zIndex: 99999 
+            zIndex: dropdownZIndex,
           }}
           ref={dropdownRef}
         >

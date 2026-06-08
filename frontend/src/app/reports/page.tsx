@@ -138,7 +138,7 @@ function getAmountTypeCashDisplayAmount(transaction: {
 export default function ReportsPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
-  const [activeReport, setActiveReport] = useState<ReportType>('outward');
+  const [activeReport, setActiveReport] = useState<ReportType>('customer');
   const [reportData, setReportData] = useState<Transaction[]>([]);
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [loading, setLoading] = useState(false);
@@ -147,13 +147,14 @@ export default function ReportsPage() {
   const [exporting, setExporting] = useState(false);
   const firstInputRef = useRef<HTMLInputElement>(null);
 
-  // Check localStorage for activeReport on mount
+  // Default to Customer Report and sync header; honour dashboard shortcut via localStorage
   useEffect(() => {
     const savedActiveReport = localStorage.getItem('activeReport');
-    if (savedActiveReport && savedActiveReport === 'customer') {
-      setActiveReport('customer');
-      localStorage.removeItem('activeReport'); // Clear after use
+    if (savedActiveReport === 'customer') {
+      localStorage.removeItem('activeReport');
     }
+    setActiveReport('customer');
+    window.dispatchEvent(new CustomEvent('setActiveReport', { detail: 'customer' }));
   }, []);
 
   // ----- Transaction Report (#5) dedicated state -----
@@ -1872,18 +1873,7 @@ export default function ReportsPage() {
                   <div className="text-sm font-medium text-gray-600">Total Records</div>
                   <div className="text-2xl font-bold text-gray-900 mt-1">{summary.totalRecords}</div>
                 </div>
-                {activeReport === 'customer' ? (
-                  <>
-                    <div className="bg-gradient-to-br from-white to-orange-50/80 p-4 rounded-lg border border-orange-200/60">
-                      <div className="text-sm font-medium text-gray-600">Total Credit (Devana Paisa)</div>
-                      <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.totalAmount)}</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-white to-orange-50/80 p-4 rounded-lg border border-orange-200/60">
-                      <div className="text-sm font-medium text-gray-600">Total Debit (Levana Paisa)</div>
-                      <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.totalCommission)}</div>
-                    </div>
-                  </>
-                ) : activeReport === 'combo' ? (
+                {activeReport === 'customer' ? null : activeReport === 'combo' ? (
                   <>
                     <div className="bg-gradient-to-br from-white to-orange-50/80 p-4 rounded-lg border border-orange-200/60">
                       <div className="text-sm font-medium text-gray-600">Outward Total</div>

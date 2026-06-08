@@ -21,6 +21,7 @@ import { ClientTypeahead, Client } from "@/components/ui/client-typeahead";
 import { useAuthStore } from "@/store/index";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { RefreshCw, Trash2, Save } from "lucide-react";
+import UpdatedEntryBadge from "@/components/reports/updated-entry-badge";
 import { transactionApi, Transaction } from "@/lib/transactions";
 import { getFetchDateRange } from "@/lib/date-filter";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -264,6 +265,24 @@ export default function TransactionsPage() {
   const isCredit = amountType === "CREDIT";
   const receiverUsesClientPicker = isCredit && activeTab === "inward";
   const senderUsesClientPicker = isCredit && activeTab === "outward";
+
+  const glassBase =
+    "rounded-2xl backdrop-blur-md transition-all duration-200 shadow-[inset_0_2px_8px_rgba(15,23,42,0.07)]";
+  const inactiveFieldClass = `${glassBase} bg-slate-100/80 border border-slate-200/90 text-slate-500 cursor-not-allowed`;
+  const datePickerClass = `${glassBase} h-10 border border-blue-200/80 bg-gradient-to-br from-blue-50/70 via-slate-100/50 to-slate-100/70 text-slate-600 hover:from-blue-50 hover:via-blue-50/80 hover:to-slate-100/80 hover:text-slate-700 shadow-[inset_0_2px_8px_rgba(59,130,246,0.12)]`;
+  const centerFieldClass = `${glassBase} !rounded-2xl !bg-blue-50/70 !border-blue-300/80 !text-blue-950 placeholder:!text-blue-400/80 focus:!ring-2 focus:!ring-blue-500/35 focus:!border-blue-500 shadow-[inset_0_2px_8px_rgba(59,130,246,0.1),0_0_16px_rgba(59,130,246,0.08)]`;
+  const timeFieldClass = `${glassBase} bg-white/80 border border-slate-200/90 text-slate-800 focus:ring-2 focus:ring-slate-400/25 focus:border-slate-400`;
+  const greenFieldClass = isCredit
+    ? `${glassBase} bg-red-50/85 border border-red-300/80 text-red-900 placeholder:text-red-400 focus:ring-2 focus:ring-red-500/35 focus:border-red-500 shadow-[inset_0_2px_8px_rgba(239,68,68,0.12)]`
+    : `${glassBase} bg-emerald-50/75 border border-emerald-300/80 text-emerald-950 placeholder:text-emerald-500/70 focus:ring-2 focus:ring-emerald-500/35 focus:border-emerald-500 shadow-[inset_0_2px_8px_rgba(16,185,129,0.12)]`;
+  const greenSelectClass = isCredit
+    ? `${glassBase} border-red-300/80 focus:ring-2 focus:ring-red-500/35 focus:border-red-500 bg-red-50/85 text-red-900 font-semibold`
+    : `${glassBase} border-emerald-300/80 focus:ring-2 focus:ring-emerald-500/35 focus:border-emerald-500 bg-emerald-50/75 text-emerald-950 font-semibold`;
+  const greenCommissionReadonlyClass = isCredit
+    ? `${glassBase} bg-red-100/70 border border-red-200/80 text-red-700/80 cursor-not-allowed`
+    : `${glassBase} bg-emerald-100/65 border border-emerald-200/80 text-emerald-700/80 cursor-not-allowed`;
+  const contactFieldClass = `${glassBase} bg-white/95 border border-gray-200/90 text-gray-900 placeholder:text-gray-500 focus:ring-2 focus:ring-orange-400/30 focus:border-orange-300 shadow-[inset_0_2px_8px_rgba(0,0,0,0.05)]`;
+  const contactTypeaheadClass = `${glassBase} !rounded-2xl !bg-white/95 !border-gray-200/90 !text-gray-900 placeholder:!text-gray-500 focus:!ring-2 focus:!ring-orange-400/30 focus:!border-orange-300 shadow-[inset_0_2px_8px_rgba(0,0,0,0.05)]`;
 
   const handleAmountTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     register("amountType").onChange(e);
@@ -808,8 +827,8 @@ export default function TransactionsPage() {
             <CardContent className="space-y-6">
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                 {/* Section 1: General Information */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-gray-900 border-b pb-2">
+                <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-sm">
+                  <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
                     General Information
                   </h3>
 
@@ -817,7 +836,7 @@ export default function TransactionsPage() {
                     <div>
                       <Label
                         htmlFor="transactionId"
-                        className="text-sm font-medium text-gray-700"
+                        className="text-sm font-medium text-slate-500"
                       >
                         Transaction ID
                       </Label>
@@ -825,14 +844,14 @@ export default function TransactionsPage() {
                         id="transactionId"
                         {...register("transactionId")}
                         readOnly
-                        className="bg-gray-50 border-gray-300 text-gray-500 text-sm"
+                        className={`mt-1 ${inactiveFieldClass} text-sm`}
                       />
                     </div>
 
                     <div>
                       <Label
                         htmlFor="tokenNo"
-                        className="text-sm font-medium text-gray-700"
+                        className="text-sm font-medium text-slate-500"
                       >
                         Token No
                       </Label>
@@ -840,14 +859,14 @@ export default function TransactionsPage() {
                         id="tokenNo"
                         {...register("tokenNo")}
                         readOnly
-                        className="bg-gray-50 border-gray-300 text-gray-500 text-sm"
+                        className={`mt-1 ${inactiveFieldClass} text-sm`}
                       />
                     </div>
 
                     <div>
                       <Label
                         htmlFor="date"
-                        className="text-sm font-medium text-gray-700"
+                        className="text-sm font-medium text-slate-500"
                       >
                         Date
                       </Label>
@@ -864,7 +883,8 @@ export default function TransactionsPage() {
                             );
                           }
                         }}
-                        className="mt-0 h-9 text-sm"
+                        className={`mt-1 text-sm font-medium ${datePickerClass}`}
+                        iconClassName="text-blue-500 drop-shadow-sm"
                       />
                     </div>
 
@@ -885,29 +905,33 @@ export default function TransactionsPage() {
                         }
                         onChange={(e) => setValue("time", e.target.value)}
                         autoComplete="off"
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                        className={`mt-1 ${timeFieldClass} text-sm`}
                       />
                     </div>
 
-                    <CityTypeahead
-                      id="centerId"
-                      label="Center"
-                      value={selectedCity?.name || watch("centerId") || ""}
-                      onChange={(value, city) => {
-                        setValue("centerId", city?.id || value);
-                        setSelectedCity(city);
-                      }}
-                      placeholder="Search city..."
-                      resetKey={cityResetKey}
-                      inputRef={centerInputRef}
-                    />
+                    <div>
+                      <CityTypeahead
+                        id="centerId"
+                        label="Center"
+                        value={selectedCity?.name || watch("centerId") || ""}
+                        onChange={(value, city) => {
+                          setValue("centerId", city?.id || value);
+                          setSelectedCity(city);
+                        }}
+                        placeholder="Search city..."
+                        resetKey={cityResetKey}
+                        inputRef={centerInputRef}
+                        className={`h-10 ${centerFieldClass}`}
+                      />
+                    </div>
                   </div>
 
+                  <div className="rounded-xl border border-gray-200 bg-white p-3 sm:p-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                     <div>
                       <Label
                         htmlFor="amount"
-                        className="text-sm font-medium text-gray-700"
+                        className="text-sm font-medium text-emerald-800"
                       >
                         Amount
                       </Label>
@@ -923,7 +947,7 @@ export default function TransactionsPage() {
                         autoComplete="off"
                         min="0"
                         onWheel={(e) => e.currentTarget.blur()}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-black text-lg placeholder:text-gray-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className={`mt-1 ${greenFieldClass} font-bold text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
                         ref={firstInputRef}
                       />
                     </div>
@@ -931,7 +955,7 @@ export default function TransactionsPage() {
                     <div>
                       <Label
                         htmlFor="amountType"
-                        className="text-sm font-medium text-gray-700"
+                        className="text-sm font-medium text-emerald-800"
                       >
                         Amount Type
                       </Label>
@@ -939,7 +963,7 @@ export default function TransactionsPage() {
                         id="amountType"
                         {...register("amountType")}
                         onChange={handleAmountTypeChange}
-                        className="w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-black text-sm"
+                        className={`mt-1 w-full h-10 text-sm ${greenSelectClass}`}
                       >
                         <option value="CASH">CASH</option>
                         <option value="CREDIT">CREDIT</option>
@@ -950,7 +974,7 @@ export default function TransactionsPage() {
                       <div>
                         <Label
                           htmlFor="commission"
-                          className="text-sm font-medium text-gray-700"
+                          className="text-sm font-medium text-emerald-800"
                         >
                           Commission
                         </Label>
@@ -972,10 +996,10 @@ export default function TransactionsPage() {
                           autoComplete="off"
                           min="0"
                           onWheel={(e) => e.currentTarget.blur()}
-                          className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-lg placeholder:text-gray-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                          className={`mt-1 font-bold text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
                             autoCommission
-                              ? "bg-gray-100 text-gray-500"
-                              : "bg-white text-black"
+                              ? greenCommissionReadonlyClass
+                              : greenFieldClass
                           }`}
                         />
                       </div>
@@ -983,7 +1007,7 @@ export default function TransactionsPage() {
                       <div>
                         <Label
                           htmlFor="cuttingCommission"
-                          className="text-sm font-medium text-gray-700"
+                          className="text-sm font-medium text-emerald-800"
                         >
                           Cutting Commission
                         </Label>
@@ -1003,10 +1027,10 @@ export default function TransactionsPage() {
                           autoComplete="off"
                           min="0"
                           onWheel={(e) => e.currentTarget.blur()}
-                          className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-lg placeholder:text-gray-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                          className={`mt-1 font-bold text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
                             autoCommission
-                              ? "bg-gray-100 text-gray-500"
-                              : "bg-white text-black"
+                              ? greenCommissionReadonlyClass
+                              : greenFieldClass
                           }`}
                         />
                       </div>
@@ -1020,11 +1044,15 @@ export default function TransactionsPage() {
                         onChange={(e) =>
                           setValue("autoCommission", e.target.checked)
                         }
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        className={`h-4 w-4 rounded ${
+                          isCredit
+                            ? "text-red-600 focus:ring-red-500 border-red-300"
+                            : "text-emerald-600 focus:ring-emerald-500 border-emerald-300"
+                        }`}
                       />
                       <Label
                         htmlFor="autoCommission"
-                        className="text-sm font-medium text-gray-700"
+                        className="text-sm font-medium text-emerald-800"
                       >
                         Auto
                       </Label>
@@ -1032,9 +1060,9 @@ export default function TransactionsPage() {
                   </div>
 
                   {activeTab === "outward" ? (
-                    <div className="space-y-2">
+                    <div className="space-y-2 mt-3">
                       {!autoCommission && (
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-emerald-700/80">
                           Manual: Below amount minimum → all to center. At/above
                           minimum → center fixed, extra is booking. You can
                           still edit any box.
@@ -1042,7 +1070,7 @@ export default function TransactionsPage() {
                       )}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <div>
-                          <Label className="text-sm font-medium text-gray-700">
+                          <Label className="text-sm font-medium text-emerald-800">
                             Booking Commission
                           </Label>
                           <Input
@@ -1057,16 +1085,16 @@ export default function TransactionsPage() {
                               )
                             }
                             onWheel={(e) => e.currentTarget.blur()}
-                            className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-medium text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                            className={`mt-1 font-medium text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
                               autoCommission
-                                ? "bg-gray-50 text-green-600"
-                                : "bg-white text-green-700"
+                                ? greenCommissionReadonlyClass
+                                : greenFieldClass
                             }`}
                           />
                         </div>
 
                         <div>
-                          <Label className="text-sm font-medium text-gray-700">
+                          <Label className="text-sm font-medium text-emerald-800">
                             Center Commission
                           </Label>
                           <Input
@@ -1081,21 +1109,22 @@ export default function TransactionsPage() {
                               )
                             }
                             onWheel={(e) => e.currentTarget.blur()}
-                            className={`border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-medium text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                            className={`mt-1 font-medium text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
                               autoCommission
-                                ? "bg-gray-50 text-green-600"
-                                : "bg-white text-green-700"
+                                ? greenCommissionReadonlyClass
+                                : greenFieldClass
                             }`}
                           />
                         </div>
                       </div>
                     </div>
                   ) : null}
+                  </div>
                 </div>
 
                 {/* Section 2: Contact Information */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-gray-900 border-b pb-2">
+                <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-sm">
+                  <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
                     Contact Information
                   </h3>
 
@@ -1123,6 +1152,7 @@ export default function TransactionsPage() {
                               }
                             }}
                             placeholder="Search receiver client..."
+                            className={`h-10 ${contactTypeaheadClass}`}
                           />
                           {errors.receiverName && (
                             <p className="mt-1 text-sm text-red-600">
@@ -1143,7 +1173,7 @@ export default function TransactionsPage() {
                             placeholder="Enter receiver name"
                             {...register("receiverName")}
                             autoComplete="off"
-                            className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                            className={`mt-1 ${contactFieldClass} text-sm`}
                           />
                         </>
                       )}
@@ -1161,7 +1191,7 @@ export default function TransactionsPage() {
                         placeholder="Enter receiver number"
                         {...register("receiverNumber")}
                         autoComplete="off"
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                        className={`mt-1 ${contactFieldClass} text-sm`}
                       />
                     </div>
 
@@ -1185,6 +1215,7 @@ export default function TransactionsPage() {
                               }
                             }}
                             placeholder="Search sender client..."
+                            className={`h-10 ${contactTypeaheadClass}`}
                           />
                           {errors.senderName && (
                             <p className="mt-1 text-sm text-red-600">
@@ -1205,7 +1236,7 @@ export default function TransactionsPage() {
                             placeholder="Enter sender name"
                             {...register("senderName")}
                             autoComplete="off"
-                            className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                            className={`mt-1 ${contactFieldClass} text-sm`}
                           />
                         </>
                       )}
@@ -1223,7 +1254,7 @@ export default function TransactionsPage() {
                         placeholder="Enter sender number"
                         {...register("senderNumber")}
                         autoComplete="off"
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                        className={`mt-1 ${contactFieldClass} text-sm`}
                       />
                     </div>
                   </div>
@@ -1240,7 +1271,7 @@ export default function TransactionsPage() {
                       placeholder="Enter any remarks"
                       {...register("remark")}
                       autoComplete="off"
-                      className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                      className={`mt-1 ${contactFieldClass} text-sm`}
                     />
                   </div>
                 </div>
@@ -1483,7 +1514,13 @@ export default function TransactionsPage() {
                               }`}
                             >
                               <td className="px-4 py-3 text-sm text-gray-900">
-                                {transaction.tokenNo}
+                                <span className="inline-flex items-center">
+                                  {transaction.tokenNo}
+                                  <UpdatedEntryBadge
+                                    createdAt={transaction.createdAt}
+                                    updatedAt={transaction.updatedAt}
+                                  />
+                                </span>
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-900">
                                 {new Date(transaction.date).toLocaleDateString(
@@ -1663,7 +1700,13 @@ export default function TransactionsPage() {
                               }`}
                             >
                               <td className="px-4 py-3 text-sm text-gray-900">
-                                {transaction.tokenNo}
+                                <span className="inline-flex items-center">
+                                  {transaction.tokenNo}
+                                  <UpdatedEntryBadge
+                                    createdAt={transaction.createdAt}
+                                    updatedAt={transaction.updatedAt}
+                                  />
+                                </span>
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-900">
                                 {new Date(transaction.date).toLocaleDateString(

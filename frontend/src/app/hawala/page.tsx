@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { formatCurrency, formatDate, formatTime } from '@/lib/utils';
+import { formatCurrency, formatDate, formatTime, matchesTableSearch } from '@/lib/utils';
 import { Search, Calendar, Filter, Trash2, Save, RefreshCw, Edit, Check, X, Clock, User, DollarSign, FileText } from 'lucide-react';
+import UpdatedEntryBadge from '@/components/reports/updated-entry-badge';
 import { ClientTypeahead } from '@/components/ui/client-typeahead';
 import { getHawalaEntries, createHawala, updateHawala, deleteHawala, HawalaEntry } from '@/lib/hawala';
 import { getFetchDateRange } from '@/lib/date-filter';
@@ -253,37 +254,44 @@ export default function HawalaPage() {
     void fetchHawalaEntries();
   }, [filterByDate, dateFilter, startDate, endDate, isSelectingRange]);
 
+  const entryMatchesSearch = (entry: HawalaEntry) =>
+    matchesTableSearch(
+      searchTerm,
+      entry.tokenNo,
+      entry.transactionId,
+      formatDate(entry.date),
+      entry.date,
+      formatTime(entry.time),
+      entry.time,
+      entry.amount,
+      formatCurrency(entry.amount),
+      entry.partyA,
+      entry.partyB,
+      entry.remark,
+    );
+
   // Filter entries
   const filteredEntries = useMemo(() => {
-    // Backend now filters by current day and branch by default
-    // Frontend only filters if user explicitly enables date filter
-    if (!filterByDate) {
-      return hawalaEntries.filter(entry => {
-        const matchesSearch = searchTerm === '' ||
-          entry.partyA.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          entry.partyB.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (entry.remark && entry.remark.toLowerCase().includes(searchTerm.toLowerCase()));
-        return matchesSearch;
-      });
-    }
+    return hawalaEntries.filter((entry) => {
+      if (!entryMatchesSearch(entry)) {
+        return false;
+      }
 
-    return hawalaEntries.filter(entry => {
+      if (!filterByDate) {
+        return true;
+      }
+
       const entryDate = new Date(entry.date);
-      const entryDateString = entryDate.getFullYear() + '-' +
-        String(entryDate.getMonth() + 1).padStart(2, '0') + '-' +
+      const entryDateString =
+        entryDate.getFullYear() +
+        '-' +
+        String(entryDate.getMonth() + 1).padStart(2, '0') +
+        '-' +
         String(entryDate.getDate()).padStart(2, '0');
 
-      // Filter by date range or single date
-      const matchesDate = isSelectingRange && startDate && endDate ?
-        entryDateString >= startDate && entryDateString <= endDate :
-        entryDateString === dateFilter;
-
-      const matchesSearch = searchTerm === '' ||
-        entry.partyA.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        entry.partyB.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (entry.remark && entry.remark.toLowerCase().includes(searchTerm.toLowerCase()));
-
-      return matchesDate && matchesSearch;
+      return isSelectingRange && startDate && endDate
+        ? entryDateString >= startDate && entryDateString <= endDate
+        : entryDateString === dateFilter;
     });
   }, [hawalaEntries, searchTerm, filterByDate, dateFilter, isSelectingRange, startDate, endDate]);
 
@@ -566,38 +574,47 @@ export default function HawalaPage() {
     });
   };
 
+  const glassBase =
+    'rounded-2xl backdrop-blur-md transition-all duration-200 shadow-[inset_0_2px_8px_rgba(15,23,42,0.07)]';
+  const inactiveFieldClass = `${glassBase} bg-slate-100/80 border border-slate-200/90 text-slate-500 cursor-not-allowed`;
+  const inactiveLookClass = `${glassBase} bg-slate-100/80 border border-slate-200/90 text-slate-500`;
+  const datePickerClass = `${glassBase} h-10 border border-blue-200/80 bg-gradient-to-br from-blue-50/70 via-slate-100/50 to-slate-100/70 text-slate-600 hover:from-blue-50 hover:via-blue-50/80 hover:to-slate-100/80 hover:text-slate-700 shadow-[inset_0_2px_8px_rgba(59,130,246,0.12)]`;
+  const amountFieldClass = `${glassBase} bg-white/95 border border-gray-200/90 text-gray-900 placeholder:text-gray-500 focus:ring-2 focus:ring-orange-400/30 focus:border-orange-300 shadow-[inset_0_2px_8px_rgba(0,0,0,0.05)]`;
+  const remarkFieldClass = amountFieldClass;
+  const expenseTypeaheadClass = `${glassBase} !rounded-2xl !bg-red-50/85 !border-red-300/80 !text-red-900 placeholder:!text-red-400 focus:!ring-2 focus:!ring-red-500/35 focus:!border-red-500 shadow-[inset_0_2px_8px_rgba(239,68,68,0.12)]`;
+  const incomeTypeaheadClass = `${glassBase} !rounded-2xl !bg-emerald-50/75 !border-emerald-300/80 !text-emerald-950 placeholder:!text-emerald-500/70 focus:!ring-2 focus:!ring-emerald-500/35 focus:!border-emerald-500 shadow-[inset_0_2px_8px_rgba(16,185,129,0.12)]`;
+
   return (
     <>
       <div className="bg-white min-h-screen w-full">
         <div className="pt-16 space-y-4 sm:space-y-6">
-
-
         {/* Entry Form */}
         <Card className="shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative z-10">
           <CardHeader></CardHeader>
           <CardContent className="space-y-4">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-sm space-y-4">
             {/* Row 1: Transaction ID, Token No, Date, Time */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
-                <Label htmlFor="transactionId">Transaction ID</Label>
+                <Label htmlFor="transactionId" className="text-sm font-medium text-slate-500">Transaction ID</Label>
                 <Input
                   id="transactionId"
                   value={formData.transactionId}
                   readOnly
-                  className="bg-white border-gray-300 rounded-md text-black placeholder:text-gray-600"
+                  className={`mt-1 ${inactiveFieldClass} text-sm`}
                 />
               </div>
               <div>
-                <Label htmlFor="tokenNo">Token No</Label>
+                <Label htmlFor="tokenNo" className="text-sm font-medium text-slate-500">Token No</Label>
                 <Input
                   id="tokenNo"
                   value={formData.tokenNo}
                   readOnly
-                  className="bg-white border-gray-300 rounded-md text-black placeholder:text-gray-600"
+                  className={`mt-1 ${inactiveFieldClass} text-sm`}
                 />
               </div>
               <div>
-                <Label htmlFor="date">Date</Label>
+                <Label htmlFor="date" className="text-sm font-medium text-slate-500">Date</Label>
                 <DatePicker
                   id="date"
                   value={formData.date}
@@ -607,17 +624,18 @@ export default function HawalaPage() {
                       fetchNextTokenForDate(newDate);
                     }
                   }}
-                  className="h-9 text-sm"
+                  className={`mt-1 text-sm font-medium ${datePickerClass}`}
+                  iconClassName="text-blue-500 drop-shadow-sm"
                 />
               </div>
               <div>
-                <Label htmlFor="time">Time</Label>
+                <Label htmlFor="time" className="text-sm font-medium text-slate-500">Time</Label>
                 <Input
                   id="time"
                   type="time"
                   value={formData.time}
                   onChange={(e) => setFormData(prev => ({ ...prev, time: e.target.value }))}
-                  className="bg-white border-gray-300 rounded-md text-black placeholder:text-gray-600"
+                  className={`mt-1 ${inactiveLookClass} text-sm`}
                 />
               </div>
             </div>
@@ -625,7 +643,7 @@ export default function HawalaPage() {
             {/* Row 2: Amount, Party A, Party B */}
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
               <div>
-                <Label htmlFor="amount">Amount</Label>
+                <Label htmlFor="amount" className="text-sm font-medium text-gray-700">Amount</Label>
                 <Input
                   id="amount"
                   ref={amountInputRef}
@@ -635,7 +653,7 @@ export default function HawalaPage() {
                   onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
                   min="0"
                   onWheel={(e) => e.currentTarget.blur()}
-                  className="bg-white border-gray-300 rounded-md font-bold text-black text-lg placeholder:text-gray-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className={`mt-1 ${amountFieldClass} font-bold text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
                 />
               </div>
               <div>
@@ -650,7 +668,7 @@ export default function HawalaPage() {
                     console.log('Setting partyB to:', partyBValue);
                     setFormData(prev => ({ ...prev, partyB: partyBValue }));
                   }}
-                  className="bg-white border-gray-300 text-black"
+                  className={`mt-1 h-10 ${expenseTypeaheadClass}`}
                 />
               </div>
               <div>
@@ -665,19 +683,20 @@ export default function HawalaPage() {
                     console.log('Setting partyA to:', partyAValue);
                     setFormData(prev => ({ ...prev, partyA: partyAValue }));
                   }}
-                  className="bg-white border-gray-300 text-black"
+                  className={`mt-1 h-10 ${incomeTypeaheadClass}`}
                 />
               </div>
               <div>
-                <Label htmlFor="remark">Remark</Label>
+                <Label htmlFor="remark" className="text-sm font-medium text-gray-700">Remark</Label>
                 <Input
                   id="remark"
                   value={formData.remark}
                   onChange={(e) => setFormData(prev => ({ ...prev, remark: e.target.value }))}
-                  className="bg-white border-gray-300 rounded-md text-black placeholder:text-gray-600"
+                  className={`mt-1 ${remarkFieldClass} text-sm`}
                   placeholder="Enter remark"
                 />
               </div>
+            </div>
             </div>
 
             {/* Action Buttons */}
@@ -805,7 +824,7 @@ export default function HawalaPage() {
                       placeholder="Search hawala entries..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="bg-white w-48 lg:w-64 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                      className={`${amountFieldClass} w-48 lg:w-64 text-sm`}
                     />
                   </div>
                 </div>
@@ -857,7 +876,13 @@ export default function HawalaPage() {
                         } ${selectedEntry?.id === entry.id ? 'bg-orange-100/70' : ''}`}
                       >
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {entry.tokenNo}
+                          <span className="inline-flex items-center">
+                            {entry.tokenNo}
+                            <UpdatedEntryBadge
+                              createdAt={entry.createdAt}
+                              updatedAt={entry.updatedAt}
+                            />
+                          </span>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
                           {formatDate(entry.date)}

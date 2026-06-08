@@ -13,6 +13,7 @@ interface DatePickerProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  iconClassName?: string;
   disabled?: boolean;
   id?: string;
 }
@@ -28,6 +29,7 @@ export function DatePicker({
   onChange,
   placeholder = 'Pick a date',
   className,
+  iconClassName,
   disabled = false,
   id,
 }: DatePickerProps) {
@@ -48,7 +50,7 @@ export function DatePicker({
             className
           )}
         >
-          <CalendarIcon className="mr-2 h-4 w-4 shrink-0 text-gray-500" />
+          <CalendarIcon className={cn('mr-2 h-4 w-4 shrink-0', iconClassName ?? 'text-gray-500')} />
           {selected ? format(selected, 'dd/MM/yyyy') : placeholder}
         </Button>
       </PopoverTrigger>

@@ -1,19 +1,25 @@
-import { transactionApi } from '@/lib/transactions';
-import { accountingApi } from '@/lib/accounting';
-import { getHawalaEntries } from '@/lib/hawala';
-import { getSpecialEntries } from '@/lib/specialEntry';
+import { transactionApi, Transaction } from '@/lib/transactions';
+import { accountingApi, AccountingEntry } from '@/lib/accounting';
+import { getHawalaEntries, HawalaEntry } from '@/lib/hawala';
+import { getSpecialEntries, SpecialEntry } from '@/lib/specialEntry';
 
 export const CLIENT_HISTORY_PARAMS = { page: 1, limit: 1000, allDates: true as const };
+
+export type ClientLedgerModule = 'Transaction' | 'Accounting' | 'Hawala' | 'Special Entry';
 
 export interface ClientLedgerEntry {
   date: string;
   time: string;
-  module: string;
+  module: ClientLedgerModule;
   description: string;
   debit: number;
   credit: number;
   balance: number;
   reference: string;
+  sourceId: string;
+  transactionType?: 'OUTWARD' | 'INWARD';
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ClientLedgerClient {
@@ -21,6 +27,51 @@ export interface ClientLedgerClient {
   name: string;
   createdAt?: string;
   mobileNumber?: string;
+}
+
+export type ClientLedgerSourceRecord =
+  | Transaction
+  | AccountingEntry
+  | HawalaEntry
+  | SpecialEntry;
+
+function formatTxnTime(time?: string): string {
+  if (!time) return '';
+  try {
+    return new Date(time).toTimeString().slice(0, 5);
+  } catch {
+    return time.slice(0, 5);
+  }
+}
+
+/** Load the underlying module record for a ledger row (uses existing list APIs). */
+export async function fetchSourceRecordForLedgerEntry(
+  entry: ClientLedgerEntry,
+): Promise<ClientLedgerSourceRecord | null> {
+  switch (entry.module) {
+    case 'Transaction': {
+      const [outwardTxns, inwardTxns] = await Promise.all([
+        transactionApi.getTransactions({ type: 'OUTWARD', ...CLIENT_HISTORY_PARAMS }),
+        transactionApi.getTransactions({ type: 'INWARD', ...CLIENT_HISTORY_PARAMS }),
+      ]);
+      const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];
+      return allTxns.find((txn) => txn.id === entry.sourceId) || null;
+    }
+    case 'Accounting': {
+      const accEntries = await accountingApi.getAccountEntries(CLIENT_HISTORY_PARAMS);
+      return (accEntries.entries || []).find((row) => row.id === entry.sourceId) || null;
+    }
+    case 'Hawala': {
+      const hawalaEntries = await getHawalaEntries(CLIENT_HISTORY_PARAMS);
+      return (hawalaEntries.data || []).find((row) => row.id === entry.sourceId) || null;
+    }
+    case 'Special Entry': {
+      const splEntries = await getSpecialEntries(CLIENT_HISTORY_PARAMS);
+      return (splEntries.data || []).find((row) => row.id === entry.sourceId) || null;
+    }
+    default:
+      return null;
+  }
 }
 
 /** Fetch ledger entries for a client from all modules (same logic as Customer Report). */
@@ -61,7 +112,7 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
         }
       }
 
-      const otherParty = receiverName === clientName ? senderName : receiverName;
+      const otherParty = receiverName === clientName ? txn.senderName : txn.receiverName;
       const descParts = [txn.type, otherParty];
       if (txn.center?.name) descParts.push(`Center: ${txn.center.name}`);
       else if (txn.centerId) descParts.push(`Center: ${txn.centerId}`);
@@ -69,13 +120,17 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
       if (txn.remark) descParts.push(`Remark: ${txn.remark}`);
       ledgerEntries.push({
         date: txn.date,
-        time: txn.time ? new Date(txn.time).toTimeString().slice(0, 5) : '',
+        time: formatTxnTime(txn.time),
         module: 'Transaction',
         description: descParts.join(' - '),
         debit: debitAmount,
         credit: creditAmount,
         balance: 0,
         reference: txn.transactionId || txn.id,
+        sourceId: txn.id,
+        transactionType: txn.type as 'OUTWARD' | 'INWARD',
+        createdAt: txn.createdAt,
+        updatedAt: txn.updatedAt,
       });
     }
   });
@@ -105,7 +160,10 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
         debit: isCredit ? 0 : (entry.debitAmount || entry.amount || 0),
         credit: isCredit ? (entry.creditAmount || entry.amount || 0) : 0,
         balance: 0,
-        reference: entry.id,
+        reference: entry.entryId || entry.transactionId || entry.id,
+        sourceId: entry.id,
+        createdAt: entry.createdAt,
+        updatedAt: entry.updatedAt,
       });
     }
   });
@@ -121,13 +179,16 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
       if (entry.remark) descParts.push(`Remark: ${entry.remark}`);
       ledgerEntries.push({
         date: entry.date,
-        time: entry.time ? new Date(entry.time).toTimeString().slice(0, 5) : '',
+        time: formatTxnTime(entry.time),
         module: 'Hawala',
         description: descParts.join(' - '),
         debit: isCredit ? 0 : (entry.amount || 0),
         credit: isCredit ? (entry.amount || 0) : 0,
         balance: 0,
-        reference: entry.id,
+        reference: entry.transactionId || entry.id,
+        sourceId: entry.id,
+        createdAt: entry.createdAt,
+        updatedAt: entry.updatedAt,
       });
     }
   });
@@ -161,13 +222,16 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
       if (entry.remark) descParts.push(`Remark: ${entry.remark}`);
       ledgerEntries.push({
         date: entry.date,
-        time: entry.time ? new Date(entry.time).toTimeString().slice(0, 5) : '',
+        time: formatTxnTime(entry.time),
         module: 'Special Entry',
         description: descParts.join(' - '),
         debit: isCredit ? 0 : amount,
         credit: isCredit ? amount : 0,
         balance: 0,
-        reference: entry.id,
+        reference: entry.transactionId || entry.id,
+        sourceId: entry.id,
+        createdAt: entry.createdAt,
+        updatedAt: entry.updatedAt,
       });
     }
   });

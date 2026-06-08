@@ -57,6 +57,32 @@ export function generateId(): string {
   return Math.random().toString(36).substr(2, 9);
 }
 
+/** Match search term against any table cell value (same behavior as transactions page). */
+export function matchesTableSearch(
+  searchTerm: string,
+  ...values: Array<string | number | null | undefined | boolean>
+): boolean {
+  if (!searchTerm) return true;
+  const searchLower = searchTerm.toLowerCase();
+  return values.some((value) => {
+    if (value == null || value === '') return false;
+    return String(value).toLowerCase().includes(searchLower);
+  });
+}
+
+/** True when a record was edited after initial creation (uses timestamps from API). */
+export function isEntryUpdated(
+  createdAt?: string | null,
+  updatedAt?: string | null,
+  thresholdMs = 5000,
+): boolean {
+  if (!createdAt || !updatedAt) return false;
+  const created = new Date(createdAt).getTime();
+  const updated = new Date(updatedAt).getTime();
+  if (Number.isNaN(created) || Number.isNaN(updated)) return false;
+  return updated - created > thresholdMs;
+}
+
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
   wait: number

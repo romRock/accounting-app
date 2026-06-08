@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/store';
-import { formatCurrency, formatDate, formatTime } from '@/lib/utils';
+import { formatCurrency, formatDate, formatTime, matchesTableSearch } from '@/lib/utils';
 import { RefreshCw, Trash2, Save } from 'lucide-react';
+import UpdatedEntryBadge from '@/components/reports/updated-entry-badge';
 import { ClientTypeahead } from '@/components/ui/client-typeahead';
 import { accountingApi, AccountingEntry } from '@/lib/accounting';
 import { getFetchDateRange } from '@/lib/date-filter';
@@ -231,11 +232,45 @@ export default function AccountingPage() {
     let filtered = transactions;
 
     if (searchTerm) {
-      filtered = filtered.filter(transaction =>
-        (transaction.party?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (transaction.category?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (transaction.description || '').toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      filtered = filtered.filter((transaction) => {
+        const typeLabel =
+          transaction.type ||
+          (transaction.accountType === 'INCOME_ACCOUNT' ? 'INCOME' : 'EXPENSE');
+        const incomeAmount =
+          transaction.type === 'INCOME' || transaction.accountType === 'INCOME_ACCOUNT'
+            ? transaction.amount ?? transaction.creditAmount ?? 0
+            : null;
+        const expenseAmount =
+          transaction.type === 'EXPENSE' || transaction.accountType === 'EXPENSE_ACCOUNT'
+            ? transaction.amount ?? transaction.debitAmount ?? 0
+            : null;
+
+        return matchesTableSearch(
+          searchTerm,
+          formatDate(transaction.date),
+          transaction.date,
+          transaction.time,
+          transaction.statusTime,
+          transaction.createdAt,
+          transaction.time ? formatTime(transaction.time) : '',
+          transaction.statusTime ? formatTime(transaction.statusTime) : '',
+          typeLabel,
+          incomeAmount,
+          expenseAmount,
+          transaction.amount,
+          transaction.creditAmount,
+          transaction.debitAmount,
+          incomeAmount != null ? formatCurrency(incomeAmount) : '',
+          expenseAmount != null ? formatCurrency(expenseAmount) : '',
+          transaction.category?.name,
+          transaction.party?.name,
+          transaction.partyId,
+          transaction.accountId,
+          transaction.description,
+          transaction.entryId,
+          transaction.transactionId,
+        );
+      });
     }
 
     // Backend now filters by current day and branch by default
@@ -542,6 +577,24 @@ export default function AccountingPage() {
     return null;
   }
 
+  const isIncome = transactionForm.amountType === 'INCOME';
+  const glassBase =
+    'rounded-2xl backdrop-blur-md transition-all duration-200 shadow-[inset_0_2px_8px_rgba(15,23,42,0.07)]';
+  const inactiveFieldClass = `${glassBase} bg-slate-100/80 border border-slate-200/90 text-slate-500 cursor-not-allowed`;
+  const datePickerClass = `${glassBase} h-10 border border-blue-200/80 bg-gradient-to-br from-blue-50/70 via-slate-100/50 to-slate-100/70 text-slate-600 hover:from-blue-50 hover:via-blue-50/80 hover:to-slate-100/80 hover:text-slate-700 shadow-[inset_0_2px_8px_rgba(59,130,246,0.12)]`;
+  const timeFieldClass = `${glassBase} bg-white/80 border border-slate-200/90 text-slate-800 focus:ring-2 focus:ring-slate-400/25 focus:border-slate-400`;
+  const incomeFieldClass = `${glassBase} bg-emerald-50/75 border border-emerald-300/80 text-emerald-950 placeholder:text-emerald-500/70 focus:ring-2 focus:ring-emerald-500/35 focus:border-emerald-500 shadow-[inset_0_2px_8px_rgba(16,185,129,0.12)]`;
+  const expenseFieldClass = `${glassBase} bg-red-50/85 border border-red-300/80 text-red-900 placeholder:text-red-400 focus:ring-2 focus:ring-red-500/35 focus:border-red-500 shadow-[inset_0_2px_8px_rgba(239,68,68,0.12)]`;
+  const incomeSelectClass = `${glassBase} border-emerald-300/80 focus:ring-2 focus:ring-emerald-500/35 focus:border-emerald-500 bg-emerald-50/75 text-emerald-950 font-semibold`;
+  const expenseSelectClass = `${glassBase} border-red-300/80 focus:ring-2 focus:ring-red-500/35 focus:border-red-500 bg-red-50/85 text-red-900 font-semibold`;
+  const typeFieldClass = isIncome ? incomeFieldClass : expenseFieldClass;
+  const typeSelectClass = isIncome ? incomeSelectClass : expenseSelectClass;
+  const typeLabelClass = isIncome ? 'text-emerald-800' : 'text-red-800';
+  const contactFieldClass = `${glassBase} bg-white/95 border border-gray-200/90 text-gray-900 placeholder:text-gray-500 focus:ring-2 focus:ring-orange-400/30 focus:border-orange-300 shadow-[inset_0_2px_8px_rgba(0,0,0,0.05)]`;
+  const contactTypeaheadClass = `${glassBase} !rounded-2xl !bg-white/95 !border-gray-200/90 !text-gray-900 placeholder:!text-gray-500 focus:!ring-2 focus:!ring-orange-400/30 focus:!border-orange-300 shadow-[inset_0_2px_8px_rgba(0,0,0,0.05)]`;
+  const isCategoryIncome = categoryForm.type === 'INCOME';
+  const categoryTypeSelectClass = isCategoryIncome ? incomeSelectClass : expenseSelectClass;
+
   return (
     <>
       <div className="bg-white min-h-screen w-full">
@@ -553,120 +606,137 @@ export default function AccountingPage() {
 
             {/* Transaction Entry Form */}
             <Card className="shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative z-10">
-              <CardContent className="p-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {/* Row 1 */}
-                  <div>
-                    <Label htmlFor="transactionNo" className="text-sm font-medium text-gray-700">Transaction ID</Label>
-                    <Input
-                      id="transactionNo"
-                      value={transactionForm.transactionNo}
-                      readOnly
-                      className="bg-gray-50 border-gray-300 text-gray-500 mt-1 placeholder:text-gray-600"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="date" className="text-sm font-medium text-gray-700">Date</Label>
-                    <DatePicker
-                      id="date"
-                      value={transactionForm.date}
-                      onChange={(date) => setTransactionForm(prev => ({ ...prev, date }))}
-                      className="mt-1 h-9 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="time" className="text-sm font-medium text-gray-700">Time</Label>
-                    <Input
-                      id="time"
-                      type="time"
-                      value={transactionForm.time}
-                      onChange={(e) => setTransactionForm(prev => ({ ...prev, time: e.target.value }))}
-                      className="bg-white border-gray-300 mt-1 text-black placeholder:text-gray-600"
-                    />
-                  </div>
-
-                  {/* Row 2 */}
-                  <div>
-                    <Label htmlFor="amount" className="text-sm font-medium text-gray-700">Amount *</Label>
-                    <Input
-                      id="amount"
-                      ref={amountInputRef}
-                      type="number"
-                      placeholder=""
-                      value={transactionForm.amount === '' ? '' : transactionForm.amount}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        if (value === '') {
-                          setTransactionForm(prev => ({ ...prev, amount: '' }));
-                          return;
-                        }
-                        // Only allow positive integers (no negative or decimals)
-                        if (/^\d+$/.test(value)) {
-                          setTransactionForm(prev => ({ ...prev, amount: parseInt(value, 10) }));
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E' || e.key === '.') {
-                          e.preventDefault();
-                        }
-                      }}
-                      min="0"
-                      step="1"
-                      onWheel={(e) => e.currentTarget.blur()}
-                      className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold text-black text-lg placeholder:text-gray-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="amountType" className="text-sm font-medium text-gray-700">Amount Type</Label>
-                    <select
-                      id="amountType"
-                      value={transactionForm.amountType}
-                      onChange={(e) => setTransactionForm(prev => ({ ...prev, amountType: e.target.value as 'INCOME' | 'EXPENSE' }))}
-                      className="w-full mt-1 px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="INCOME">INCOME</option>
-                      <option value="EXPENSE">EXPENSE</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label htmlFor="category" className="text-sm font-medium text-gray-700">Category</Label>
-                    <select
-                      id="category"
-                      value={transactionForm.category}
-                      onChange={(e) => setTransactionForm(prev => ({ ...prev, category: e.target.value }))}
-                      className="w-full mt-1 px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="">Select Category</option>
-                      {categories.filter(c => c.type === transactionForm.amountType).map(category => (
-                        <option key={category.id} value={category.id}>{category.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Row 3 */}
-                  <div className="">
-                    <Label htmlFor="account" className="text-sm font-medium text-gray-700">Account</Label>
-                    <ClientTypeahead
-                      id="account"
-                      label=""
-                      value={transactionForm.account}
-                      onChange={(value, client) => setTransactionForm(prev => ({ ...prev, account: client?.name || value }))}
-                      placeholder="Search client or enter account..."
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="remark" className="text-sm font-medium text-gray-700">Remark</Label>
-                    <Input
-                      id="remark"
-                      value={transactionForm.remark}
-                      onChange={(e) => setTransactionForm(prev => ({ ...prev, remark: e.target.value }))}
-                      className="bg-white border-gray-300 mt-1 text-black placeholder:text-gray-600"
-                      placeholder="Enter remark"
-                    />
+              <CardContent className="p-4 space-y-4">
+                <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-sm">
+                  <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
+                    General Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="transactionNo" className="text-sm font-medium text-slate-500">Transaction ID</Label>
+                      <Input
+                        id="transactionNo"
+                        value={transactionForm.transactionNo}
+                        readOnly
+                        className={`mt-1 ${inactiveFieldClass} text-sm`}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="date" className="text-sm font-medium text-slate-500">Date</Label>
+                      <DatePicker
+                        id="date"
+                        value={transactionForm.date}
+                        onChange={(date) => setTransactionForm(prev => ({ ...prev, date }))}
+                        className={`mt-1 text-sm font-medium ${datePickerClass}`}
+                        iconClassName="text-blue-500 drop-shadow-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="time" className="text-sm font-medium text-gray-700">Time</Label>
+                      <Input
+                        id="time"
+                        type="time"
+                        value={transactionForm.time}
+                        onChange={(e) => setTransactionForm(prev => ({ ...prev, time: e.target.value }))}
+                        className={`mt-1 ${timeFieldClass} text-sm`}
+                      />
+                    </div>
                   </div>
                 </div>
-                <div className="flex justify-end gap-2 mt-4">
+
+                <div className={`space-y-4 rounded-2xl border bg-white p-4 sm:p-5 shadow-sm ${isIncome ? 'border-emerald-200' : 'border-red-200'}`}>
+                  <h3 className={`text-lg font-semibold border-b pb-2 ${isIncome ? 'text-emerald-900 border-emerald-200' : 'text-red-900 border-red-200'}`}>
+                    {isIncome ? 'Income Entry' : 'Expense Entry'}
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="amount" className={`text-sm font-medium ${typeLabelClass}`}>Amount *</Label>
+                      <Input
+                        id="amount"
+                        ref={amountInputRef}
+                        type="number"
+                        placeholder=""
+                        value={transactionForm.amount === '' ? '' : transactionForm.amount}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === '') {
+                            setTransactionForm(prev => ({ ...prev, amount: '' }));
+                            return;
+                          }
+                          if (/^\d+$/.test(value)) {
+                            setTransactionForm(prev => ({ ...prev, amount: parseInt(value, 10) }));
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E' || e.key === '.') {
+                            e.preventDefault();
+                          }
+                        }}
+                        min="0"
+                        step="1"
+                        onWheel={(e) => e.currentTarget.blur()}
+                        className={`mt-1 ${typeFieldClass} font-bold text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="amountType" className={`text-sm font-medium ${typeLabelClass}`}>Amount Type</Label>
+                      <select
+                        id="amountType"
+                        value={transactionForm.amountType}
+                        onChange={(e) => setTransactionForm(prev => ({ ...prev, amountType: e.target.value as 'INCOME' | 'EXPENSE' }))}
+                        className={`w-full mt-1 h-10 px-3 text-sm ${typeSelectClass}`}
+                      >
+                        <option value="INCOME">INCOME</option>
+                        <option value="EXPENSE">EXPENSE</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="category" className={`text-sm font-medium ${typeLabelClass}`}>Category</Label>
+                      <select
+                        id="category"
+                        value={transactionForm.category}
+                        onChange={(e) => setTransactionForm(prev => ({ ...prev, category: e.target.value }))}
+                        className={`w-full mt-1 h-10 px-3 text-sm ${typeSelectClass}`}
+                      >
+                        <option value="">Select Category</option>
+                        {categories.filter(c => c.type === transactionForm.amountType).map(category => (
+                          <option key={category.id} value={category.id}>{category.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-sm">
+                  <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
+                    Account Details
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="account" className="text-sm font-medium text-gray-700">Account</Label>
+                      <ClientTypeahead
+                        id="account"
+                        label=""
+                        value={transactionForm.account}
+                        onChange={(value, client) => setTransactionForm(prev => ({ ...prev, account: client?.name || value }))}
+                        placeholder="Search client or enter account..."
+                        className={`mt-1 h-10 ${contactTypeaheadClass}`}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="remark" className="text-sm font-medium text-gray-700">Remark</Label>
+                      <Input
+                        id="remark"
+                        value={transactionForm.remark}
+                        onChange={(e) => setTransactionForm(prev => ({ ...prev, remark: e.target.value }))}
+                        className={`mt-1 ${contactFieldClass} text-sm`}
+                        placeholder="Enter remark"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2">
                       <Button
                         onClick={saveTransaction}
                         className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
@@ -789,7 +859,7 @@ export default function AccountingPage() {
                       placeholder="Search accounting entries..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="bg-white w-full border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                      className={`${contactFieldClass} w-full text-sm`}
                     />
                   </div>
                   </div>
@@ -820,7 +890,15 @@ export default function AccountingPage() {
                           }`}
                           onClick={() => updateTransaction(transaction)}
                         >
-                          <td className="px-4 py-3 text-sm text-gray-900">{formatDate(transaction.date)}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            <span className="inline-flex items-center">
+                              {formatDate(transaction.date)}
+                              <UpdatedEntryBadge
+                                createdAt={transaction.createdAt}
+                                updatedAt={transaction.updatedAt}
+                              />
+                            </span>
+                          </td>
                           <td className="px-4 py-3 text-sm text-gray-900">{formatTransactionTime(
                             transaction.statusTime || transaction.time,
                             transaction.date,
@@ -859,6 +937,7 @@ export default function AccountingPage() {
           <>
             <Card className="shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative z-10">
               <CardContent className="p-4">
+                <div className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-sm">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="categoryName" className="text-sm font-medium text-gray-700">Category Name</Label>
@@ -866,17 +945,17 @@ export default function AccountingPage() {
                       id="categoryName"
                       value={categoryForm.name}
                       onChange={(e) => setCategoryForm(prev => ({ ...prev, name: e.target.value }))}
-                      className="bg-white border-gray-300 mt-1 text-black placeholder:text-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className={`mt-1 ${contactFieldClass} text-sm`}
                       placeholder="Enter category name"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="categoryType" className="text-sm font-medium text-gray-700">Type</Label>
+                    <Label htmlFor="categoryType" className={`text-sm font-medium ${isCategoryIncome ? 'text-emerald-800' : 'text-red-800'}`}>Type</Label>
                     <select
                       id="categoryType"
                       value={categoryForm.type}
                       onChange={(e) => setCategoryForm(prev => ({ ...prev, type: e.target.value as 'INCOME' | 'EXPENSE' }))}
-                      className="w-full mt-1 px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className={`w-full mt-1 h-10 px-3 text-sm ${categoryTypeSelectClass}`}
                     >
                       <option value="INCOME">Income</option>
                       <option value="EXPENSE">Expense</option>
@@ -905,6 +984,7 @@ export default function AccountingPage() {
                       Delete
                     </Button>
                   )}
+                </div>
                 </div>
               </CardContent>
             </Card>

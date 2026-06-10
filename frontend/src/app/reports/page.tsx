@@ -15,7 +15,7 @@ import { transactionApi, Transaction } from '@/lib/transactions';
 import { accountingApi, AccountingEntry } from '@/lib/accounting';
 import { getHawalaEntries, HawalaEntry } from '@/lib/hawala';
 import { getSpecialEntries, SpecialEntry } from '@/lib/specialEntry';
-import { CLIENT_HISTORY_PARAMS } from '@/lib/client-ledger';
+import { fetchAllModuleHistoryData } from '@/lib/fetch-all-history';
 import { showErrorToast, showSuccessToast, Toaster } from '@/lib/toast';
 import { ExcelExportIcon, PdfExportIcon } from '@/components/icons/export-format-icons';
 
@@ -211,150 +211,17 @@ export default function ReportsPage() {
     }
   };
 
-  // Fetch all historical entries (not today-only) for cumulative client balances
-  const clientHistoryParams = CLIENT_HISTORY_PARAMS;
-
-  // Calculate balance for a single client from all 4 modules
-  const calculateClientBalance = async (client: any) => {
-    let totalCredit = 0;
-    let totalDebit = 0;
-    const clientName = client.name.toLowerCase();
-
-    try {
-      // 1. Transactions Module - reduced limit for production compatibility
-      try {
-        const [outwardTxns, inwardTxns] = await Promise.all([
-          transactionApi.getTransactions({ type: 'OUTWARD', ...clientHistoryParams }),
-          transactionApi.getTransactions({ type: 'INWARD', ...clientHistoryParams })
-        ]);
-
-        const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];
-
-        allTxns.forEach(txn => {
-          const receiverName = txn.receiverName?.toLowerCase() || '';
-          const senderName = txn.senderName?.toLowerCase() || '';
-
-          if (receiverName === clientName || senderName === clientName) {
-            if (txn.type === 'OUTWARD') {
-              // OUTWARD: Check amountType to determine debit/credit
-              if (txn.amountType === 'CREDIT' && senderName === clientName) {
-                // CREDIT + Sender is client: Client owes us money (DEBIT)
-                // Debit: Amount + Total Commission
-                totalDebit += (txn.amount || 0) + (txn.commission || 0);
-              } else {
-                // CASH or Receiver is client: Normal outward (credit to receiver)
-                totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
-              }
-            } else if (txn.type === 'INWARD') {
-              // INWARD: Check amountType to determine debit/credit
-              if (txn.amountType === 'CREDIT' && receiverName === clientName) {
-                // CREDIT + Receiver is client: We receive money for client (CREDIT)
-                // Credit: Amount only (commission is our profit)
-                totalCredit += (txn.amount || 0);
-              } else {
-                // CASH or Sender is client: Normal inward (debit to sender)
-                totalDebit += (txn.amount || 0);
-              }
-            }
-          }
-        });
-      } catch (error) {
-        // Error fetching transactions for client
-      }
-
-      // 2. Accounting Module - reduced limit for production compatibility
-      try {
-        const accEntries = await accountingApi.getAccountEntries(clientHistoryParams);
-        (accEntries.entries || []).forEach(entry => {
-          const partyName = entry.party?.name?.toLowerCase() || '';
-          if (partyName === clientName) {
-            if (entry.type === 'INCOME') {
-              totalCredit += entry.creditAmount || entry.amount || 0;
-            } else if (entry.type === 'EXPENSE') {
-              totalDebit += entry.debitAmount || entry.amount || 0;
-            }
-          }
-        });
-      } catch (error) {
-        // Error fetching accounting entries for client
-      }
-
-      // 3. Hawala Module - reduced limit for production compatibility
-      try {
-        const hawalaEntries = await getHawalaEntries(clientHistoryParams);
-        (hawalaEntries.data || []).forEach(entry => {
-          const partyA = entry.partyA?.toLowerCase() || '';
-          const partyB = entry.partyB?.toLowerCase() || '';
-
-          if (partyA === clientName) {
-            // Party A (receiver) gets credit (income)
-            totalCredit += entry.amount || 0;
-          }
-          if (partyB === clientName) {
-            // Party B (sender) gets debit (expense)
-            totalDebit += entry.amount || 0;
-          }
-        });
-      } catch (error) {
-        // Error fetching hawala entries for client
-      }
-
-      // 4. Special Entry Module - reduced limit for production compatibility
-      try {
-        const splEntries = await getSpecialEntries(clientHistoryParams);
-        (splEntries.data || []).forEach(entry => {
-          const partyA = entry.partyA?.toLowerCase() || '';
-          const partyB = entry.partyB?.toLowerCase() || '';
-          const partyC = entry.partyC?.toLowerCase() || '';
-
-          if (partyA === clientName) {
-            // Party A: Expense/Debit (-)
-            totalDebit += entry.amountA || 0;
-          }
-          if (partyB === clientName) {
-            // Party B: Income/Credit (+)
-            totalCredit += entry.amountB || 0;
-          }
-          if (partyC === clientName) {
-            // Party C: Dynamic based on amountC sign
-            const amountC = entry.amountC || 0;
-            if (amountC > 0) {
-              totalCredit += amountC;
-            } else {
-              totalDebit += Math.abs(amountC);
-            }
-          }
-        });
-      } catch (error) {
-        // Error fetching special entries for client
-      }
-
-    } catch (error) {
-      // Error calculating balance for client
-    }
-
-    const balance = totalCredit - totalDebit;
-    return { balance, credit: totalCredit, debit: totalDebit };
-  };
-
   // Fetch all client balances - OPTIMIZED: Batch fetch all data upfront instead of N+1 queries
   const fetchAllClientBalances = async (clientList: any[]) => {
     const balances: Record<string, { balance: number; credit: number; debit: number }> = {};
 
     try {
-      // Fetch all data from all 4 modules ONCE (instead of per-client)
-      const [outwardTxns, inwardTxns, accEntries, hawalaEntries, splEntries] = await Promise.all([
-        transactionApi.getTransactions({ type: 'OUTWARD', ...clientHistoryParams }),
-        transactionApi.getTransactions({ type: 'INWARD', ...clientHistoryParams }),
-        accountingApi.getAccountEntries(clientHistoryParams),
-        getHawalaEntries(clientHistoryParams),
-        getSpecialEntries(clientHistoryParams)
-      ]);
-
-      const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];
-      const allAccEntries = accEntries.entries || [];
-      const allHawalaEntries = hawalaEntries.data || [];
-      const allSplEntries = splEntries.data || [];
+      const {
+        transactions: allTxns,
+        accounting: allAccEntries,
+        hawala: allHawalaEntries,
+        specialEntry: allSplEntries,
+      } = await fetchAllModuleHistoryData();
 
       // Calculate balances for all clients in memory
       for (const client of clientList) {

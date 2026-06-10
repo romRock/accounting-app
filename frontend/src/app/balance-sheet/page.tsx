@@ -8,10 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/store';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { transactionApi } from '@/lib/transactions';
-import { accountingApi } from '@/lib/accounting';
-import { getHawalaEntries } from '@/lib/hawala';
-import { getSpecialEntries } from '@/lib/specialEntry';
+import { fetchAllModuleHistoryData } from '@/lib/fetch-all-history';
 
 // Balance Sheet Entry Structure
 interface BalanceSheetEntry {
@@ -53,26 +50,10 @@ export default function BalanceSheetPage() {
     specialEntry: []
   });
 
-  // Fetch all module data once (4 API calls total)
+  // Fetch all module data (paginated under the hood — no record cap)
   const fetchAllModuleData = async () => {
     try {
-      const historyParams = { page: 1, limit: 1000, allDates: true as const };
-      const [outwardTxns, inwardTxns, accEntries, hawalaEntries, splEntries] = await Promise.all([
-        transactionApi.getTransactions({ type: 'OUTWARD', ...historyParams }),
-        transactionApi.getTransactions({ type: 'INWARD', ...historyParams }),
-        accountingApi.getAccountEntries(historyParams),
-        getHawalaEntries(historyParams),
-        getSpecialEntries(historyParams)
-      ]);
-
-      const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];
-
-      const moduleData = {
-        transactions: allTxns,
-        accounting: accEntries.entries || [],
-        hawala: hawalaEntries.data || [],
-        specialEntry: splEntries.data || []
-      };
+      const moduleData = await fetchAllModuleHistoryData();
 
       setCachedData(moduleData);
       return moduleData;

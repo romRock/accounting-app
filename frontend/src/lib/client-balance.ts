@@ -3,41 +3,18 @@
  * Used by dashboard customer review only; balance sheet page is unchanged.
  */
 import { transactionApi } from '@/lib/transactions';
-import { accountingApi } from '@/lib/accounting';
-import { getHawalaEntries } from '@/lib/hawala';
-import { getSpecialEntries } from '@/lib/specialEntry';
+import { fetchAllModuleHistoryData, ModuleHistoryData } from '@/lib/fetch-all-history';
 
 export interface ClientBalanceRow {
   name: string;
   amount: number;
 }
 
-export interface ModuleDataCache {
-  transactions: any[];
-  accounting: any[];
-  hawala: any[];
-  specialEntry: any[];
-}
+export type ModuleDataCache = ModuleHistoryData;
 
 export async function fetchAllModuleData(): Promise<ModuleDataCache> {
   try {
-    const historyParams = { page: 1, limit: 1000, allDates: true as const };
-    const [outwardTxns, inwardTxns, accEntries, hawalaEntries, splEntries] = await Promise.all([
-      transactionApi.getTransactions({ type: 'OUTWARD', ...historyParams }),
-      transactionApi.getTransactions({ type: 'INWARD', ...historyParams }),
-      accountingApi.getAccountEntries(historyParams),
-      getHawalaEntries(historyParams),
-      getSpecialEntries(historyParams),
-    ]);
-
-    const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];
-
-    return {
-      transactions: allTxns,
-      accounting: accEntries.entries || [],
-      hawala: hawalaEntries.data || [],
-      specialEntry: splEntries.data || [],
-    };
+    return await fetchAllModuleHistoryData();
   } catch (error) {
     console.error('Error fetching module data:', error);
     return {

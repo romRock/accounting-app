@@ -1,9 +1,14 @@
-import { transactionApi, Transaction } from '@/lib/transactions';
-import { accountingApi, AccountingEntry } from '@/lib/accounting';
-import { getHawalaEntries, HawalaEntry } from '@/lib/hawala';
-import { getSpecialEntries, SpecialEntry } from '@/lib/specialEntry';
-
-export const CLIENT_HISTORY_PARAMS = { page: 1, limit: 1000, allDates: true as const };
+import { Transaction } from '@/lib/transactions';
+import { AccountingEntry } from '@/lib/accounting';
+import { HawalaEntry } from '@/lib/hawala';
+import { SpecialEntry } from '@/lib/specialEntry';
+import {
+  fetchAllAccountEntries,
+  fetchAllHawalaEntries,
+  fetchAllModuleHistoryData,
+  fetchAllSpecialEntries,
+  fetchAllTransactions,
+} from '@/lib/fetch-all-history';
 
 export type ClientLedgerModule = 'Transaction' | 'Accounting' | 'Hawala' | 'Special Entry';
 
@@ -51,23 +56,23 @@ export async function fetchSourceRecordForLedgerEntry(
   switch (entry.module) {
     case 'Transaction': {
       const [outwardTxns, inwardTxns] = await Promise.all([
-        transactionApi.getTransactions({ type: 'OUTWARD', ...CLIENT_HISTORY_PARAMS }),
-        transactionApi.getTransactions({ type: 'INWARD', ...CLIENT_HISTORY_PARAMS }),
+        fetchAllTransactions('OUTWARD'),
+        fetchAllTransactions('INWARD'),
       ]);
-      const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];
+      const allTxns = [...outwardTxns, ...inwardTxns];
       return allTxns.find((txn) => txn.id === entry.sourceId) || null;
     }
     case 'Accounting': {
-      const accEntries = await accountingApi.getAccountEntries(CLIENT_HISTORY_PARAMS);
-      return (accEntries.entries || []).find((row) => row.id === entry.sourceId) || null;
+      const accEntries = await fetchAllAccountEntries();
+      return accEntries.find((row) => row.id === entry.sourceId) || null;
     }
     case 'Hawala': {
-      const hawalaEntries = await getHawalaEntries(CLIENT_HISTORY_PARAMS);
-      return (hawalaEntries.data || []).find((row) => row.id === entry.sourceId) || null;
+      const hawalaEntries = await fetchAllHawalaEntries();
+      return hawalaEntries.find((row) => row.id === entry.sourceId) || null;
     }
     case 'Special Entry': {
-      const splEntries = await getSpecialEntries(CLIENT_HISTORY_PARAMS);
-      return (splEntries.data || []).find((row) => row.id === entry.sourceId) || null;
+      const splEntries = await fetchAllSpecialEntries();
+      return splEntries.find((row) => row.id === entry.sourceId) || null;
     }
     default:
       return null;
@@ -79,12 +84,8 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
   const ledgerEntries: ClientLedgerEntry[] = [];
   const clientName = client.name.toLowerCase();
 
-  const [outwardTxns, inwardTxns] = await Promise.all([
-    transactionApi.getTransactions({ type: 'OUTWARD', ...CLIENT_HISTORY_PARAMS }),
-    transactionApi.getTransactions({ type: 'INWARD', ...CLIENT_HISTORY_PARAMS }),
-  ]);
-
-  const allTxns = [...(outwardTxns.transactions || []), ...(inwardTxns.transactions || [])];
+  const { transactions: allTxns, accounting: accEntries, hawala: hawalaEntries, specialEntry: splEntries } =
+    await fetchAllModuleHistoryData();
 
   allTxns.forEach((txn) => {
     const receiverName = txn.receiverName?.toLowerCase() || '';
@@ -135,8 +136,7 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
     }
   });
 
-  const accEntries = await accountingApi.getAccountEntries(CLIENT_HISTORY_PARAMS);
-  (accEntries.entries || []).forEach((entry) => {
+  accEntries.forEach((entry) => {
     const partyName = entry.party?.name?.toLowerCase() || '';
 
     if (partyName === clientName) {
@@ -168,8 +168,7 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
     }
   });
 
-  const hawalaEntries = await getHawalaEntries(CLIENT_HISTORY_PARAMS);
-  (hawalaEntries.data || []).forEach((entry) => {
+  hawalaEntries.forEach((entry) => {
     const partyA = entry.partyA?.toLowerCase() || '';
     const partyB = entry.partyB?.toLowerCase() || '';
 
@@ -193,8 +192,7 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
     }
   });
 
-  const splEntries = await getSpecialEntries(CLIENT_HISTORY_PARAMS);
-  (splEntries.data || []).forEach((entry) => {
+  splEntries.forEach((entry) => {
     const partyA = entry.partyA?.toLowerCase() || '';
     const partyB = entry.partyB?.toLowerCase() || '';
     const partyC = entry.partyC?.toLowerCase() || '';

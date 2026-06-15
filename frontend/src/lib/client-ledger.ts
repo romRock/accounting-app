@@ -9,6 +9,7 @@ import {
   fetchAllSpecialEntries,
   fetchAllTransactions,
 } from '@/lib/fetch-all-history';
+import { useBranchStore } from '@/store/branch-store';
 
 export type ClientLedgerModule = 'Transaction' | 'Accounting' | 'Hawala' | 'Special Entry';
 
@@ -22,6 +23,7 @@ export interface ClientLedgerEntry {
   balance: number;
   reference: string;
   sourceId: string;
+  branchCode?: string;
   transactionType?: 'OUTWARD' | 'INWARD';
   createdAt?: string;
   updatedAt?: string;
@@ -47,6 +49,19 @@ function formatTxnTime(time?: string): string {
   } catch {
     return time.slice(0, 5);
   }
+}
+
+function getBranchCodeLookup(): Map<string, string> {
+  const branches = useBranchStore.getState().assignedBranches;
+  return new Map(branches.map((branch) => [branch.id, branch.code]));
+}
+
+function resolveBranchCode(
+  branchId: string | null | undefined,
+  lookup: Map<string, string>
+): string | undefined {
+  if (!branchId) return undefined;
+  return lookup.get(branchId);
 }
 
 /** Load the underlying module record for a ledger row (uses existing list APIs). */
@@ -83,6 +98,7 @@ export async function fetchSourceRecordForLedgerEntry(
 export async function fetchClientLedgerEntries(client: ClientLedgerClient): Promise<ClientLedgerEntry[]> {
   const ledgerEntries: ClientLedgerEntry[] = [];
   const clientName = client.name.toLowerCase();
+  const branchLookup = getBranchCodeLookup();
 
   const { transactions: allTxns, accounting: accEntries, hawala: hawalaEntries, specialEntry: splEntries } =
     await fetchAllModuleHistoryData();
@@ -129,6 +145,7 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
         balance: 0,
         reference: txn.transactionId || txn.id,
         sourceId: txn.id,
+        branchCode: resolveBranchCode(txn.branchId, branchLookup),
         transactionType: txn.type as 'OUTWARD' | 'INWARD',
         createdAt: txn.createdAt,
         updatedAt: txn.updatedAt,
@@ -162,6 +179,7 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
         balance: 0,
         reference: entry.entryId || entry.transactionId || entry.id,
         sourceId: entry.id,
+        branchCode: resolveBranchCode(entry.branchId, branchLookup),
         createdAt: entry.createdAt,
         updatedAt: entry.updatedAt,
       });
@@ -186,6 +204,7 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
         balance: 0,
         reference: entry.transactionId || entry.id,
         sourceId: entry.id,
+        branchCode: resolveBranchCode(entry.branchId, branchLookup),
         createdAt: entry.createdAt,
         updatedAt: entry.updatedAt,
       });
@@ -228,6 +247,7 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
         balance: 0,
         reference: entry.transactionId || entry.id,
         sourceId: entry.id,
+        branchCode: resolveBranchCode(entry.branchId, branchLookup),
         createdAt: entry.createdAt,
         updatedAt: entry.updatedAt,
       });

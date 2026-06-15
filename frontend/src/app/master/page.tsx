@@ -25,6 +25,7 @@ interface User {
   roleId: string;
   centerId: string;
   branchId?: string;
+  branchIds?: string[];
   status: 'Active' | 'Inactive';
   createdAt: string;
   updatedAt: string;
@@ -620,7 +621,8 @@ export default function MasterPage() {
             userForm.email || '',
             userForm.password,
             userForm.roleId,
-            userForm.branchId
+            userForm.branchIds?.[0] || userForm.branchId,
+            userForm.branchIds
           )
           .then((response) => {
             if (response.success) {
@@ -872,7 +874,10 @@ export default function MasterPage() {
     setEditingId(item.id);
     switch (activeTab) {
       case 'users':
-        setUserForm(item);
+        setUserForm({
+          ...item,
+          branchIds: item.branchIds || (item.branchId ? [item.branchId] : []),
+        });
         break;
       case 'roles':
         setRoleForm({
@@ -1029,7 +1034,8 @@ export default function MasterPage() {
           userForm.email || '',
           userForm.password || '',
           userForm.roleId!,
-          userForm.branchId
+          userForm.branchIds?.[0] || userForm.branchId,
+          userForm.branchIds
         )
         .then((response) => {
           if (response.success) {
@@ -1401,20 +1407,41 @@ export default function MasterPage() {
                       </select>
                     </div>
                     <div>
-                      <Label htmlFor="branchId" className="text-sm font-medium text-gray-700">Branch (Optional)</Label>
-                      <select
-                        id="branchId"
-                        value={userForm.branchId || ''}
-                        onChange={(e) => setUserForm({ ...userForm, branchId: e.target.value })}
-                        className="w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-sm mt-1 text-gray-900"
-                      >
-                        <option value="">Select Branch</option>
-                        {branches.map((branch) => (
-                          <option key={branch.id} value={branch.id}>
-                            {branch.name} ({branch.code})
-                          </option>
-                        ))}
-                      </select>
+                      <Label className="text-sm font-medium text-gray-700">Branches (Optional)</Label>
+                      <div className="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-md border border-gray-300 bg-white p-3">
+                        {branches.length === 0 ? (
+                          <p className="text-sm text-gray-500">No branches available</p>
+                        ) : (
+                          branches.map((branch) => {
+                            const selectedBranchIds = userForm.branchIds || [];
+                            const isChecked = selectedBranchIds.includes(branch.id);
+
+                            return (
+                              <label
+                                key={branch.id}
+                                className="flex cursor-pointer items-center gap-2 text-sm text-gray-900"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    const nextBranchIds = isChecked
+                                      ? selectedBranchIds.filter((id) => id !== branch.id)
+                                      : [...selectedBranchIds, branch.id];
+                                    setUserForm({
+                                      ...userForm,
+                                      branchIds: nextBranchIds,
+                                      branchId: nextBranchIds[0],
+                                    });
+                                  }}
+                                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span>{branch.name} ({branch.code})</span>
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
                     </div>
                                       </div>
                   
@@ -1470,6 +1497,7 @@ export default function MasterPage() {
                             <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mobile</th>
                             <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                             <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                            <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branches</th>
                             <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                           </tr>
                         </thead>
@@ -1480,6 +1508,11 @@ export default function MasterPage() {
                               <td className="border border-gray-200 px-4 py-3 text-sm text-gray-900">{user.mobileNumber}</td>
                               <td className="border border-gray-200 px-4 py-3 text-sm text-gray-900">{user.email || ''}</td>
                               <td className="border border-gray-200 px-4 py-3 text-sm text-gray-900">{roles.find(r => r.id === user.roleId)?.name || ''}</td>
+                              <td className="border border-gray-200 px-4 py-3 text-sm text-gray-900">
+                                {(user.branches?.length
+                                  ? user.branches.map((branch: { code: string }) => branch.code).join(', ')
+                                  : user.branchCode) || '-'}
+                              </td>
                               <td className="border border-gray-200 px-4 py-3 text-sm">
                                 <div className="flex space-x-2">
                                   <Button

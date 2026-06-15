@@ -29,6 +29,7 @@ export const getInwardReport = async (req: Request, res: Response) => {
     } = req.query;
 
     const userBranchId = req.user?.branchId;
+    const assignedBranchIds = req.user?.assignedBranchIds;
     const userPermissions = req.user?.role?.permissions as any;
     const isSuperAdmin = isSuperAdminUser(userPermissions);
 
@@ -38,7 +39,7 @@ export const getInwardReport = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin);
+    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin, req.user?.assignedBranchIds);
 
     if (dateFrom || dateTo) {
       where.date = {};
@@ -118,6 +119,7 @@ export const getOutwardReport = async (req: Request, res: Response) => {
     } = req.query;
 
     const userBranchId = req.user?.branchId;
+    const assignedBranchIds = req.user?.assignedBranchIds;
     const userPermissions = req.user?.role?.permissions as any;
     const isSuperAdmin = isSuperAdminUser(userPermissions);
 
@@ -127,7 +129,7 @@ export const getOutwardReport = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin);
+    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin, req.user?.assignedBranchIds);
 
     if (dateFrom || dateTo) {
       where.date = {};
@@ -205,6 +207,7 @@ export const getUserLedgerReport = async (req: Request, res: Response) => {
     } = req.query;
 
     const userBranchId = req.user?.branchId;
+    const assignedBranchIds = req.user?.assignedBranchIds;
     const userPermissions = req.user?.role?.permissions as any;
     const isSuperAdmin = isSuperAdminUser(userPermissions);
 
@@ -213,7 +216,7 @@ export const getUserLedgerReport = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin);
+    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin, req.user?.assignedBranchIds);
 
     if (dateFrom || dateTo) {
       where.date = {};
@@ -317,6 +320,7 @@ export const getBranchPerformanceReport = async (req: Request, res: Response) =>
     } = req.query;
 
     const userBranchId = req.user?.branchId;
+    const assignedBranchIds = req.user?.assignedBranchIds;
     const userPermissions = req.user?.role?.permissions as any;
     const isSuperAdmin = isSuperAdminUser(userPermissions);
 
@@ -325,7 +329,7 @@ export const getBranchPerformanceReport = async (req: Request, res: Response) =>
       isDeleted: false,
     };
 
-    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin);
+    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin, req.user?.assignedBranchIds);
 
     if (dateFrom || dateTo) {
       where.date = {};
@@ -395,6 +399,7 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
     } = req.query;
 
     const userBranchId = req.user?.branchId;
+    const assignedBranchIds = req.user?.assignedBranchIds;
     const userPermissions = req.user?.role?.permissions as any;
     const isSuperAdmin = isSuperAdminUser(userPermissions);
 
@@ -414,11 +419,12 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
     }
 
     // Build branch filter for queries
-    const masterBranchFilter = getMasterBranchFilter(userBranchId, isSuperAdmin);
+    const masterBranchFilter = getMasterBranchFilter(userBranchId, isSuperAdmin, assignedBranchIds);
     const entryBranchFilter = await getEntryBranchFilter(
       prisma,
       userBranchId,
-      isSuperAdmin
+      isSuperAdmin,
+      assignedBranchIds
     );
 
     // Fetch all clients/parties filtered by branch
@@ -661,6 +667,7 @@ export const getTransactionRefundReport = async (req: Request, res: Response) =>
     const { date } = req.query;
 
     const userBranchId = req.user?.branchId;
+    const assignedBranchIds = req.user?.assignedBranchIds;
     const userPermissions = req.user?.role?.permissions as any;
     const isSuperAdmin = isSuperAdminUser(userPermissions);
 
@@ -690,7 +697,8 @@ export const getTransactionRefundReport = async (req: Request, res: Response) =>
     const entryBranchFilter = await getEntryBranchFilter(
       prisma,
       userBranchId,
-      isSuperAdmin
+      isSuperAdmin,
+      assignedBranchIds
     );
 
     // Query deleted entries from all 4 modules

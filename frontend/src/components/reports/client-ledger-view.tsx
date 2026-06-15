@@ -15,6 +15,7 @@ import {
 import { showErrorToast, Toaster } from '@/lib/toast';
 import ClientLedgerEditModal from '@/components/reports/client-ledger-edit-modal';
 import UpdatedEntryBadge from '@/components/reports/updated-entry-badge';
+import BranchBadge from '@/components/reports/branch-badge';
 import { Edit } from 'lucide-react';
 
 function escapeCSV(value: string): string {
@@ -592,6 +593,7 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
                                 <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200">
                                   <span className="inline-flex items-center">
                                     {entry.module}
+                                    <BranchBadge code={entry.branchCode} />
                                     <UpdatedEntryBadge
                                       createdAt={entry.createdAt}
                                       updatedAt={entry.updatedAt}

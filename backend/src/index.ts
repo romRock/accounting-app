@@ -20,6 +20,11 @@ import { errorHandler } from './middlewares/errorHandler';
 import { inputSecurityMiddleware } from './middlewares/inputSecurity';
 import { requestLogger } from './middlewares/requestLogger';
 import { cacheMiddleware, invalidateCachePattern } from './middlewares/cache';
+import {
+  getUserBranchesWithDetails,
+  normalizeBranchIds,
+  syncUserBranches,
+} from './utils/userBranches';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
@@ -1695,9 +1700,31 @@ app.get('/api/users', async (req, res) => {
 
     console.log('Users found:', users.length);
 
+    const userBranchRows = await prisma.userBranch.findMany({
+      where: { userId: { in: users.map((user) => user.id) } },
+      include: {
+        branch: {
+          select: { id: true, name: true, code: true },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const branchesByUserId = new Map<string, Array<{ id: string; name: string; code: string }>>();
+    for (const row of userBranchRows) {
+      if (!row.branch) continue;
+      const existing = branchesByUserId.get(row.userId) || [];
+      existing.push(row.branch);
+      branchesByUserId.set(row.userId, existing);
+    }
+
     res.json({
       success: true,
-      data: users.map(user => ({
+      data: users.map(user => {
+        const assignedBranches = branchesByUserId.get(user.id) || [];
+        const primaryBranch = assignedBranches[0] || user.branch;
+
+        return {
         id: user.id,
         fullName: user.firstName + ' ' + user.lastName,
         username: user.username,
@@ -1706,12 +1733,15 @@ app.get('/api/users', async (req, res) => {
         roleId: user.roleId,
         status: user.isActive ? 'Active' : 'Inactive',
         role: user.role?.name || '',
-        branchId: user.branchId || null,
-        branchName: user.branch?.name || '',
-        branchCode: user.branch?.code || '',
+        branchId: user.branchId || primaryBranch?.id || null,
+        branchName: primaryBranch?.name || user.branch?.name || '',
+        branchCode: primaryBranch?.code || user.branch?.code || '',
+        branchIds: assignedBranches.map((branch) => branch.id),
+        branches: assignedBranches,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt
-      }))
+      };
+      })
     });
 
   } catch (error) {
@@ -1731,7 +1761,7 @@ app.post('/api/users/add', authenticateToken, requireRole(['Admin', 'Super Admin
     console.log('Request body:', req.body);
     console.log('User from token:', req.user?.email, 'Role:', req.user?.role?.name);
     
-    const { fullName, mobileNumber, email, password, roleId, branchId } = req.body;
+    const { fullName, mobileNumber, email, password, roleId, branchId, branchIds } = req.body;
     
     if (!fullName || !mobileNumber || !password || !roleId) {
       return res.status(400).json({
@@ -1765,6 +1795,8 @@ app.post('/api/users/add', authenticateToken, requireRole(['Admin', 'Super Admin
     const bcrypt = require('bcryptjs');
     const hashedPassword = await bcrypt.hash(password, 10);
     
+    const normalizedBranchIds = normalizeBranchIds(branchIds, branchId);
+    
     // Create new user
     const newUser = await prisma.user.create({
       data: {
@@ -1779,13 +1811,27 @@ app.post('/api/users/add', authenticateToken, requireRole(['Admin', 'Super Admin
             id: roleId
           }
         },
-        ...(branchId ? { branch: { connect: { id: branchId } } } : {}),
+        ...(normalizedBranchIds[0]
+          ? { branch: { connect: { id: normalizedBranchIds[0] } } }
+          : {}),
         isActive: true,
         isDeleted: false
       }
     });
+
+    if (normalizedBranchIds.length > 0) {
+      try {
+        await syncUserBranches(prisma, newUser.id, normalizedBranchIds);
+      } catch (branchError) {
+        return res.status(400).json({
+          success: false,
+          message: branchError instanceof Error ? branchError.message : 'Failed to assign branches',
+        });
+      }
+    }
     
     console.log('User created successfully:', newUser.id);
+    const assignedBranches = await getUserBranchesWithDetails(prisma, newUser.id);
     
     res.json({
       success: true,
@@ -1796,7 +1842,9 @@ app.post('/api/users/add', authenticateToken, requireRole(['Admin', 'Super Admin
         mobileNumber: mobileNumber,
         email: email || '',
         roleId: roleId,
-        branchId: newUser.branchId || branchId || null,
+        branchId: newUser.branchId || normalizedBranchIds[0] || null,
+        branchIds: assignedBranches.map((branch) => branch.id),
+        branches: assignedBranches,
         status: 'Active',
         createdAt: newUser.createdAt,
         updatedAt: newUser.updatedAt
@@ -1820,7 +1868,7 @@ app.post('/api/users/update', authenticateToken, requireRole(['Admin', 'Super Ad
     console.log('Request body:', req.body);
     console.log('User from token:', req.user?.email, 'Role:', req.user?.role?.name);
     
-    const { id, fullName, mobileNumber, email, password, roleId, branchId } = req.body;
+    const { id, fullName, mobileNumber, email, password, roleId, branchId, branchIds } = req.body;
     
     if (!id || !fullName || !mobileNumber || !roleId) {
       return res.status(400).json({
@@ -1876,8 +1924,10 @@ app.post('/api/users/update', authenticateToken, requireRole(['Admin', 'Super Ad
       roleId: roleId
     };
 
-    if (branchId !== undefined) {
-      updateData.branchId = branchId || null;
+    const normalizedBranchIds = normalizeBranchIds(branchIds, branchId);
+
+    if (branchId !== undefined || branchIds !== undefined) {
+      updateData.branchId = normalizedBranchIds[0] || null;
     }
     
     // Update password only if provided
@@ -1892,8 +1942,20 @@ app.post('/api/users/update', authenticateToken, requireRole(['Admin', 'Super Ad
       where: { id: id },
       data: updateData
     });
+
+    if (branchId !== undefined || branchIds !== undefined) {
+      try {
+        await syncUserBranches(prisma, updatedUser.id, normalizedBranchIds);
+      } catch (branchError) {
+        return res.status(400).json({
+          success: false,
+          message: branchError instanceof Error ? branchError.message : 'Failed to assign branches',
+        });
+      }
+    }
     
     console.log('User updated successfully:', updatedUser.id);
+    const assignedBranches = await getUserBranchesWithDetails(prisma, updatedUser.id);
     
     res.json({
       success: true,
@@ -1904,7 +1966,9 @@ app.post('/api/users/update', authenticateToken, requireRole(['Admin', 'Super Ad
         mobileNumber: mobileNumber,
         email: email || '',
         roleId: roleId,
-        branchId: updatedUser.branchId ?? branchId ?? null,
+        branchId: updatedUser.branchId ?? normalizedBranchIds[0] ?? null,
+        branchIds: assignedBranches.map((branch) => branch.id),
+        branches: assignedBranches,
         status: 'Active',
         createdAt: updatedUser.createdAt,
         updatedAt: updatedUser.updatedAt

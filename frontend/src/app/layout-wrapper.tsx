@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { AppLogo } from '@/components/app-logo';
 import { useAuthStore } from '@/store';
+import { useBranchStore } from '@/store/branch-store';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { Button } from '@/components/ui/button';
 import { Calendar } from 'lucide-react';
@@ -20,6 +21,9 @@ export default function LayoutWrapper({
   const router = useRouter();
   const pathname = usePathname();
   const { user, isAuthenticated, logout } = useAuthStore();
+  const assignedBranches = useBranchStore((state) => state.assignedBranches);
+  const activeTransactionBranchId = useBranchStore((state) => state.activeTransactionBranchId);
+  const setActiveTransactionBranchId = useBranchStore((state) => state.setActiveTransactionBranchId);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
@@ -28,6 +32,15 @@ export default function LayoutWrapper({
   useEffect(() => {
     setIsHydrated(true);
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const fromUser =
+      user.branches ?? (user.branch ? [user.branch] : []);
+    if (fromUser.length > 0) {
+      useBranchStore.getState().setAssignedBranches(fromUser);
+    }
+  }, [user]);
 
   // Single-session: verify with server so another-device login clears this tab
   useEffect(() => {
@@ -589,8 +602,32 @@ export default function LayoutWrapper({
 </Button>
               
               {/* Transaction Tabs - Only show on transactions page with RBAC */}
-              {pathname === '/transactions' && (
+              {pathname === '/transactions' && assignedBranches.length > 0 && (
                 <div className="flex items-center space-x-3">
+                  {assignedBranches.length === 1 ? (
+                    <div className="relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md px-4 py-2 font-medium text-sm bg-orange-600 border-orange-400 text-white">
+                      <span className="relative z-10">{assignedBranches[0].code}</span>
+                    </div>
+                  ) : (
+                    <select
+                      value={activeTransactionBranchId || assignedBranches[0]?.id || ''}
+                      onChange={(e) => {
+                        setActiveTransactionBranchId(e.target.value);
+                        window.dispatchEvent(
+                          new CustomEvent('setTransactionBranch', { detail: e.target.value })
+                        );
+                      }}
+                      className="h-10 min-w-[120px] rounded-2xl border border-orange-500/30 bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 px-4 text-sm font-medium text-orange-100 focus:border-orange-400 focus:outline-none"
+                      aria-label="Select branch"
+                    >
+                      {assignedBranches.map((branch) => (
+                        <option key={branch.id} value={branch.id} className="bg-gray-900 text-white">
+                          {branch.name} ({branch.code})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
                   {hasPermission('transactions', 'outward') && (
                     <button
                       onClick={() => {

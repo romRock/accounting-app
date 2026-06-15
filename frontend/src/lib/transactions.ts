@@ -1,5 +1,6 @@
 // Real transaction API service for backend
 import API_BASE_URL, { safeJsonStringify } from './api';
+import { getTransactionBranchHeaders } from './branch-headers';
 import { useAuthStore } from '../store/index';
 
 export interface Transaction {
@@ -44,6 +45,7 @@ export interface Transaction {
     city: string;
   };
   createdBy?: string;
+  branchId?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -109,6 +111,7 @@ export const transactionApi = {
     const response = await fetch(`${API_BASE_URL}/api/transactions?${queryParams}`, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
+        ...getTransactionBranchHeaders(),
       },
     });
 
@@ -127,6 +130,7 @@ export const transactionApi = {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${accessToken}`,
+        ...getTransactionBranchHeaders(),
       },
       body: safeJsonStringify(transactionData),
     });
@@ -529,7 +533,7 @@ export const transactionApi = {
     return result.data;
   },
 
-  async addUser(fullName: string, mobileNumber: string, email: string, password: string, roleId: string, branchId?: string): Promise<any> {
+  async addUser(fullName: string, mobileNumber: string, email: string, password: string, roleId: string, branchId?: string, branchIds?: string[]): Promise<any> {
     const { accessToken } = useAuthStore.getState();
 
     const headers: HeadersInit = {
@@ -543,7 +547,7 @@ export const transactionApi = {
     const response = await fetch(`${API_BASE_URL}/api/users/add`, {
       method: 'POST',
       headers: headers,
-      body: safeJsonStringify({ fullName, mobileNumber, email, password, roleId, branchId }),
+      body: safeJsonStringify({ fullName, mobileNumber, email, password, roleId, branchId, branchIds }),
     });
 
     if (!response.ok) {
@@ -554,7 +558,7 @@ export const transactionApi = {
     return await response.json();
   },
 
-  async updateUser(id: string, fullName: string, mobileNumber: string, email: string, password: string, roleId: string, branchId?: string): Promise<any> {
+  async updateUser(id: string, fullName: string, mobileNumber: string, email: string, password: string, roleId: string, branchId?: string, branchIds?: string[]): Promise<any> {
     const { accessToken } = useAuthStore.getState();
     console.log('=== UPDATE USER API DEBUG ===');
 
@@ -569,7 +573,7 @@ export const transactionApi = {
     const response = await fetch(`${API_BASE_URL}/api/users/update`, {
       method: 'POST',
       headers: headers,
-      body: safeJsonStringify({ id, fullName, mobileNumber, email, password, roleId, branchId }),
+      body: safeJsonStringify({ id, fullName, mobileNumber, email, password, roleId, branchId, branchIds }),
     });
 
     if (!response.ok) {

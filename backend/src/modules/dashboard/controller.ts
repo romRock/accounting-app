@@ -358,15 +358,17 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
     
     // Get user branch info for filtering
     const userBranchId = (req as any).user?.branchId;
+    const assignedBranchIds = (req as any).user?.assignedBranchIds as string[] | undefined;
     const userPermissions = (req as any).user?.role?.permissions as any;
     const isSuperAdmin = isSuperAdminUser(userPermissions);
     
     const entryBranchFilter = await getEntryBranchFilter(
       prisma,
       userBranchId,
-      isSuperAdmin
+      isSuperAdmin,
+      assignedBranchIds
     );
-    const masterBranchFilter = getMasterBranchFilter(userBranchId, isSuperAdmin);
+    const masterBranchFilter = getMasterBranchFilter(userBranchId, isSuperAdmin, assignedBranchIds);
     
     // Use Indian timezone (Asia/Kolkata) for date calculations
     const now = new Date();

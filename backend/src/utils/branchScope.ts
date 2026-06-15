@@ -1,6 +1,10 @@
+import { Request } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { createError } from '../middlewares/errorHandler';
+import { getUserAssignedBranchIds } from './userBranches';
 
 export const EMPTY_BRANCH_SCOPE = 'non-existent-branch-id-to-return-empty';
+export const ACTIVE_BRANCH_HEADER = 'x-active-branch-id';
 
 export function isSuperAdminUser(permissions: unknown): boolean {
   return (permissions as { masterData?: string })?.masterData === 'full_access';
@@ -17,14 +21,66 @@ async function getBranchUserIds(
   return users.map((user) => user.id);
 }
 
+async function getBranchUserIdsForBranches(
+  prisma: PrismaClient,
+  branchIds: string[]
+): Promise<string[]> {
+  if (branchIds.length === 0) return [];
+
+  const fromAssignments = await prisma.userBranch.findMany({
+    where: { branchId: { in: branchIds } },
+    select: { userId: true },
+  });
+
+  const fromPrimary = await prisma.user.findMany({
+    where: {
+      branchId: { in: branchIds },
+      isActive: true,
+      isDeleted: false,
+    },
+    select: { id: true },
+  });
+
+  return [
+    ...new Set([
+      ...fromAssignments.map((row) => row.userId),
+      ...fromPrimary.map((user) => user.id),
+    ]),
+  ];
+}
+
+function buildSingleBranchEntryFilter(
+  branchId: string,
+  branchUserIds: string[]
+): Record<string, unknown> {
+  return {
+    OR: [
+      { branchId },
+      ...(branchUserIds.length > 0
+        ? [{ branchId: null, createdBy: { in: branchUserIds } }]
+        : []),
+    ],
+  };
+}
+
 /** Master data scoped strictly by branch (cities, clients/parties). */
 export function getMasterBranchFilter(
   userBranchId: string | undefined,
-  isSuperAdmin: boolean
+  isSuperAdmin: boolean,
+  assignedBranchIds?: string[]
 ): Record<string, unknown> {
   if (isSuperAdmin) return {};
-  if (!userBranchId) return { branchId: EMPTY_BRANCH_SCOPE };
-  return { branchId: userBranchId };
+
+  const branchIds =
+    assignedBranchIds && assignedBranchIds.length > 0
+      ? assignedBranchIds
+      : userBranchId
+        ? [userBranchId]
+        : [];
+
+  if (branchIds.length === 0) return { branchId: EMPTY_BRANCH_SCOPE };
+  if (branchIds.length === 1) return { branchId: branchIds[0] };
+  return { branchId: { in: branchIds } };
 }
 
 /**
@@ -34,16 +90,34 @@ export function getMasterBranchFilter(
 export async function getEntryBranchFilter(
   prisma: PrismaClient,
   userBranchId: string | undefined,
-  isSuperAdmin: boolean
+  isSuperAdmin: boolean,
+  assignedBranchIds?: string[],
+  activeBranchId?: string | null
 ): Promise<Record<string, unknown>> {
   if (isSuperAdmin) return {};
-  if (!userBranchId) return { branchId: EMPTY_BRANCH_SCOPE };
+  if (activeBranchId) {
+    const branchUserIds = await getBranchUserIds(prisma, activeBranchId);
+    return buildSingleBranchEntryFilter(activeBranchId, branchUserIds);
+  }
 
-  const branchUserIds = await getBranchUserIds(prisma, userBranchId);
+  const branchIds =
+    assignedBranchIds && assignedBranchIds.length > 0
+      ? assignedBranchIds
+      : userBranchId
+        ? [userBranchId]
+        : [];
 
+  if (branchIds.length === 0) return { branchId: EMPTY_BRANCH_SCOPE };
+
+  if (branchIds.length === 1) {
+    const branchUserIds = await getBranchUserIds(prisma, branchIds[0]);
+    return buildSingleBranchEntryFilter(branchIds[0], branchUserIds);
+  }
+
+  const branchUserIds = await getBranchUserIdsForBranches(prisma, branchIds);
   return {
     OR: [
-      { branchId: userBranchId },
+      { branchId: { in: branchIds } },
       ...(branchUserIds.length > 0
         ? [{ branchId: null, createdBy: { in: branchUserIds } }]
         : []),
@@ -56,9 +130,17 @@ export async function applyEntryBranchScope(
   where: Record<string, unknown>,
   prisma: PrismaClient,
   userBranchId: string | undefined,
-  isSuperAdmin: boolean
+  isSuperAdmin: boolean,
+  assignedBranchIds?: string[],
+  activeBranchId?: string | null
 ): Promise<void> {
-  const filter = await getEntryBranchFilter(prisma, userBranchId, isSuperAdmin);
+  const filter = await getEntryBranchFilter(
+    prisma,
+    userBranchId,
+    isSuperAdmin,
+    assignedBranchIds,
+    activeBranchId
+  );
 
   if (filter.OR) {
     const andConditions = Array.isArray(where.AND) ? where.AND : [];
@@ -67,6 +149,32 @@ export async function applyEntryBranchScope(
   }
 
   Object.assign(where, filter);
+}
+
+export async function resolveActiveTransactionBranchId(
+  req: Request,
+  prisma: PrismaClient
+): Promise<string | null> {
+  const userId = req.user?.id;
+  if (!userId) return null;
+
+  const assignedBranchIds =
+    req.user?.assignedBranchIds ??
+    (await getUserAssignedBranchIds(prisma, userId));
+
+  const headerValue = req.headers[ACTIVE_BRANCH_HEADER];
+  const headerBranchId = Array.isArray(headerValue)
+    ? headerValue[0]
+    : headerValue;
+
+  if (headerBranchId) {
+    if (!assignedBranchIds.includes(headerBranchId)) {
+      throw createError('Branch not assigned to user', 403);
+    }
+    return headerBranchId;
+  }
+
+  return assignedBranchIds[0] ?? req.user?.branchId ?? null;
 }
 
 export async function resolveUserBranchId(

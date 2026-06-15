@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client';
 import { createError } from '../../middlewares/errorHandler';
 import { loginSchema } from './validation';
 import { generateTokens, verifyRefreshToken, isCurrentUserSession } from './utils';
+import { getUserBranchesWithDetails } from '../../utils/userBranches';
 
 const prisma = new PrismaClient();
 
@@ -63,9 +64,10 @@ export const login = async (req: Request, res: Response) => {
     });
 
     const { password: _, ...userWithoutPassword } = user;
+    const branches = await getUserBranchesWithDetails(prisma, user.id);
 
     res.json({
-      user: userWithoutPassword,
+      user: { ...userWithoutPassword, branches },
       accessToken,
       refreshToken,
     });
@@ -158,9 +160,10 @@ export const refreshToken = async (req: Request, res: Response) => {
     });
 
     const { password: _, ...userWithoutPassword } = session.user;
+    const branches = await getUserBranchesWithDetails(prisma, session.user.id);
 
     res.json({
-      user: userWithoutPassword,
+      user: { ...userWithoutPassword, branches },
       accessToken: newAccessToken,
       refreshToken: newRefreshToken,
     });
@@ -186,8 +189,9 @@ export const getProfile = async (req: Request, res: Response) => {
     }
 
     const { password: _, ...userWithoutPassword } = user;
+    const branches = await getUserBranchesWithDetails(prisma, user.id);
 
-    res.json(userWithoutPassword);
+    res.json({ ...userWithoutPassword, branches });
   } catch (error) {
     throw error;
   }

@@ -44,6 +44,11 @@ interface LoginResponse {
       createdAt: string;
       updatedAt: string;
     };
+    branches?: Array<{
+      id: string;
+      name: string;
+      code: string;
+    }>;
   };
   accessToken: string;
   refreshToken: string;
@@ -70,6 +75,11 @@ interface User {
     name: string;
     code: string;
   } | null;
+  branches?: Array<{
+    id: string;
+    name: string;
+    code: string;
+  }>;
 }
 
 interface AuthResponse {

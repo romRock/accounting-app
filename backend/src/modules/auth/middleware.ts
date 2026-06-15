@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 import { createError } from '../../middlewares/errorHandler';
 import { isCurrentUserSession } from './utils';
+import { getUserAssignedBranchIds } from '../../utils/userBranches';
 
 const prisma = new PrismaClient();
 
@@ -18,6 +19,7 @@ declare global {
         lastName: string;
         roleId: string;
         branchId?: string;
+        assignedBranchIds?: string[];
         role: {
           name: string;
           permissions: any;
@@ -137,6 +139,8 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       }
     }
 
+    const assignedBranchIds = await getUserAssignedBranchIds(prisma, user.id);
+
     req.user = {
       id: user.id,
       email: user.email,
@@ -145,6 +149,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       lastName: user.lastName,
       roleId: user.roleId,
       branchId: user.branchId || undefined,
+      assignedBranchIds,
       role: parsedRole || undefined,
       branch: user.branch || undefined,
     };

@@ -4,6 +4,7 @@ import { createError } from '../../middlewares/errorHandler';
 import {
   applyEntryBranchScope,
   isSuperAdminUser,
+  resolveActiveTransactionBranchId,
   resolveUserBranchId,
 } from '../../utils/branchScope';
 
@@ -49,7 +50,7 @@ export const createTransaction = async (req: Request, res: Response) => {
     } = req.body;
 
     const userId = req.user?.id;
-    const branchId = await resolveUserBranchId(prisma, userId!, req.user?.branchId);
+    const branchId = await resolveActiveTransactionBranchId(req, prisma);
 
     // Find the actual center ID from city code/name
     let actualCenterId = centerId;
@@ -252,8 +253,20 @@ export const getTransactions = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
+    const useActiveBranchOnly = allDates !== 'true' && !isSuperAdmin;
+    const activeBranchId = useActiveBranchOnly
+      ? await resolveActiveTransactionBranchId(req, prisma)
+      : null;
+
     // Filter by branch if user is not Super Admin
-    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin);
+    await applyEntryBranchScope(
+      where,
+      prisma,
+      userBranchId,
+      isSuperAdmin,
+      req.user?.assignedBranchIds,
+      activeBranchId
+    );
 
     if (type) where.type = type as TransactionType;
     if (status !== undefined) where.status = status === 'true';
@@ -598,7 +611,17 @@ export const getTransactionStats = async (req: Request, res: Response) => {
     };
 
     // Filter by branch if user is not Super Admin
-    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin);
+    const activeBranchId = !isSuperAdmin
+      ? await resolveActiveTransactionBranchId(req, prisma)
+      : null;
+    await applyEntryBranchScope(
+      where,
+      prisma,
+      userBranchId,
+      isSuperAdmin,
+      req.user?.assignedBranchIds,
+      activeBranchId
+    );
 
     if (dateFrom || dateTo) {
       where.date = {};
@@ -655,10 +678,10 @@ export const getTransactionStats = async (req: Request, res: Response) => {
 export const getNextTransactionIds = async (req: Request, res: Response) => {
   try {
     const { date, type } = req.query;
-    const branchId = req.user?.branchId;
+    const branchId = await resolveActiveTransactionBranchId(req, prisma);
 
     const nextTransactionId = await generateTransactionIdByType(type as string || 'OUTWARD');
-    const nextTokenNo = await generateTokenNumberByType(date as string || new Date().toISOString().split('T')[0], type as string || 'OUTWARD', branchId);
+    const nextTokenNo = await generateTokenNumberByType(date as string || new Date().toISOString().split('T')[0], type as string || 'OUTWARD', branchId || undefined);
 
     res.json({
       nextTransactionId,

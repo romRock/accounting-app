@@ -19,6 +19,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CityTypeahead } from "@/components/ui/typeahead";
 import { ClientTypeahead, Client } from "@/components/ui/client-typeahead";
 import { useAuthStore } from "@/store/index";
+import { useBranchStore } from "@/store/branch-store";
+import { getTransactionBranchHeaders } from "@/lib/branch-headers";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { RefreshCw, Trash2, Save } from "lucide-react";
 import UpdatedEntryBadge from "@/components/reports/updated-entry-badge";
@@ -135,6 +137,10 @@ export default function TransactionsPage() {
   // Tab state for switching between outward and inward
   const [activeTab, setActiveTab] = useState<"outward" | "inward">("outward");
   const { user, isAuthenticated } = useAuthStore();
+  const activeTransactionBranchId = useBranchStore(
+    (state) => state.activeTransactionBranchId,
+  );
+  const setAssignedBranches = useBranchStore((state) => state.setAssignedBranches);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [centers, setCenters] = useState<Center[]>([]);
   const [selectedCity, setSelectedCity] = useState<any>(null);
@@ -340,6 +346,7 @@ export default function TransactionsPage() {
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
+            ...getTransactionBranchHeaders(),
           },
         },
       );
@@ -456,24 +463,15 @@ export default function TransactionsPage() {
     return () => clearInterval(interval);
   }, [editingTransaction, setValue]);
 
-  // Fetch data
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.push("/login");
-      return;
-    }
+    if (!user) return;
 
-    fetchTransactions();
-  }, [
-    isAuthenticated,
-    router,
-    activeTab,
-    filterByDate,
-    dateFilter,
-    startDate,
-    endDate,
-    isSelectingRange,
-  ]);
+    const fromUser =
+      user.branches ?? (user.branch ? [user.branch] : []);
+    if (fromUser.length > 0) {
+      setAssignedBranches(fromUser);
+    }
+  }, [user, setAssignedBranches]);
 
   const fetchTransactions = async () => {
     try {
@@ -498,6 +496,46 @@ export default function TransactionsPage() {
       setLoading(false);
     }
   };
+
+  // Fetch data
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push("/login");
+      return;
+    }
+
+    fetchTransactions();
+  }, [
+    isAuthenticated,
+    router,
+    activeTab,
+    filterByDate,
+    dateFilter,
+    startDate,
+    endDate,
+    isSelectingRange,
+    activeTransactionBranchId,
+  ]);
+
+  useEffect(() => {
+    const handleBranchChange = () => {
+      if (!editingTransaction) {
+        const today = new Date().toLocaleDateString("en-CA");
+        fetchNextIds(today, activeTab.toUpperCase()).then(
+          ({ nextTransactionId, nextTokenNo }) => {
+            setValue("transactionId", nextTransactionId);
+            setValue("tokenNo", nextTokenNo);
+          },
+        );
+      }
+      fetchTransactions();
+    };
+
+    window.addEventListener("setTransactionBranch", handleBranchChange as EventListener);
+    return () => {
+      window.removeEventListener("setTransactionBranch", handleBranchChange as EventListener);
+    };
+  }, [activeTab, editingTransaction, setValue]);
 
   const onSubmit = async (data: TransactionForm) => {
     if (data.amountType === "CREDIT") {

@@ -256,7 +256,7 @@ export const getHawalaEntries = async (req: Request, res: Response) => {
     };
 
     // Filter by branch if user is not Super Admin
-    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin);
+    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin, req.user?.assignedBranchIds);
 
     // Add search filter
     if (search) {

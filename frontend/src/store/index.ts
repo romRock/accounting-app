@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { authApi, isSessionRevokedError } from '@/lib/auth';
+import { BranchInfo, useBranchStore } from '@/store/branch-store';
 
 interface User {
   id: string;
@@ -23,6 +24,7 @@ interface User {
     name: string;
     code: string;
   } | null;
+  branches?: BranchInfo[];
 }
 
 interface AuthState {
@@ -65,6 +67,11 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
           });
+
+          const loginBranches =
+            data.user.branches ??
+            (data.user.branch ? [data.user.branch] : []);
+          useBranchStore.getState().setAssignedBranches(loginBranches);
           
           // Force a small delay to ensure persistence completes
           await new Promise(resolve => setTimeout(resolve, 10));
@@ -88,6 +95,7 @@ export const useAuthStore = create<AuthState>()(
         }
         
         // Clear state
+        useBranchStore.getState().resetBranches();
         set({
           user: null,
           accessToken: null,
@@ -114,6 +122,11 @@ export const useAuthStore = create<AuthState>()(
             refreshToken: data.refreshToken,
             isAuthenticated: true,
           });
+
+          const refreshedBranches =
+            data.user.branches ??
+            (data.user.branch ? [data.user.branch] : []);
+          useBranchStore.getState().setAssignedBranches(refreshedBranches);
         } catch (error) {
           // If refresh fails, logout user
           await get().logout();

@@ -83,7 +83,7 @@ export const getLedgerEntries = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin);
+    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin, req.user?.assignedBranchIds);
 
     if (accountId) where.accountId = accountId as string;
     if (accountType) where.accountType = accountType as string;
@@ -839,7 +839,7 @@ export const getAccountEntries = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin);
+    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin, req.user?.assignedBranchIds);
 
     // Map accounting params to AccountEntry fields
     if (categoryId) where.categoryId = categoryId as string;

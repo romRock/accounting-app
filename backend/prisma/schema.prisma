@@ -26,6 +26,7 @@ model User {
   userSessions         UserSession[]
   branch               Branch?       @relation(fields: [branchId], references: [id])
   role                 Role          @relation(fields: [roleId], references: [id])
+  userBranches         UserBranch[]
 
   @@index([email])
   @@index([username])
@@ -165,12 +166,28 @@ model Branch {
   balanceSheets BalanceSheet[]
   ledgerEntries LedgerEntry[]
   users         User[]
+  userBranches  UserBranch[]
   cities        City[]
   parties       Party[]
 
   @@index([code])
   @@index([createdAt])
   @@map("branches")
+}
+
+model UserBranch {
+  id        String   @id @default(cuid())
+  userId    String
+  branchId  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, branchId])
+  @@index([userId])
+  @@index([branchId])
+  @@map("user_branches")
 }
 
 model Transaction {

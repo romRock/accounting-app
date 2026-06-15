@@ -12,6 +12,7 @@ import UpdatedEntryBadge from '@/components/reports/updated-entry-badge';
 import { ClientTypeahead } from '@/components/ui/client-typeahead';
 import { getHawalaEntries, createHawala, updateHawala, deleteHawala, HawalaEntry } from '@/lib/hawala';
 import { getFetchDateRange } from '@/lib/date-filter';
+import { compareEntriesByTimeDesc } from '@/lib/entry-sort';
 import { DatePicker } from '@/components/ui/date-picker';
 import API_BASE_URL from '@/lib/api';
 import { useAuthStore } from '@/store/index';
@@ -292,7 +293,7 @@ export default function HawalaPage() {
       return isSelectingRange && startDate && endDate
         ? entryDateString >= startDate && entryDateString <= endDate
         : entryDateString === dateFilter;
-    });
+    }).sort(compareEntriesByTimeDesc);
   }, [hawalaEntries, searchTerm, filterByDate, dateFilter, isSelectingRange, startDate, endDate]);
 
   // Generate ledger effect

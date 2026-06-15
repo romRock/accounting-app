@@ -49,7 +49,7 @@ export async function fetchAllTransactions(type: 'OUTWARD' | 'INWARD'): Promise<
       page,
       limit: HISTORY_PAGE_SIZE,
       allDates: ALL_DATES,
-    });
+    }, { useDefaultBranchHeader: false });
     const batch = response.transactions || [];
     all.push(...batch);
     totalPages = resolveTotalPages(response.pagination, HISTORY_PAGE_SIZE, batch.length);

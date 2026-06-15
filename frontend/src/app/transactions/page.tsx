@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,6 +21,7 @@ import { ClientTypeahead, Client } from "@/components/ui/client-typeahead";
 import { useAuthStore } from "@/store/index";
 import { useBranchStore } from "@/store/branch-store";
 import { getTransactionBranchHeaders } from "@/lib/branch-headers";
+import { compareEntriesByTimeDesc } from "@/lib/entry-sort";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { RefreshCw, Trash2, Save } from "lucide-react";
 import UpdatedEntryBadge from "@/components/reports/updated-entry-badge";
@@ -790,6 +791,11 @@ export default function TransactionsPage() {
     return matchesSearch && matchesDate;
   });
 
+  const sortedFilteredTransactions = useMemo(
+    () => [...filteredTransactions].sort(compareEntriesByTimeDesc),
+    [filteredTransactions],
+  );
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1482,7 +1488,7 @@ export default function TransactionsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              {filteredTransactions.length === 0 ? (
+              {sortedFilteredTransactions.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-gray-500">No transactions found</p>
                 </div>
@@ -1541,7 +1547,7 @@ export default function TransactionsPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {filteredTransactions.map((transaction, index) => (
+                          {sortedFilteredTransactions.map((transaction, index) => (
                             <tr
                               key={transaction.id}
                               onClick={() => handleRowClick(transaction)}
@@ -1727,7 +1733,7 @@ export default function TransactionsPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {filteredTransactions.map((transaction, index) => (
+                          {sortedFilteredTransactions.map((transaction, index) => (
                             <tr
                               key={transaction.id}
                               onClick={() => handleRowClick(transaction)}
@@ -1862,7 +1868,7 @@ export default function TransactionsPage() {
 
                   {/* Mobile Cards */}
                   <div className="lg:hidden space-y-3">
-                    {filteredTransactions.map((transaction) => (
+                    {sortedFilteredTransactions.map((transaction) => (
                       <div
                         key={transaction.id}
                         onClick={() => handleRowClick(transaction)}

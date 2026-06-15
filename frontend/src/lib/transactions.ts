@@ -1,6 +1,6 @@
 // Real transaction API service for backend
 import API_BASE_URL, { safeJsonStringify } from './api';
-import { getTransactionBranchHeaders } from './branch-headers';
+import { getBranchHeadersForId, getTransactionBranchHeaders } from './branch-headers';
 import { useAuthStore } from '../store/index';
 
 export interface Transaction {
@@ -95,7 +95,7 @@ export const transactionApi = {
     dateFrom?: string;
     dateTo?: string;
     allDates?: boolean;
-  } = {}): Promise<TransactionsResponse> {
+  } = {}, options?: { branchId?: string | null; useDefaultBranchHeader?: boolean }): Promise<TransactionsResponse> {
     const { accessToken } = useAuthStore.getState();
     const queryParams = new URLSearchParams();
     
@@ -108,10 +108,17 @@ export const transactionApi = {
     if (params.dateTo) queryParams.append('dateTo', params.dateTo);
     if (params.allDates) queryParams.append('allDates', 'true');
 
+    const branchHeaders =
+      options?.branchId != null && options.branchId !== ''
+        ? getBranchHeadersForId(options.branchId)
+        : options?.useDefaultBranchHeader === false
+          ? {}
+          : getTransactionBranchHeaders();
+
     const response = await fetch(`${API_BASE_URL}/api/transactions?${queryParams}`, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
-        ...getTransactionBranchHeaders(),
+        ...branchHeaders,
       },
     });
 

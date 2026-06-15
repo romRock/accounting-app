@@ -12,6 +12,7 @@ import UpdatedEntryBadge from '@/components/reports/updated-entry-badge';
 import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
 import API_BASE_URL from '@/lib/api';
 import { useAuthStore } from '@/store/index';
+import { compareEntriesByTimeDesc } from '@/lib/entry-sort';
 
 // Function to format time in Indian time format
 const formatTime = (timeString: string) => {
@@ -546,7 +547,7 @@ export default function SPLPage() {
         entry.remark,
       ),
     )
-    .sort((a, b) => (a.tokenNo || 0) - (b.tokenNo || 0)); // Sort by tokenNo in ascending order
+    .sort(compareEntriesByTimeDesc);
 
   const amountCDelta =
     parseFloat(formData.amountA || '0') - parseFloat(formData.amountB || '0');

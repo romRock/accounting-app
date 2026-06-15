@@ -16,7 +16,9 @@ import { accountingApi, AccountingEntry } from '@/lib/accounting';
 import { getHawalaEntries, HawalaEntry } from '@/lib/hawala';
 import { getSpecialEntries, SpecialEntry } from '@/lib/specialEntry';
 import { fetchAllModuleHistoryData } from '@/lib/fetch-all-history';
+import { compareEntriesByTimeAsc } from '@/lib/entry-sort';
 import { showErrorToast, showSuccessToast, Toaster } from '@/lib/toast';
+import { useBranchStore } from '@/store/branch-store';
 import { ExcelExportIcon, PdfExportIcon } from '@/components/icons/export-format-icons';
 
 // Unified row used only by Transaction Report (report #5)
@@ -65,10 +67,13 @@ interface ReportFilters {
   dateTo: string;
   center: string;
   amountType: string;
+  branchId: string;
   customerName: string;
   mobileNumber: string;
   status: string;
 }
+
+const BRANCH_FILTER_REPORTS: ReportType[] = ['outward', 'inward', 'combo', 'amount-type'];
 
 interface ReportData {
   id?: string;
@@ -107,19 +112,7 @@ function getComboOutwardDisplayAmount(transaction: { amount?: number; centerComm
 }
 
 function compareComboTransactionsByTimeAsc(a: Transaction, b: Transaction) {
-  const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime();
-  if (dateCompare !== 0) return dateCompare;
-  const timeA = a.time ? new Date(a.time).getTime() : 0;
-  const timeB = b.time ? new Date(b.time).getTime() : 0;
-  return timeA - timeB;
-}
-
-function compareComboTransactionsByTimeDesc(a: Transaction, b: Transaction) {
-  const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
-  if (dateCompare !== 0) return dateCompare;
-  const timeA = a.time ? new Date(a.time).getTime() : 0;
-  const timeB = b.time ? new Date(b.time).getTime() : 0;
-  return timeB - timeA;
+  return compareEntriesByTimeAsc(a, b);
 }
 
 /** Amount Type report (CASH): single amount = base + center + booking commission. */
@@ -138,6 +131,8 @@ function getAmountTypeCashDisplayAmount(transaction: {
 export default function ReportsPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
+  const assignedBranches = useBranchStore((state) => state.assignedBranches);
+  const setAssignedBranches = useBranchStore((state) => state.setAssignedBranches);
   const [activeReport, setActiveReport] = useState<ReportType>('customer');
   const [reportData, setReportData] = useState<Transaction[]>([]);
   const [summary, setSummary] = useState<ReportSummary | null>(null);
@@ -192,11 +187,42 @@ export default function ReportsPage() {
       dateTo: currentDate,
       center: '',
       amountType: '',
+      branchId: '',
       customerName: '',
       mobileNumber: '',
       status: '',
     };
   });
+
+
+  useEffect(() => {
+    if (!user) return;
+    const fromUser = user.branches ?? (user.branch ? [user.branch] : []);
+    if (fromUser.length > 0) {
+      setAssignedBranches(fromUser);
+    }
+  }, [user, setAssignedBranches]);
+
+  useEffect(() => {
+    if (assignedBranches.length === 0) return;
+    setFilters((prev) => ({
+      ...prev,
+      branchId: prev.branchId && assignedBranches.some((b) => b.id === prev.branchId)
+        ? prev.branchId
+        : assignedBranches[0].id,
+    }));
+  }, [assignedBranches]);
+
+  const getReportBranchOptions = () => {
+    if (!BRANCH_FILTER_REPORTS.includes(activeReport)) return undefined;
+    const branchId =
+      filters.branchId ||
+      assignedBranches[0]?.id ||
+      user?.branches?.[0]?.id ||
+      user?.branch?.id ||
+      '';
+    return branchId ? { branchId } : undefined;
+  };
 
 
   // Fetch all clients
@@ -335,23 +361,22 @@ export default function ReportsPage() {
       }
 
       if (activeReport === 'combo') {
+        const branchOptions = getReportBranchOptions();
         // Fetch both inward and outward transactions for combo report
         const [inwardResponse, outwardResponse] = await Promise.all([
           transactionApi.getTransactions({
             type: 'INWARD',
             page: currentPage,
             limit: 100,
-          }),
+          }, branchOptions),
           transactionApi.getTransactions({
             type: 'OUTWARD',
             page: currentPage,
             limit: 100,
-          })
+          }, branchOptions)
         ]);
 
-        // Combine both transaction types â€” newest first (current balance at top)
-        const allTransactions = [...inwardResponse.transactions, ...outwardResponse.transactions]
-          .sort(compareComboTransactionsByTimeDesc);
+        const allTransactions = [...inwardResponse.transactions, ...outwardResponse.transactions];
 
         setReportData(allTransactions);
       } else if (activeReport === 'transaction') {
@@ -372,7 +397,7 @@ export default function ReportsPage() {
           page: currentPage,
           limit: 10000, // High limit to ensure all entries are fetched
           ...(activeReport === 'amount-type' && filters.amountType && filters.amountType.trim() && { amountType: filters.amountType })
-        });
+        }, getReportBranchOptions());
 
         setReportData(response.transactions);
       }
@@ -1160,6 +1185,7 @@ export default function ReportsPage() {
       dateTo: new Date().toISOString().split('T')[0],
       center: '',
       amountType: '',
+      branchId: assignedBranches[0]?.id || user?.branches?.[0]?.id || user?.branch?.id || '',
       customerName: '',
       mobileNumber: '',
       status: '',
@@ -1223,35 +1249,33 @@ export default function ReportsPage() {
     return matchesSearch && matchesDate && matchesCenter && matchesAmountType;
   });
 
-  // Combo report: newest first; balance computed chronologically then mapped to display order
+  // Combo report: chronological order with running balance
   const { comboDisplayData, comboRunningBalances } = useMemo(() => {
     if (activeReport !== 'combo') {
       return { comboDisplayData: [] as Transaction[], comboRunningBalances: [] as number[] };
     }
 
-    const chronological = [...filteredData].sort(compareComboTransactionsByTimeAsc);
-    const balanceById = new Map<string, number>();
+    const comboDisplayData = [...filteredData].sort(compareComboTransactionsByTimeAsc);
     let runningBalance = 0;
-
-    chronological.forEach((transaction) => {
+    const comboRunningBalances = comboDisplayData.map((transaction) => {
       if (transaction.type === 'OUTWARD') {
         runningBalance += getComboOutwardDisplayAmount(transaction);
       } else if (transaction.type === 'INWARD') {
         runningBalance -= getComboInwardDisplayAmount(transaction);
       }
-      balanceById.set(transaction.id, runningBalance);
+      return runningBalance;
     });
-
-    const comboDisplayData = [...filteredData].sort(compareComboTransactionsByTimeDesc);
-    const comboRunningBalances = comboDisplayData.map(
-      (transaction) => balanceById.get(transaction.id) ?? 0
-    );
 
     return { comboDisplayData, comboRunningBalances };
   }, [activeReport, filteredData]);
 
-  const reportTableData =
-    activeReport === 'combo' ? comboDisplayData : filteredData;
+  const reportTableData = useMemo(() => {
+    if (activeReport === 'combo') return comboDisplayData;
+    if (BRANCH_FILTER_REPORTS.includes(activeReport)) {
+      return [...filteredData].sort(compareComboTransactionsByTimeAsc);
+    }
+    return filteredData;
+  }, [activeReport, comboDisplayData, filteredData]);
 
   // Get columns based on report type (for outward and inward transactions)
   const getColumns = () => {
@@ -1618,6 +1642,31 @@ export default function ReportsPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Branch Filter - Booking, Cutting, Combo, Amount Type */}
+                {BRANCH_FILTER_REPORTS.includes(activeReport) && assignedBranches.length > 0 && (
+                  <div>
+                    <Label htmlFor="reportBranch" className="text-sm font-medium text-gray-700">Branch</Label>
+                    {assignedBranches.length === 1 ? (
+                      <div className="mt-1 flex h-10 items-center rounded-md border border-gray-300 bg-gray-50 px-3 text-sm font-medium text-gray-900">
+                        {assignedBranches[0].name} ({assignedBranches[0].code})
+                      </div>
+                    ) : (
+                      <select
+                        id="reportBranch"
+                        value={filters.branchId || assignedBranches[0]?.id || ''}
+                        onChange={(e) => setFilters({ ...filters, branchId: e.target.value })}
+                        className="mt-1 w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-black text-sm"
+                      >
+                        {assignedBranches.map((branch) => (
+                          <option key={branch.id} value={branch.id}>
+                            {branch.name} ({branch.code})
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
 
                 {/* Center Filter - For Outward/Inward reports */}
                 {(activeReport === 'outward' || activeReport === 'inward') && (

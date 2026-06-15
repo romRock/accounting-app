@@ -13,6 +13,7 @@ import UpdatedEntryBadge from '@/components/reports/updated-entry-badge';
 import { ClientTypeahead } from '@/components/ui/client-typeahead';
 import { accountingApi, AccountingEntry } from '@/lib/accounting';
 import { getFetchDateRange } from '@/lib/date-filter';
+import { compareEntriesByTimeDesc } from '@/lib/entry-sort';
 import { DatePicker } from '@/components/ui/date-picker';
 import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
 
@@ -301,7 +302,7 @@ export default function AccountingPage() {
       });
     }
 
-    return filtered;
+    return filtered.sort(compareEntriesByTimeDesc);
   }, [transactions, searchTerm, filterByDate, dateFilter, isSelectingRange, startDate, endDate]);
 
   // Save transaction

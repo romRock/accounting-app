@@ -22,6 +22,7 @@ import { useAuthStore } from "@/store/index";
 import { useBranchStore } from "@/store/branch-store";
 import { getTransactionBranchHeaders } from "@/lib/branch-headers";
 import { compareEntriesByTimeDesc } from "@/lib/entry-sort";
+import { getStoredCommissions } from "@/lib/transaction-commission-display";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { RefreshCw, Trash2, Save } from "lucide-react";
 import UpdatedEntryBadge from "@/components/reports/updated-entry-badge";
@@ -1547,7 +1548,9 @@ export default function TransactionsPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {sortedFilteredTransactions.map((transaction, index) => (
+                          {sortedFilteredTransactions.map((transaction, index) => {
+                            const stored = getStoredCommissions(transaction);
+                            return (
                             <tr
                               key={transaction.id}
                               onClick={() => handleRowClick(transaction)}
@@ -1598,22 +1601,18 @@ export default function TransactionsPage() {
                               {activeTab === "outward" ? (
                                 <>
                                   <td className="px-4 py-3 text-sm text-gray-900">
-                                    {formatCurrency(
-                                      transaction.bookingCommission || 0,
-                                    )}
+                                    {formatCurrency(stored.bookingCommission)}
                                   </td>
                                   <td className="px-4 py-3 text-sm text-gray-900">
-                                    {formatCurrency(
-                                      transaction.centerCommission || 0,
-                                    )}
+                                    {formatCurrency(stored.centerCommission)}
                                   </td>
                                 </>
                               ) : (
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                  {formatCurrency(
-                                    transaction.bookingCommission || 0,
-                                  )}
-                                </td>
+
+                                  <td className="px-4 py-3 text-sm text-gray-900">
+                                    {formatCurrency(stored.bookingCommission)}
+                                  </td>
+
                               )}
                               <td className="px-4 py-3 text-sm text-gray-900">
                                 {transaction.receiverName}
@@ -1674,7 +1673,8 @@ export default function TransactionsPage() {
                                 </div>
                               </td>
                             </tr>
-                          ))}
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -1733,7 +1733,9 @@ export default function TransactionsPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {sortedFilteredTransactions.map((transaction, index) => (
+                          {sortedFilteredTransactions.map((transaction, index) => {
+                            const stored = getStoredCommissions(transaction);
+                            return (
                             <tr
                               key={transaction.id}
                               onClick={() => handleRowClick(transaction)}
@@ -1784,22 +1786,18 @@ export default function TransactionsPage() {
                               {activeTab === "outward" ? (
                                 <>
                                   <td className="px-4 py-3 text-sm text-gray-900">
-                                    {formatCurrency(
-                                      transaction.bookingCommission || 0,
-                                    )}
+                                    {formatCurrency(stored.bookingCommission)}
                                   </td>
                                   <td className="px-4 py-3 text-sm text-gray-900">
-                                    {formatCurrency(
-                                      transaction.centerCommission || 0,
-                                    )}
+                                    {formatCurrency(stored.centerCommission)}
                                   </td>
                                 </>
                               ) : (
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                  {formatCurrency(
-                                    transaction.bookingCommission || 0,
-                                  )}
-                                </td>
+                               
+                                  <td className="px-4 py-3 text-sm text-gray-900">
+                                    {formatCurrency(stored.bookingCommission)}
+                                  </td>
+                               
                               )}
                               <td className="px-4 py-3 text-sm text-gray-900">
                                 {transaction.receiverName}
@@ -1860,7 +1858,8 @@ export default function TransactionsPage() {
                                 </div>
                               </td>
                             </tr>
-                          ))}
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -1868,7 +1867,9 @@ export default function TransactionsPage() {
 
                   {/* Mobile Cards */}
                   <div className="lg:hidden space-y-3">
-                    {sortedFilteredTransactions.map((transaction) => (
+                    {sortedFilteredTransactions.map((transaction) => {
+                      const stored = getStoredCommissions(transaction);
+                      return (
                       <div
                         key={transaction.id}
                         onClick={() => handleRowClick(transaction)}
@@ -1914,6 +1915,23 @@ export default function TransactionsPage() {
                             <span className="font-medium">Center:</span>{" "}
                             {transaction.center?.name}
                           </div>
+                          {activeTab === "outward" ? (
+                            <>
+                              <div>
+                                <span className="font-medium">Booking:</span>{" "}
+                                {formatCurrency(stored.bookingCommission)}
+                              </div>
+                              <div>
+                                <span className="font-medium">Center:</span>{" "}
+                                {formatCurrency(stored.centerCommission)}
+                              </div>
+                            </>
+                          ) : (
+                              <div>
+                                <span className="font-medium">Cutting:</span>{" "}
+                                {formatCurrency(stored.bookingCommission)}
+                              </div>
+                          )}
                         </div>
 
                         <div className="border-t pt-2">
@@ -1958,7 +1976,8 @@ export default function TransactionsPage() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </>
               )}

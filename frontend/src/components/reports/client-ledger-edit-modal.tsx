@@ -19,6 +19,7 @@ import { accountingApi, AccountingEntry } from '@/lib/accounting';
 import { updateHawala, deleteHawala, HawalaEntry } from '@/lib/hawala';
 import { updateSpecialEntry, deleteSpecialEntry, SpecialEntry } from '@/lib/specialEntry';
 import { showDeleteToast, showErrorToast, showUpdateToast } from '@/lib/toast';
+import { getStoredCommissions } from '@/lib/transaction-commission-display';
 import { Save, Trash2, X } from 'lucide-react';
 
 interface LedgerClientOption {
@@ -170,6 +171,8 @@ export default function ClientLedgerEditModal({
     setSelectedCenter(null);
     setSelectedSenderClient(null);
     setSelectedReceiverClient(null);
+    setAutoCommission(false);
+    setTxnAmount(0);
 
     (async () => {
       try {
@@ -183,16 +186,20 @@ export default function ClientLedgerEditModal({
         switch (entry.module) {
           case 'Transaction': {
             const txn = record as Transaction;
+            const stored = getStoredCommissions(txn);
             setTxnForm({
               ...txn,
               date: toDateInput(txn.date),
               time: toTimeInput(txn.time),
               amountType: 'CREDIT',
-              autoCommission: true,
-              cuttingCommission: txn.type === 'INWARD' ? txn.bookingCommission || 0 : undefined,
+              commission: stored.commission,
+              bookingCommission: stored.bookingCommission,
+              centerCommission: stored.centerCommission,
+              autoCommission: false,
+              cuttingCommission: txn.type === 'INWARD' ? stored.bookingCommission : undefined,
             });
             setTxnAmount(Number(txn.amount) || 0);
-            setAutoCommission(true);
+            setAutoCommission(false);
             if (txn.center) {
               setSelectedCenter({
                 id: txn.center.id,
@@ -281,7 +288,7 @@ export default function ClientLedgerEditModal({
   const receiverUsesClientPicker = txnType === 'INWARD';
 
   useEffect(() => {
-    if (!open || entry?.module !== 'Transaction' || !autoCommission) return;
+    if (!open || loading || entry?.module !== 'Transaction' || !autoCommission) return;
 
     if (txnAmount <= 0) {
       setTxnForm((prev) => ({
@@ -315,7 +322,7 @@ export default function ClientLedgerEditModal({
         centerCommission,
       }));
     }
-  }, [open, entry?.module, txnAmount, autoCommission, isInwardTxn]);
+  }, [open, loading, entry?.module, txnAmount, autoCommission, isInwardTxn]);
 
   useEffect(() => {
     if (!open) return;

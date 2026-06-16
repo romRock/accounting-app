@@ -17,6 +17,7 @@ import { getHawalaEntries, HawalaEntry } from '@/lib/hawala';
 import { getSpecialEntries, SpecialEntry } from '@/lib/specialEntry';
 import { fetchAllModuleHistoryData } from '@/lib/fetch-all-history';
 import { compareEntriesByTimeAsc } from '@/lib/entry-sort';
+import { getStoredCommissions } from '@/lib/transaction-commission-display';
 import { showErrorToast, showSuccessToast, Toaster } from '@/lib/toast';
 import { useBranchStore } from '@/store/branch-store';
 import { ExcelExportIcon, PdfExportIcon } from '@/components/icons/export-format-icons';
@@ -756,6 +757,7 @@ export default function ReportsPage() {
             } else {
               // Legacy reports
               const txn = row as Transaction;
+              const stored = getStoredCommissions(txn);
               switch (column) {
                 case 'TOKEN':
                   value = txn.tokenNo?.toString() || (index + 1).toString();
@@ -776,10 +778,8 @@ export default function ReportsPage() {
                   value = txn.center?.name || txn.centerId || '-';
                   break;
                 case 'OUTWARD AMOUNT':
-                  // Show amount only for outward transactions, empty for inward
                   if (txn.type === 'OUTWARD') {
-                    const totalAmount = txn.amount + (txn.centerCommission || 0);
-                    value = totalAmount.toString();
+                    value = getComboOutwardDisplayAmount(txn).toString();
                   } else {
                     value = '';
                   }
@@ -801,31 +801,30 @@ export default function ReportsPage() {
                   }
                   break;
                 case 'AMOUNT':
-                  // For inward reports, show only amount without center commission
                   if (activeReport === 'inward') {
                     value = txn.amount.toString();
+                  } else if (activeReport === 'outward') {
+                    value = getComboOutwardDisplayAmount(txn).toString();
                   } else if (activeReport === 'amount-type' && filters.amountType?.toUpperCase() === 'CASH') {
                     value = getAmountTypeCashDisplayAmount(txn).toString();
                   } else {
-                    // For outward and amount-type (non-CASH), show amount + center commission
-                    const totalAmount = txn.amount + (txn.centerCommission || 0);
-                    value = totalAmount.toString();
+                    value = txn.amount.toString();
                   }
                   break;
                 case 'AMOUNT TYPE':
                   value = txn.amountType || '-';
                   break;
+                case 'COMMISSION':
+                  value = stored.commission.toString();
+                  break;
+                case 'CENTER COMM':
+                  value = stored.centerCommission.toString();
+                  break;
                 case 'OUR COMM':
-                  value = (txn.bookingCommission || 0).toString();
+                  value = stored.bookingCommission.toString();
                   break;
                 case 'CUTTING COMM':
-                  // For inward reports, show cutting commission
-                  if (activeReport === 'inward') {
-                    value = (txn.bookingCommission || 0).toString();
-                  } else {
-                    // For outward and amount-type reports, show our commission
-                    value = (txn.bookingCommission || 0).toString();
-                  }
+                  value = stored.bookingCommission.toString();
                   break;
                 case 'TRANSACTION TYPE':
                   value = txn.type || 'OUTWARD';
@@ -1293,7 +1292,7 @@ export default function ReportsPage() {
       if (isCashAmountType) {
         return ['TOKEN', 'DATE', 'TIME', 'CENTER', 'AMOUNT', 'AMOUNT TYPE', 'RECEIVER NAME', 'SENDER NAME', 'REMARKS'];
       }
-      return ['TOKEN', 'DATE', 'TIME', 'CENTER', 'AMOUNT', 'AMOUNT TYPE', 'OUR COMM', 'RECEIVER NAME', 'SENDER NAME', 'REMARKS'];
+      return ['TOKEN', 'DATE', 'TIME', 'CENTER', 'AMOUNT', 'AMOUNT TYPE', 'COMMISSION', 'CENTER COMM', 'OUR COMM', 'RECEIVER NAME', 'SENDER NAME', 'REMARKS'];
     }
     // New accounting reports - placeholder columns for now
     if (activeReport === 'transaction') {
@@ -1310,6 +1309,8 @@ export default function ReportsPage() {
 
   // Get render cell function (for outward, inward and amount-type transactions)
   const renderCell = (transaction: Transaction, column: string, index: number) => {
+    const stored = getStoredCommissions(transaction);
+
     switch (column) {
       case 'TRANSACTION TYPE':
         const transactionType = transaction.type || 'OUTWARD';
@@ -1346,25 +1347,27 @@ export default function ReportsPage() {
         }
         return '-';
       case 'AMOUNT':
-        // For inward reports, show only amount without center commission
         if (activeReport === 'inward') {
-          return transaction.amount.toString();
+          return formatCurrency(transaction.amount);
+        }
+        if (activeReport === 'outward') {
+          return formatCurrency(getComboOutwardDisplayAmount(transaction));
         }
         // Amount Type + CASH: combined amount (base + center + booking commission)
         if (activeReport === 'amount-type' && filters.amountType?.toUpperCase() === 'CASH') {
           return formatCurrency(getAmountTypeCashDisplayAmount(transaction));
         }
-        // For outward and amount-type (non-CASH), show amount + center commission
-        const totalAmount = transaction.amount + (transaction.centerCommission || 0);
-        return formatCurrency(totalAmount);
+        return formatCurrency(transaction.amount);
       case 'AMOUNT TYPE':
         return transaction.amountType || '-';
       case 'COMMISSION':
-        return formatCurrency(transaction.commission || 0);
+        return formatCurrency(stored.commission);
+      case 'CENTER COMM':
+        return formatCurrency(stored.centerCommission);
       case 'OUR COMM':
-        return formatCurrency(transaction.bookingCommission || 0);
+        return formatCurrency(stored.bookingCommission);
       case 'CUTTING COMM':
-        return formatCurrency(transaction.bookingCommission || 0);
+        return formatCurrency(stored.bookingCommission);
       case 'RECEIVER NAME':
         return transaction.receiverName || '-';
       case 'SENDER NAME':

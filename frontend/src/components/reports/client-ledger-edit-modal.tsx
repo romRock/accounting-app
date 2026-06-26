@@ -378,13 +378,18 @@ export default function ClientLedgerEditModal({
             statusTime: new Date().toISOString(),
           };
 
-          if (type === 'OUTWARD') {
-            transactionData.senderClientId =
-              selectedSenderClient?.id || txn.senderClientId;
+          if (selectedSenderClient?.id) {
+            transactionData.senderClientId = selectedSenderClient.id;
+          } else if (txn.senderClientId) {
+            transactionData.senderClientId = txn.senderClientId;
           }
+          if (selectedReceiverClient?.id) {
+            transactionData.receiverClientId = selectedReceiverClient.id;
+          } else if (txn.receiverClientId) {
+            transactionData.receiverClientId = txn.receiverClientId;
+          }
+
           if (type === 'INWARD') {
-            transactionData.receiverClientId =
-              selectedReceiverClient?.id || txn.receiverClientId;
             transactionData.bookingCommission =
               Number(txn.cuttingCommission) || Number(txn.bookingCommission) || 0;
             transactionData.centerCommission = 0;

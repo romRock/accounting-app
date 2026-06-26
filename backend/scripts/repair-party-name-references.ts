@@ -14,6 +14,7 @@ import {
   syncPartyNameByClientId,
   syncPartyNameReferences,
 } from '../src/lib/party-name-sync';
+import { backfillTransactionClientIdsForParty } from '../src/lib/resolve-party-client';
 
 const prisma = new PrismaClient();
 
@@ -77,6 +78,27 @@ async function repairFromAudit(partyId: string) {
     console.log(`  Client-id linked transactions synced: ${JSON.stringify(idSync)}`);
   }
 
+  const backfill = await backfillTransactionClientIdsForParty(
+    prisma,
+    party.id,
+    audits
+      .map((audit) => {
+        try {
+          return JSON.parse(audit.oldValues || '{}').name as string;
+        } catch {
+          return '';
+        }
+      })
+      .filter(Boolean)
+      .concat(party.name),
+    party.branchId,
+  );
+  const backfillChanged = backfill.receiverLinked + backfill.senderLinked;
+  if (backfillChanged > 0) {
+    total += backfillChanged;
+    console.log(`  Backfilled missing client ids: ${JSON.stringify(backfill)}`);
+  }
+
   console.log(`Repaired ${total} records for party ${party.name} (${party.id})`);
 }
 
@@ -100,7 +122,16 @@ async function repairExplicit(oldName: string, newName: string) {
       newName: party.name,
       branchId: party.branchId,
     });
-    console.log(`Party ${party.name}: ${JSON.stringify(result)}`);
+    const idSync = await syncPartyNameByClientId(prisma, party.id, party.name);
+    const backfill = await backfillTransactionClientIdsForParty(
+      prisma,
+      party.id,
+      [oldName, party.name],
+      party.branchId,
+    );
+    console.log(
+      `Party ${party.name}: ${JSON.stringify({ ...result, idSync, backfill })}`,
+    );
   }
 }
 

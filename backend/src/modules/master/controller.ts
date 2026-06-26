@@ -2,7 +2,8 @@ import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { createError } from '../../middlewares/errorHandler';
 import { invalidateCachePattern } from '../../middlewares/cache';
-import { syncPartyNameReferences } from '../../lib/party-name-sync';
+import { syncPartyNameReferences, syncPartyNameByClientId } from '../../lib/party-name-sync';
+import { backfillTransactionClientIdsForParty } from '../../lib/resolve-party-client';
 import bcrypt from 'bcryptjs';
 
 // PrismaClient singleton pattern to prevent connection exhaustion
@@ -1253,6 +1254,16 @@ export const updateParty = async (req: Request, res: Response) => {
         branchId: existingParty.branchId,
       });
     }
+
+    await syncPartyNameByClientId(prisma, partyId, party.name);
+    await backfillTransactionClientIdsForParty(
+      prisma,
+      partyId,
+      name && name !== existingParty.name
+        ? [existingParty.name, party.name]
+        : [party.name],
+      existingParty.branchId,
+    );
 
     // Invalidate parties cache after successful update
     invalidateCachePattern('/api/parties');

@@ -271,8 +271,10 @@ export default function TransactionsPage() {
   const centerCommission = watch("centerCommission");
 
   const isCredit = amountType === "CREDIT";
-  const receiverUsesClientPicker = isCredit && activeTab === "inward";
-  const senderUsesClientPicker = isCredit && activeTab === "outward";
+  const receiverUsesClientPicker =
+    (activeTab === "outward" && !isCredit) || (activeTab === "inward" && isCredit);
+  const senderUsesClientPicker =
+    (activeTab === "outward" && isCredit) || (activeTab === "inward" && !isCredit);
 
   const glassBase =
     "rounded-2xl backdrop-blur-md transition-all duration-200 shadow-[inset_0_2px_8px_rgba(15,23,42,0.07)]";
@@ -566,13 +568,11 @@ export default function TransactionsPage() {
         statusTime: new Date().toISOString(),
       };
 
-      if (data.amountType === "CREDIT") {
-        if (activeTab === "outward" && selectedSenderClient) {
-          transactionData.senderClientId = selectedSenderClient.id;
-        }
-        if (activeTab === "inward" && selectedReceiverClient) {
-          transactionData.receiverClientId = selectedReceiverClient.id;
-        }
+      if (selectedSenderClient?.id) {
+        transactionData.senderClientId = selectedSenderClient.id;
+      }
+      if (selectedReceiverClient?.id) {
+        transactionData.receiverClientId = selectedReceiverClient.id;
       }
 
       // For inward transactions, map cuttingCommission to bookingCommission

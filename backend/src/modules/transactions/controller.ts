@@ -7,6 +7,7 @@ import {
   resolveActiveTransactionBranchId,
   resolveUserBranchId,
 } from '../../utils/branchScope';
+import { resolveTransactionClientIds } from '../../lib/resolve-party-client';
 
 // Define enum values as strings since Prisma enums aren't being exported properly
 enum TransactionType {
@@ -159,6 +160,14 @@ export const createTransaction = async (req: Request, res: Response) => {
       }
     }
 
+    const resolvedClientIds = await resolveTransactionClientIds(prisma, {
+      receiverName,
+      senderName,
+      receiverClientId,
+      senderClientId,
+      branchId,
+    });
+
     // Create transaction with new schema
     const transaction = await prisma.transaction.create({
       data: {
@@ -177,8 +186,8 @@ export const createTransaction = async (req: Request, res: Response) => {
         receiverNumber: receiverNumber || null,
         senderName,
         senderNumber: senderNumber || null,
-        receiverClientId: receiverClientId || null,
-        senderClientId: senderClientId || null,
+        receiverClientId: resolvedClientIds.receiverClientId,
+        senderClientId: resolvedClientIds.senderClientId,
         remark: remark || null,
         status: true,
         statusTime: new Date(),
@@ -189,7 +198,7 @@ export const createTransaction = async (req: Request, res: Response) => {
     });
 
     // Create corresponding ledger entries for credit transactions - fire and forget (non-blocking)
-    if (amountType === 'CREDIT' && senderClientId) {
+    if (amountType === 'CREDIT' && resolvedClientIds.senderClientId) {
       createClientLedgerEntries(transaction).catch(() => {
         // Ignore ledger errors - transaction is already created
       });
@@ -501,6 +510,14 @@ export const updateTransaction = async (req: Request, res: Response) => {
       }
     }
 
+    const resolvedClientIds = await resolveTransactionClientIds(prisma, {
+      receiverName: receiverName ?? existingTransaction.receiverName,
+      senderName: senderName ?? existingTransaction.senderName,
+      receiverClientId: receiverClientId ?? existingTransaction.receiverClientId,
+      senderClientId: senderClientId ?? existingTransaction.senderClientId,
+      branchId: existingTransaction.branchId,
+    });
+
     // Update transaction
     const transaction = await prisma.transaction.update({
       where: { id: id as string },
@@ -518,8 +535,8 @@ export const updateTransaction = async (req: Request, res: Response) => {
         receiverNumber: receiverNumber || null,
         senderName,
         senderNumber: senderNumber || null,
-        receiverClientId: receiverClientId || null,
-        senderClientId: senderClientId || null,
+        receiverClientId: resolvedClientIds.receiverClientId,
+        senderClientId: resolvedClientIds.senderClientId,
         remark: remark || null,
         status: status !== undefined ? status : undefined,
         type: type as TransactionType,

@@ -1,6 +1,29 @@
 export interface ClientRef {
   id: string;
   name: string;
+  knownNames?: string[];
+}
+
+function normalizeName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+function getClientAliases(client: ClientRef): Set<string> {
+  const aliases = new Set<string>([
+    normalizeName(client.name),
+    ...(client.knownNames || []).map(normalizeName),
+  ]);
+  aliases.delete('');
+  return aliases;
+}
+
+function nameMatchesClient(
+  name: string | null | undefined,
+  client: ClientRef,
+): boolean {
+  const normalized = normalizeName(name || '');
+  if (!normalized) return false;
+  return getClientAliases(client).has(normalized);
 }
 
 export function isTransactionReceiver(
@@ -10,10 +33,9 @@ export function isTransactionReceiver(
   },
   client: ClientRef,
 ): boolean {
-  const clientName = client.name.toLowerCase();
   return (
-    (txn.receiverName?.toLowerCase() || '') === clientName ||
-    (!!client.id && txn.receiverClientId === client.id)
+    (!!client.id && txn.receiverClientId === client.id) ||
+    nameMatchesClient(txn.receiverName, client)
   );
 }
 
@@ -24,10 +46,9 @@ export function isTransactionSender(
   },
   client: ClientRef,
 ): boolean {
-  const clientName = client.name.toLowerCase();
   return (
-    (txn.senderName?.toLowerCase() || '') === clientName ||
-    (!!client.id && txn.senderClientId === client.id)
+    (!!client.id && txn.senderClientId === client.id) ||
+    nameMatchesClient(txn.senderName, client)
   );
 }
 
@@ -47,7 +68,7 @@ export function isPartyNameMatch(
   name: string | null | undefined,
   client: ClientRef,
 ): boolean {
-  return (name?.toLowerCase() || '') === client.name.toLowerCase();
+  return nameMatchesClient(name, client);
 }
 
 export function accountingEntryInvolvesClient(

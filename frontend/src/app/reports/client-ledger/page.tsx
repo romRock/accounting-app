@@ -59,6 +59,7 @@ function ClientLedgerPageContent() {
           setClient({
             id: match.id,
             name: match.name,
+            knownNames: match.knownNames || [match.name],
             createdAt: match.createdAt,
             mobileNumber: match.mobileNumber,
           });

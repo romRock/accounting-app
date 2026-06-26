@@ -34,12 +34,12 @@ export async function fetchAllModuleData(): Promise<ModuleDataCache> {
 }
 
 export function calculateClientBalance(
-  client: { id?: string; name: string },
+  client: { id?: string; name: string; knownNames?: string[] },
   moduleData: ModuleDataCache,
 ) {
   let totalCredit = 0;
   let totalDebit = 0;
-  const clientRef = { id: client.id || '', name: client.name };
+  const clientRef = { id: client.id || '', name: client.name, knownNames: client.knownNames || [client.name] };
 
   moduleData.transactions.forEach((txn: any) => {
     if (!transactionInvolvesClient(txn, clientRef)) return;

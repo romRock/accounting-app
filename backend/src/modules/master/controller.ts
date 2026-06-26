@@ -2,8 +2,9 @@ import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { createError } from '../../middlewares/errorHandler';
 import { invalidateCachePattern } from '../../middlewares/cache';
-import { syncPartyNameReferences, syncPartyNameByClientId } from '../../lib/party-name-sync';
+import { syncPartyNameReferences, syncPartyNameByClientId, syncAllPartyNameAliases } from '../../lib/party-name-sync';
 import { backfillTransactionClientIdsForParty } from '../../lib/resolve-party-client';
+import { buildPartyAliasMap, getPartyKnownNames } from '../../lib/party-name-aliases';
 import bcrypt from 'bcryptjs';
 
 // PrismaClient singleton pattern to prevent connection exhaustion
@@ -1255,13 +1256,12 @@ export const updateParty = async (req: Request, res: Response) => {
       });
     }
 
+    await syncAllPartyNameAliases(prisma, partyId, party.name, existingParty.branchId);
     await syncPartyNameByClientId(prisma, partyId, party.name);
     await backfillTransactionClientIdsForParty(
       prisma,
       partyId,
-      name && name !== existingParty.name
-        ? [existingParty.name, party.name]
-        : [party.name],
+      await getPartyKnownNames(prisma, partyId),
       existingParty.branchId,
     );
 
@@ -2049,6 +2049,15 @@ export const searchParties = async (req: Request, res: Response) => {
     console.log("Parties fetched count:", parties.length);
     console.log("=== END PARTIES API DEBUG ===");
 
+    const aliasMap = await buildPartyAliasMap(
+      prisma,
+      parties.map((party) => party.id),
+    );
+    const partiesWithAliases = parties.map((party) => ({
+      ...party,
+      knownNames: aliasMap.get(party.id) || [party.name],
+    }));
+
     // Calculate pagination info only if limit is applied
     let pagination = null;
     if (shouldApplyLimit) {
@@ -2065,7 +2074,7 @@ export const searchParties = async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: parties,
+      data: partiesWithAliases,
       pagination,
     });
   } catch (error) {

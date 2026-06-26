@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { getPartyKnownNames } from './party-name-aliases';
 
 export interface PartyNameSyncResult {
   transactionsReceiver: number;
@@ -14,11 +15,6 @@ function namesEqual(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
-function branchScope(branchId?: string | null) {
-  if (!branchId) return {};
-  return { OR: [{ branchId }, { branchId: null }] };
-}
-
 /**
  * When a party/client name changes in master data, update denormalized name
  * fields on historical records so reports and hisab keep matching.
@@ -32,7 +28,7 @@ export async function syncPartyNameReferences(
     branchId?: string | null;
   },
 ): Promise<PartyNameSyncResult> {
-  const { partyId, oldName, newName, branchId } = params;
+  const { partyId, oldName, newName } = params;
 
   if (!oldName?.trim() || !newName?.trim() || namesEqual(oldName, newName)) {
     return {
@@ -46,17 +42,12 @@ export async function syncPartyNameReferences(
     };
   }
 
-  const scopedBranch = branchScope(branchId);
-
   const receiverResult = await prisma.transaction.updateMany({
     where: {
       isDeleted: false,
       OR: [
         { receiverClientId: partyId },
-        {
-          receiverName: { equals: oldName, mode: 'insensitive' },
-          ...scopedBranch,
-        },
+        { receiverName: { equals: oldName, mode: 'insensitive' } },
       ],
     },
     data: { receiverName: newName },
@@ -67,10 +58,7 @@ export async function syncPartyNameReferences(
       isDeleted: false,
       OR: [
         { senderClientId: partyId },
-        {
-          senderName: { equals: oldName, mode: 'insensitive' },
-          ...scopedBranch,
-        },
+        { senderName: { equals: oldName, mode: 'insensitive' } },
       ],
     },
     data: { senderName: newName },
@@ -80,7 +68,6 @@ export async function syncPartyNameReferences(
     where: {
       isDeleted: false,
       partyA: { equals: oldName, mode: 'insensitive' },
-      ...scopedBranch,
     },
     data: { partyA: newName },
   });
@@ -89,7 +76,6 @@ export async function syncPartyNameReferences(
     where: {
       isDeleted: false,
       partyB: { equals: oldName, mode: 'insensitive' },
-      ...scopedBranch,
     },
     data: { partyB: newName },
   });
@@ -98,7 +84,6 @@ export async function syncPartyNameReferences(
     where: {
       isDeleted: false,
       partyA: { equals: oldName, mode: 'insensitive' },
-      ...scopedBranch,
     },
     data: { partyA: newName },
   });
@@ -107,7 +92,6 @@ export async function syncPartyNameReferences(
     where: {
       isDeleted: false,
       partyB: { equals: oldName, mode: 'insensitive' },
-      ...scopedBranch,
     },
     data: { partyB: newName },
   });
@@ -116,7 +100,6 @@ export async function syncPartyNameReferences(
     where: {
       isDeleted: false,
       partyC: { equals: oldName, mode: 'insensitive' },
-      ...scopedBranch,
     },
     data: { partyC: newName },
   });
@@ -130,6 +113,44 @@ export async function syncPartyNameReferences(
     specialEntryPartyB: specialPartyBResult.count,
     specialEntryPartyC: specialPartyCResult.count,
   };
+}
+
+/** Sync every historical alias for a party to the current display name. */
+export async function syncAllPartyNameAliases(
+  prisma: PrismaClient,
+  partyId: string,
+  currentName: string,
+  branchId?: string | null,
+): Promise<PartyNameSyncResult> {
+  const knownNames = await getPartyKnownNames(prisma, partyId);
+  const totals: PartyNameSyncResult = {
+    transactionsReceiver: 0,
+    transactionsSender: 0,
+    hawalaPartyA: 0,
+    hawalaPartyB: 0,
+    specialEntryPartyA: 0,
+    specialEntryPartyB: 0,
+    specialEntryPartyC: 0,
+  };
+
+  for (const alias of knownNames) {
+    if (namesEqual(alias, currentName)) continue;
+    const result = await syncPartyNameReferences(prisma, {
+      partyId,
+      oldName: alias,
+      newName: currentName,
+      branchId,
+    });
+    totals.transactionsReceiver += result.transactionsReceiver;
+    totals.transactionsSender += result.transactionsSender;
+    totals.hawalaPartyA += result.hawalaPartyA;
+    totals.hawalaPartyB += result.hawalaPartyB;
+    totals.specialEntryPartyA += result.specialEntryPartyA;
+    totals.specialEntryPartyB += result.specialEntryPartyB;
+    totals.specialEntryPartyC += result.specialEntryPartyC;
+  }
+
+  return totals;
 }
 
 /** Fix records linked by party id that still carry a stale display name. */

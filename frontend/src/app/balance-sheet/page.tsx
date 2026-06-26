@@ -80,7 +80,11 @@ export default function BalanceSheetPage() {
   const calculateClientBalance = (client: any, moduleData: any) => {
     let totalCredit = 0;
     let totalDebit = 0;
-    const clientRef = { id: client.id, name: client.name };
+    const clientRef = {
+      id: client.id,
+      name: client.name,
+      knownNames: client.knownNames || [client.name],
+    };
 
     try {
       // 1. Transactions Module - use provided data

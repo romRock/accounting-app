@@ -39,6 +39,7 @@ export interface ClientLedgerEntry {
 export interface ClientLedgerClient {
   id: string;
   name: string;
+  knownNames?: string[];
   createdAt?: string;
   mobileNumber?: string;
 }
@@ -104,7 +105,11 @@ export async function fetchSourceRecordForLedgerEntry(
 /** Fetch ledger entries for a client from all modules (same logic as Customer Report). */
 export async function fetchClientLedgerEntries(client: ClientLedgerClient): Promise<ClientLedgerEntry[]> {
   const ledgerEntries: ClientLedgerEntry[] = [];
-  const clientRef = { id: client.id, name: client.name };
+  const clientRef = {
+    id: client.id,
+    name: client.name,
+    knownNames: client.knownNames || [client.name],
+  };
   const branchLookup = getBranchCodeLookup();
 
   const { transactions: allTxns, accounting: accEntries, hawala: hawalaEntries, specialEntry: splEntries } =

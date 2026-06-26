@@ -1,9 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 
-function branchScope(branchId?: string | null) {
-  if (!branchId) return {};
-  return { OR: [{ branchId }, { branchId: null }] };
-}
+import { findPartyIdByAnyKnownName } from './party-name-aliases';
 
 /** Resolve a master client/party id from a display name. */
 export async function findPartyIdByName(
@@ -11,20 +8,7 @@ export async function findPartyIdByName(
   name: string | null | undefined,
   branchId?: string | null,
 ): Promise<string | null> {
-  if (!name?.trim()) return null;
-
-  const party = await prisma.party.findFirst({
-    where: {
-      isActive: true,
-      isDeleted: false,
-      name: { equals: name.trim(), mode: 'insensitive' },
-      ...branchScope(branchId),
-    },
-    select: { id: true },
-    orderBy: { createdAt: 'asc' },
-  });
-
-  return party?.id ?? null;
+  return findPartyIdByAnyKnownName(prisma, name, branchId);
 }
 
 /** Fill missing transaction client ids from matching master client names. */
@@ -68,7 +52,6 @@ export async function backfillTransactionClientIdsForParty(
         isDeleted: false,
         receiverClientId: null,
         receiverName: { equals: name, mode: 'insensitive' },
-        ...branchScope(branchId),
       },
       data: { receiverClientId: partyId },
     });
@@ -78,7 +61,6 @@ export async function backfillTransactionClientIdsForParty(
         isDeleted: false,
         senderClientId: null,
         senderName: { equals: name, mode: 'insensitive' },
-        ...branchScope(branchId),
       },
       data: { senderClientId: partyId },
     });

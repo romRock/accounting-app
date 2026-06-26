@@ -53,6 +53,7 @@ export interface Transaction {
 interface Client {
   id: string;
   name: string;
+  knownNames?: string[];
   mobileNumber: string;
   city: string;
   notes?: string;
@@ -403,11 +404,13 @@ export const transactionApi = {
       name: string;
       phone?: string;
       city?: string;
+      knownNames?: string[];
       createdAt?: string | Date;
       updatedAt?: string | Date;
     }) => ({
       id: party.id,
       name: party.name,
+      knownNames: party.knownNames || [party.name],
       mobileNumber: party.phone || '',
       city: party.city || '',
       createdAt:

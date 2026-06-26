@@ -259,7 +259,11 @@ export default function ReportsPage() {
 
       // Calculate balances for all clients in memory
       for (const client of clientList) {
-        const clientRef = { id: client.id, name: client.name };
+        const clientRef = {
+          id: client.id,
+          name: client.name,
+          knownNames: client.knownNames || [client.name],
+        };
         let totalCredit = 0;
         let totalDebit = 0;
 

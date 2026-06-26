@@ -14,6 +14,7 @@ import {
   isTransactionSender,
   transactionInvolvesClient,
 } from '../../lib/client-match';
+import { buildPartyAliasMap } from '../../lib/party-name-aliases';
 
 const prisma = new PrismaClient();
 
@@ -491,9 +492,14 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
 
     // Create a Map for O(1) client lookups
     const clientBalanceMap = new Map<string, { totalCredit: number; totalDebit: number }>();
+    const aliasMap = await buildPartyAliasMap(
+      prisma,
+      clients.map((client) => client.id),
+    );
     const clientRefs = clients.map((client) => ({
       id: client.id,
       name: client.name,
+      knownNames: aliasMap.get(client.id) || [client.name],
     }));
 
     clientRefs.forEach((client) => {

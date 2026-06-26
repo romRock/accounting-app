@@ -13,8 +13,10 @@ import { PrismaClient } from '@prisma/client';
 import {
   syncPartyNameByClientId,
   syncPartyNameReferences,
+  syncAllPartyNameAliases,
 } from '../src/lib/party-name-sync';
 import { backfillTransactionClientIdsForParty } from '../src/lib/resolve-party-client';
+import { getPartyKnownNames } from '../src/lib/party-name-aliases';
 
 const prisma = new PrismaClient();
 
@@ -81,22 +83,25 @@ async function repairFromAudit(partyId: string) {
   const backfill = await backfillTransactionClientIdsForParty(
     prisma,
     party.id,
-    audits
-      .map((audit) => {
-        try {
-          return JSON.parse(audit.oldValues || '{}').name as string;
-        } catch {
-          return '';
-        }
-      })
-      .filter(Boolean)
-      .concat(party.name),
+    await getPartyKnownNames(prisma, party.id),
     party.branchId,
   );
   const backfillChanged = backfill.receiverLinked + backfill.senderLinked;
   if (backfillChanged > 0) {
     total += backfillChanged;
     console.log(`  Backfilled missing client ids: ${JSON.stringify(backfill)}`);
+  }
+
+  const aliasSync = await syncAllPartyNameAliases(
+    prisma,
+    party.id,
+    party.name,
+    party.branchId,
+  );
+  const aliasChanged = Object.values(aliasSync).reduce((sum, count) => sum + count, 0);
+  if (aliasChanged > 0) {
+    total += aliasChanged;
+    console.log(`  Synced historical aliases: ${JSON.stringify(aliasSync)}`);
   }
 
   console.log(`Repaired ${total} records for party ${party.name} (${party.id})`);
@@ -126,11 +131,17 @@ async function repairExplicit(oldName: string, newName: string) {
     const backfill = await backfillTransactionClientIdsForParty(
       prisma,
       party.id,
-      [oldName, party.name],
+      await getPartyKnownNames(prisma, party.id),
+      party.branchId,
+    );
+    const aliasSync = await syncAllPartyNameAliases(
+      prisma,
+      party.id,
+      party.name,
       party.branchId,
     );
     console.log(
-      `Party ${party.name}: ${JSON.stringify({ ...result, idSync, backfill })}`,
+      `Party ${party.name}: ${JSON.stringify({ ...result, idSync, backfill, aliasSync })}`,
     );
   }
 }

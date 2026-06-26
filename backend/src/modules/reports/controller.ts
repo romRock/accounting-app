@@ -7,6 +7,13 @@ import {
   getMasterBranchFilter,
   isSuperAdminUser,
 } from '../../utils/branchScope';
+import {
+  accountingEntryInvolvesClient,
+  isPartyNameMatch,
+  isTransactionReceiver,
+  isTransactionSender,
+  transactionInvolvesClient,
+} from '../../lib/client-match';
 
 const prisma = new PrismaClient();
 
@@ -484,111 +491,96 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
 
     // Create a Map for O(1) client lookups
     const clientBalanceMap = new Map<string, { totalCredit: number; totalDebit: number }>();
-    
-    clients.forEach(client => {
-      clientBalanceMap.set(client.name.toLowerCase(), { totalCredit: 0, totalDebit: 0 });
+    const clientRefs = clients.map((client) => ({
+      id: client.id,
+      name: client.name,
+    }));
+
+    clientRefs.forEach((client) => {
+      clientBalanceMap.set(client.id, { totalCredit: 0, totalDebit: 0 });
     });
 
+    const applyBalance = (clientId: string, credit: number, debit: number) => {
+      const balance = clientBalanceMap.get(clientId);
+      if (!balance) return;
+      balance.totalCredit += credit;
+      balance.totalDebit += debit;
+    };
+
     // Process transactions - O(n)
-    transactions.forEach(txn => {
-      const receiverName = txn.receiverName?.toLowerCase();
-      const senderName = txn.senderName?.toLowerCase();
+    transactions.forEach((txn) => {
+      clientRefs.forEach((client) => {
+        if (!transactionInvolvesClient(txn, client)) return;
 
-      if (receiverName) {
-        const balance = clientBalanceMap.get(receiverName);
-        if (balance) {
-          if (txn.type === 'OUTWARD') {
-            if (txn.amountType === 'CREDIT' && senderName === receiverName) {
-              balance.totalDebit += (txn.amount || 0) + (txn.commission || 0);
-            } else {
-              balance.totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
-            }
-          } else if (txn.type === 'INWARD') {
-            if (txn.amountType === 'CREDIT') {
-              balance.totalCredit += (txn.amount || 0);
-            } else {
-              balance.totalDebit += (txn.amount || 0);
-            }
+        if (txn.type === 'OUTWARD') {
+          if (txn.amountType === 'CREDIT' && isTransactionSender(txn, client)) {
+            applyBalance(client.id, 0, (txn.amount || 0) + (txn.commission || 0));
+          } else if (isTransactionReceiver(txn, client)) {
+            applyBalance(client.id, (txn.amount || 0) + (txn.centerCommission || 0), 0);
+          }
+        } else if (txn.type === 'INWARD') {
+          if (txn.amountType === 'CREDIT' && isTransactionReceiver(txn, client)) {
+            applyBalance(client.id, txn.amount || 0, 0);
+          } else {
+            applyBalance(client.id, 0, txn.amount || 0);
           }
         }
-      }
-
-      if (senderName && senderName !== receiverName) {
-        const balance = clientBalanceMap.get(senderName);
-        if (balance) {
-          if (txn.type === 'OUTWARD') {
-            if (txn.amountType === 'CREDIT') {
-              balance.totalDebit += (txn.amount || 0) + (txn.commission || 0);
-            }
-          } else if (txn.type === 'INWARD') {
-            if (txn.amountType !== 'CREDIT') {
-              balance.totalDebit += (txn.amount || 0);
-            }
-          }
-        }
-      }
+      });
     });
 
     // Process accounting entries - O(n)
-    accountEntries.forEach(entry => {
-      const partyName = (entry as any).party?.name?.toLowerCase();
-      if (partyName) {
-        const balance = clientBalanceMap.get(partyName);
-        if (balance) {
-          if ((entry as any).type === 'INCOME') {
-            balance.totalCredit += (entry as any).creditAmount || (entry as any).amount || 0;
-          } else if ((entry as any).type === 'EXPENSE') {
-            balance.totalDebit += (entry as any).debitAmount || (entry as any).amount || 0;
-          }
+    accountEntries.forEach((entry) => {
+      clientRefs.forEach((client) => {
+        if (!accountingEntryInvolvesClient(entry, client)) return;
+
+        if ((entry as any).type === 'INCOME') {
+          applyBalance(
+            client.id,
+            (entry as any).creditAmount || (entry as any).amount || 0,
+            0,
+          );
+        } else if ((entry as any).type === 'EXPENSE') {
+          applyBalance(
+            client.id,
+            0,
+            (entry as any).debitAmount || (entry as any).amount || 0,
+          );
         }
-      }
+      });
     });
 
     // Process hawala entries - O(n)
-    hawalaEntries.forEach(entry => {
-      const partyA = entry.partyA?.toLowerCase();
-      const partyB = entry.partyB?.toLowerCase();
-      
-      if (partyA) {
-        const balance = clientBalanceMap.get(partyA);
-        if (balance) balance.totalCredit += entry.amount || 0;
-      }
-      
-      if (partyB) {
-        const balance = clientBalanceMap.get(partyB);
-        if (balance) balance.totalDebit += entry.amount || 0;
-      }
+    hawalaEntries.forEach((entry) => {
+      clientRefs.forEach((client) => {
+        if (isPartyNameMatch(entry.partyA, client)) {
+          applyBalance(client.id, entry.amount || 0, 0);
+        }
+        if (isPartyNameMatch(entry.partyB, client)) {
+          applyBalance(client.id, 0, entry.amount || 0);
+        }
+      });
     });
 
     // Process special entries - O(n)
-    specialEntries.forEach(entry => {
-      const partyA = entry.partyA?.toLowerCase();
-      const partyB = entry.partyB?.toLowerCase();
-      const partyC = entry.partyC?.toLowerCase();
-      
-      if (partyA) {
-        const balance = clientBalanceMap.get(partyA);
-        if (balance) balance.totalDebit += entry.amountA || 0;
-      }
-      
-      if (partyB) {
-        const balance = clientBalanceMap.get(partyB);
-        if (balance) balance.totalCredit += entry.amountB || 0;
-      }
-      
-      if (partyC) {
-        const balance = clientBalanceMap.get(partyC);
-        if (balance) {
-          const amountC = entry.amountC || 0;
-          if (amountC > 0) balance.totalCredit += amountC;
-          else balance.totalDebit += Math.abs(amountC);
+    specialEntries.forEach((entry) => {
+      clientRefs.forEach((client) => {
+        if (isPartyNameMatch(entry.partyA, client)) {
+          applyBalance(client.id, 0, entry.amountA || 0);
         }
-      }
+        if (isPartyNameMatch(entry.partyB, client)) {
+          applyBalance(client.id, entry.amountB || 0, 0);
+        }
+        if (isPartyNameMatch(entry.partyC, client)) {
+          const amountC = entry.amountC || 0;
+          if (amountC > 0) applyBalance(client.id, amountC, 0);
+          else applyBalance(client.id, 0, Math.abs(amountC));
+        }
+      });
     });
 
     // Convert Map to array and calculate net balances
     const clientBalances = clients.map(client => {
-      const balance = clientBalanceMap.get(client.name.toLowerCase()) || { totalCredit: 0, totalDebit: 0 };
+      const balance = clientBalanceMap.get(client.id) || { totalCredit: 0, totalDebit: 0 };
       const netBalance = balance.totalCredit - balance.totalDebit;
 
       return {

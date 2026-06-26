@@ -16,6 +16,13 @@ import { accountingApi, AccountingEntry } from '@/lib/accounting';
 import { getHawalaEntries, HawalaEntry } from '@/lib/hawala';
 import { getSpecialEntries, SpecialEntry } from '@/lib/specialEntry';
 import { fetchAllModuleHistoryData } from '@/lib/fetch-all-history';
+import {
+  accountingEntryInvolvesClient,
+  isPartyNameMatch,
+  isTransactionReceiver,
+  isTransactionSender,
+  transactionInvolvesClient,
+} from '@/lib/client-match';
 import { compareEntriesByTimeAsc } from '@/lib/entry-sort';
 import { getStoredCommissions } from '@/lib/transaction-commission-display';
 import { showErrorToast, showSuccessToast, Toaster } from '@/lib/toast';
@@ -252,68 +259,59 @@ export default function ReportsPage() {
 
       // Calculate balances for all clients in memory
       for (const client of clientList) {
-        const clientName = client.name.toLowerCase();
+        const clientRef = { id: client.id, name: client.name };
         let totalCredit = 0;
         let totalDebit = 0;
 
         // Process transactions
         allTxns.forEach(txn => {
-          const receiverName = txn.receiverName?.toLowerCase() || '';
-          const senderName = txn.senderName?.toLowerCase() || '';
+          if (!transactionInvolvesClient(txn, clientRef)) return;
 
-          if (receiverName === clientName || senderName === clientName) {
-            if (txn.type === 'OUTWARD') {
-              if (txn.amountType === 'CREDIT' && senderName === clientName) {
-                totalDebit += (txn.amount || 0) + (txn.commission || 0);
-              } else {
-                totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
-              }
-            } else if (txn.type === 'INWARD') {
-              if (txn.amountType === 'CREDIT' && receiverName === clientName) {
-                totalCredit += (txn.amount || 0);
-              } else {
-                totalDebit += (txn.amount || 0);
-              }
+          if (txn.type === 'OUTWARD') {
+            if (txn.amountType === 'CREDIT' && isTransactionSender(txn, clientRef)) {
+              totalDebit += (txn.amount || 0) + (txn.commission || 0);
+            } else {
+              totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
+            }
+          } else if (txn.type === 'INWARD') {
+            if (txn.amountType === 'CREDIT' && isTransactionReceiver(txn, clientRef)) {
+              totalCredit += (txn.amount || 0);
+            } else {
+              totalDebit += (txn.amount || 0);
             }
           }
         });
 
         // Process accounting entries
         allAccEntries.forEach(entry => {
-          const partyName = entry.party?.name?.toLowerCase() || '';
-          if (partyName === clientName) {
-            if (entry.type === 'INCOME') {
-              totalCredit += entry.creditAmount || entry.amount || 0;
-            } else if (entry.type === 'EXPENSE') {
-              totalDebit += entry.debitAmount || entry.amount || 0;
-            }
+          if (!accountingEntryInvolvesClient(entry, clientRef)) return;
+
+          if (entry.type === 'INCOME') {
+            totalCredit += entry.creditAmount || entry.amount || 0;
+          } else if (entry.type === 'EXPENSE') {
+            totalDebit += entry.debitAmount || entry.amount || 0;
           }
         });
 
         // Process hawala entries
         allHawalaEntries.forEach(entry => {
-          const partyA = entry.partyA?.toLowerCase() || '';
-          const partyB = entry.partyB?.toLowerCase() || '';
-          if (partyA === clientName) {
+          if (isPartyNameMatch(entry.partyA, clientRef)) {
             totalCredit += entry.amount || 0;
           }
-          if (partyB === clientName) {
+          if (isPartyNameMatch(entry.partyB, clientRef)) {
             totalDebit += entry.amount || 0;
           }
         });
 
         // Process special entries
         allSplEntries.forEach(entry => {
-          const partyA = entry.partyA?.toLowerCase() || '';
-          const partyB = entry.partyB?.toLowerCase() || '';
-          const partyC = entry.partyC?.toLowerCase() || '';
-          if (partyA === clientName) {
+          if (isPartyNameMatch(entry.partyA, clientRef)) {
             totalDebit += entry.amountA || 0;
           }
-          if (partyB === clientName) {
+          if (isPartyNameMatch(entry.partyB, clientRef)) {
             totalCredit += entry.amountB || 0;
           }
-          if (partyC === clientName) {
+          if (isPartyNameMatch(entry.partyC, clientRef)) {
             const amountC = entry.amountC || 0;
             if (amountC > 0) {
               totalCredit += amountC;

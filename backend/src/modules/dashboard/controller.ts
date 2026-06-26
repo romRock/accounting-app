@@ -1,4 +1,11 @@
 import { PrismaClient } from '@prisma/client';
+import {
+  accountingEntryInvolvesClient,
+  isPartyNameMatch,
+  isTransactionReceiver,
+  isTransactionSender,
+  transactionInvolvesClient,
+} from '../../lib/client-match';
 import { Request, Response } from 'express';
 import {
   getEntryBranchFilter,
@@ -212,7 +219,7 @@ export const getCustomerReviewProgram = async (req: Request, res: Response) => {
     for (const client of clients) {
       let totalCredit = 0;
       let totalDebit = 0;
-      const clientName = client.name.toLowerCase();
+      const clientRef = { id: client.id, name: client.name };
 
       try {
         // 1. Transactions Module
@@ -224,17 +231,12 @@ export const getCustomerReviewProgram = async (req: Request, res: Response) => {
         });
 
         transactions.forEach((txn) => {
-          const receiverName = txn.receiverName?.toLowerCase() || '';
-          const senderName = txn.senderName?.toLowerCase() || '';
+          if (!transactionInvolvesClient(txn, clientRef)) return;
 
-          if (receiverName === clientName || senderName === clientName) {
-            if (txn.type === 'OUTWARD') {
-              // OUTWARD: Receiver gets credit (money coming to them), we collect
-              totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
-            } else if (txn.type === 'INWARD') {
-              // INWARD: Sender pays debit (money going from them), we pay
-              totalDebit += (txn.amount || 0);
-            }
+          if (txn.type === 'OUTWARD') {
+            totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
+          } else if (txn.type === 'INWARD') {
+            totalDebit += (txn.amount || 0);
           }
         });
 
@@ -250,13 +252,12 @@ export const getCustomerReviewProgram = async (req: Request, res: Response) => {
         });
 
         accEntries.forEach((entry: any) => {
-          const partyName = entry.party?.name?.toLowerCase() || '';
-          if (partyName === clientName) {
-            if (entry.type === 'INCOME') {
-              totalCredit += entry.amount || 0;
-            } else if (entry.type === 'EXPENSE') {
-              totalDebit += entry.amount || 0;
-            }
+          if (!accountingEntryInvolvesClient(entry, clientRef)) return;
+
+          if (entry.type === 'INCOME') {
+            totalCredit += entry.amount || 0;
+          } else if (entry.type === 'EXPENSE') {
+            totalDebit += entry.amount || 0;
           }
         });
 
@@ -269,15 +270,10 @@ export const getCustomerReviewProgram = async (req: Request, res: Response) => {
         });
 
         hawalaEntries.forEach((entry: any) => {
-          const partyA = entry.partyA?.toLowerCase() || '';
-          const partyB = entry.partyB?.toLowerCase() || '';
-
-          if (partyA === clientName) {
-            // Party A gives money (debit)
+          if (isPartyNameMatch(entry.partyA, clientRef)) {
             totalDebit += entry.amount || 0;
           }
-          if (partyB === clientName) {
-            // Party B receives money (credit)
+          if (isPartyNameMatch(entry.partyB, clientRef)) {
             totalCredit += entry.amount || 0;
           }
         });
@@ -291,17 +287,13 @@ export const getCustomerReviewProgram = async (req: Request, res: Response) => {
         });
 
         splEntries.forEach((entry) => {
-          const partyA = entry.partyA?.toLowerCase() || '';
-          const partyB = entry.partyB?.toLowerCase() || '';
-          const partyC = entry.partyC?.toLowerCase() || '';
-
-          if (partyA === clientName) {
+          if (isPartyNameMatch(entry.partyA, clientRef)) {
             totalDebit += entry.amountA || 0;
           }
-          if (partyB === clientName) {
+          if (isPartyNameMatch(entry.partyB, clientRef)) {
             totalDebit += entry.amountB || 0;
           }
-          if (partyC === clientName) {
+          if (isPartyNameMatch(entry.partyC, clientRef)) {
             totalCredit += entry.amountC || 0;
           }
         });

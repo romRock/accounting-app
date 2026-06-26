@@ -34,6 +34,7 @@
     "db:force:prisma:regenerate": "tsx scripts/force-prisma-regeneration.ts",
     "db:fix:transaction-table:production": "tsx scripts/fix-production-transaction-table.ts",
     "db:move:transaction-data:production": "tsx scripts/move-transaction-data.ts",
+    "db:repair:party-names": "tsx scripts/repair-party-name-references.ts",
     "db:drop:lowercase-transactions:production": "tsx scripts/drop-lowercase-transactions.ts",
     "db:fix:transaction-constraints:production": "tsx scripts/fix-transaction-table-constraints.ts",
     "db:make:transaction-superior:production": "tsx scripts/make-transaction-table-superior.ts",

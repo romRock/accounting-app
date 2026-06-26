@@ -10,6 +10,13 @@ import {
   fetchAllTransactions,
 } from '@/lib/fetch-all-history';
 import { useBranchStore } from '@/store/branch-store';
+import {
+  accountingEntryInvolvesClient,
+  isPartyNameMatch,
+  isTransactionReceiver,
+  isTransactionSender,
+  transactionInvolvesClient,
+} from '@/lib/client-match';
 
 export type ClientLedgerModule = 'Transaction' | 'Accounting' | 'Hawala' | 'Special Entry';
 
@@ -97,101 +104,98 @@ export async function fetchSourceRecordForLedgerEntry(
 /** Fetch ledger entries for a client from all modules (same logic as Customer Report). */
 export async function fetchClientLedgerEntries(client: ClientLedgerClient): Promise<ClientLedgerEntry[]> {
   const ledgerEntries: ClientLedgerEntry[] = [];
-  const clientName = client.name.toLowerCase();
+  const clientRef = { id: client.id, name: client.name };
   const branchLookup = getBranchCodeLookup();
 
   const { transactions: allTxns, accounting: accEntries, hawala: hawalaEntries, specialEntry: splEntries } =
     await fetchAllModuleHistoryData();
 
   allTxns.forEach((txn) => {
-    const receiverName = txn.receiverName?.toLowerCase() || '';
-    const senderName = txn.senderName?.toLowerCase() || '';
+    if (!transactionInvolvesClient(txn, clientRef)) return;
 
-    if (receiverName === clientName || senderName === clientName) {
-      let debitAmount = 0;
-      let creditAmount = 0;
+    let debitAmount = 0;
+    let creditAmount = 0;
 
-      if (txn.type === 'OUTWARD') {
-        if (txn.amountType === 'CREDIT' && senderName === clientName) {
-          debitAmount = (txn.amount || 0) + (txn.commission || 0);
-          creditAmount = 0;
-        } else {
-          debitAmount = 0;
-          creditAmount = (txn.amount || 0) + (txn.centerCommission || 0);
-        }
-      } else if (txn.type === 'INWARD') {
-        if (txn.amountType === 'CREDIT' && receiverName === clientName) {
-          debitAmount = 0;
-          creditAmount = txn.amount || 0;
-        } else {
-          debitAmount = txn.amount || 0;
-          creditAmount = 0;
-        }
+    if (txn.type === 'OUTWARD') {
+      if (txn.amountType === 'CREDIT' && isTransactionSender(txn, clientRef)) {
+        debitAmount = (txn.amount || 0) + (txn.commission || 0);
+        creditAmount = 0;
+      } else {
+        debitAmount = 0;
+        creditAmount = (txn.amount || 0) + (txn.centerCommission || 0);
       }
-
-      const otherParty = receiverName === clientName ? txn.senderName : txn.receiverName;
-      const descParts = [txn.type, otherParty];
-      if (txn.center?.name) descParts.push(`Center: ${txn.center.name}`);
-      else if (txn.centerId) descParts.push(`Center: ${txn.centerId}`);
-      if (txn.amountType) descParts.push(txn.amountType);
-      if (txn.remark) descParts.push(`Remark: ${txn.remark}`);
-      ledgerEntries.push({
-        date: txn.date,
-        time: formatTxnTime(txn.time),
-        module: 'Transaction',
-        description: descParts.join(' - '),
-        debit: debitAmount,
-        credit: creditAmount,
-        balance: 0,
-        reference: txn.transactionId || txn.id,
-        sourceId: txn.id,
-        branchCode: resolveBranchCode(txn.branchId, branchLookup),
-        transactionType: txn.type as 'OUTWARD' | 'INWARD',
-        createdAt: txn.createdAt,
-        updatedAt: txn.updatedAt,
-      });
+    } else if (txn.type === 'INWARD') {
+      if (txn.amountType === 'CREDIT' && isTransactionReceiver(txn, clientRef)) {
+        debitAmount = 0;
+        creditAmount = txn.amount || 0;
+      } else {
+        debitAmount = txn.amount || 0;
+        creditAmount = 0;
+      }
     }
+
+    const otherParty = isTransactionReceiver(txn, clientRef)
+      ? txn.senderName
+      : txn.receiverName;
+    const descParts = [txn.type, otherParty];
+    if (txn.center?.name) descParts.push(`Center: ${txn.center.name}`);
+    else if (txn.centerId) descParts.push(`Center: ${txn.centerId}`);
+    if (txn.amountType) descParts.push(txn.amountType);
+    if (txn.remark) descParts.push(`Remark: ${txn.remark}`);
+    ledgerEntries.push({
+      date: txn.date,
+      time: formatTxnTime(txn.time),
+      module: 'Transaction',
+      description: descParts.join(' - '),
+      debit: debitAmount,
+      credit: creditAmount,
+      balance: 0,
+      reference: txn.transactionId || txn.id,
+      sourceId: txn.id,
+      branchCode: resolveBranchCode(txn.branchId, branchLookup),
+      transactionType: txn.type as 'OUTWARD' | 'INWARD',
+      createdAt: txn.createdAt,
+      updatedAt: txn.updatedAt,
+    });
   });
 
   accEntries.forEach((entry) => {
-    const partyName = entry.party?.name?.toLowerCase() || '';
+    if (!accountingEntryInvolvesClient(entry, clientRef)) return;
 
-    if (partyName === clientName) {
-      const isCredit = entry.type === 'INCOME';
-      const descParts: string[] = entry.type ? [entry.type] : [];
-      const categoryName =
-        typeof entry.category === 'string' ? entry.category : entry.category?.name;
-      if (categoryName) descParts.push(categoryName);
-      if (entry.description?.trim()) descParts.push(`Remark: ${entry.description.trim()}`);
+    const isCredit = entry.type === 'INCOME';
+    const descParts: string[] = entry.type ? [entry.type] : [];
+    const categoryName =
+      typeof entry.category === 'string' ? entry.category : entry.category?.name;
+    if (categoryName) descParts.push(categoryName);
+    if (entry.description?.trim()) descParts.push(`Remark: ${entry.description.trim()}`);
 
-      const timeSource = entry.statusTime || entry.time || entry.createdAt;
-      const accountingTime = timeSource
-        ? new Date(timeSource).toTimeString().slice(0, 5)
-        : '';
+    const timeSource = entry.statusTime || entry.time || entry.createdAt;
+    const accountingTime = timeSource
+      ? new Date(timeSource).toTimeString().slice(0, 5)
+      : '';
 
-      ledgerEntries.push({
-        date: entry.date,
-        time: accountingTime,
-        module: 'Accounting',
-        description: descParts.join(' - '),
-        debit: isCredit ? 0 : (entry.debitAmount || entry.amount || 0),
-        credit: isCredit ? (entry.creditAmount || entry.amount || 0) : 0,
-        balance: 0,
-        reference: entry.entryId || entry.transactionId || entry.id,
-        sourceId: entry.id,
-        branchCode: resolveBranchCode(entry.branchId, branchLookup),
-        createdAt: entry.createdAt,
-        updatedAt: entry.updatedAt,
-      });
-    }
+    ledgerEntries.push({
+      date: entry.date,
+      time: accountingTime,
+      module: 'Accounting',
+      description: descParts.join(' - '),
+      debit: isCredit ? 0 : (entry.debitAmount || entry.amount || 0),
+      credit: isCredit ? (entry.creditAmount || entry.amount || 0) : 0,
+      balance: 0,
+      reference: entry.entryId || entry.transactionId || entry.id,
+      sourceId: entry.id,
+      branchCode: resolveBranchCode(entry.branchId, branchLookup),
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+    });
   });
 
   hawalaEntries.forEach((entry) => {
-    const partyA = entry.partyA?.toLowerCase() || '';
-    const partyB = entry.partyB?.toLowerCase() || '';
+    const isPartyA = isPartyNameMatch(entry.partyA, clientRef);
+    const isPartyB = isPartyNameMatch(entry.partyB, clientRef);
 
-    if (partyA === clientName || partyB === clientName) {
-      const isCredit = partyA === clientName;
+    if (isPartyA || isPartyB) {
+      const isCredit = isPartyA;
       const descParts = [entry.partyA, 'from', entry.partyB];
       if (entry.remark) descParts.push(`Remark: ${entry.remark}`);
       ledgerEntries.push({
@@ -212,24 +216,24 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
   });
 
   splEntries.forEach((entry) => {
-    const partyA = entry.partyA?.toLowerCase() || '';
-    const partyB = entry.partyB?.toLowerCase() || '';
-    const partyC = entry.partyC?.toLowerCase() || '';
+    const isPartyA = isPartyNameMatch(entry.partyA, clientRef);
+    const isPartyB = isPartyNameMatch(entry.partyB, clientRef);
+    const isPartyC = isPartyNameMatch(entry.partyC, clientRef);
 
-    if (partyA === clientName || partyB === clientName || partyC === clientName) {
+    if (isPartyA || isPartyB || isPartyC) {
       let isCredit = false;
       let amount = 0;
       let descParts: string[] = [];
 
-      if (partyA === clientName) {
+      if (isPartyA) {
         isCredit = false;
         amount = entry.amountA || 0;
         descParts = ['SPL', `Expense to ${entry.partyB}`, `Amount A: ${amount}`];
-      } else if (partyB === clientName) {
+      } else if (isPartyB) {
         isCredit = true;
         amount = entry.amountB || 0;
         descParts = ['SPL', `Income from ${entry.partyA}`, `Amount B: ${amount}`];
-      } else if (partyC === clientName) {
+      } else if (isPartyC) {
         const amountC = entry.amountC || 0;
         isCredit = amountC > 0;
         amount = Math.abs(amountC);

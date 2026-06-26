@@ -10,6 +10,13 @@ import { useAuthStore } from '@/store';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { fetchAllModuleHistoryData } from '@/lib/fetch-all-history';
 import { transactionApi } from '@/lib/transactions';
+import {
+  accountingEntryInvolvesClient,
+  isPartyNameMatch,
+  isTransactionReceiver,
+  isTransactionSender,
+  transactionInvolvesClient,
+} from '@/lib/client-match';
 
 // Balance Sheet Entry Structure
 interface BalanceSheetEntry {
@@ -73,79 +80,58 @@ export default function BalanceSheetPage() {
   const calculateClientBalance = (client: any, moduleData: any) => {
     let totalCredit = 0;
     let totalDebit = 0;
-    const clientName = client.name.toLowerCase();
+    const clientRef = { id: client.id, name: client.name };
 
     try {
       // 1. Transactions Module - use provided data
       moduleData.transactions.forEach((txn: any) => {
-        const receiverName = txn.receiverName?.toLowerCase() || '';
-        const senderName = txn.senderName?.toLowerCase() || '';
+        if (!transactionInvolvesClient(txn, clientRef)) return;
 
-        if (receiverName === clientName || senderName === clientName) {
-          if (txn.type === 'OUTWARD') {
-            // OUTWARD: Check amountType to determine debit/credit
-            if (txn.amountType === 'CREDIT' && senderName === clientName) {
-              // CREDIT + Sender is client: Client owes us money (DEBIT)
-              totalDebit += (txn.amount || 0) + (txn.commission || 0);
-            } else {
-              // CASH or Receiver is client: Normal outward (credit to receiver)
-              totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
-            }
-          } else if (txn.type === 'INWARD') {
-            // INWARD: Check amountType to determine debit/credit
-            if (txn.amountType === 'CREDIT' && receiverName === clientName) {
-              // CREDIT + Receiver is client: We receive money for client (CREDIT)
-              totalCredit += (txn.amount || 0);
-            } else {
-              // CASH or Sender is client: Normal inward (debit to sender)
-              totalDebit += (txn.amount || 0);
-            }
+        if (txn.type === 'OUTWARD') {
+          if (txn.amountType === 'CREDIT' && isTransactionSender(txn, clientRef)) {
+            totalDebit += (txn.amount || 0) + (txn.commission || 0);
+          } else {
+            totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
+          }
+        } else if (txn.type === 'INWARD') {
+          if (txn.amountType === 'CREDIT' && isTransactionReceiver(txn, clientRef)) {
+            totalCredit += (txn.amount || 0);
+          } else {
+            totalDebit += (txn.amount || 0);
           }
         }
       });
 
       // 2. Accounting Module - use provided data
       moduleData.accounting.forEach((entry: any) => {
-        const partyName = entry.party?.name?.toLowerCase() || '';
-        if (partyName === clientName) {
-          if (entry.type === 'INCOME') {
-            totalCredit += entry.creditAmount || entry.amount || 0;
-          } else if (entry.type === 'EXPENSE') {
-            totalDebit += entry.debitAmount || entry.amount || 0;
-          }
+        if (!accountingEntryInvolvesClient(entry, clientRef)) return;
+
+        if (entry.type === 'INCOME') {
+          totalCredit += entry.creditAmount || entry.amount || 0;
+        } else if (entry.type === 'EXPENSE') {
+          totalDebit += entry.debitAmount || entry.amount || 0;
         }
       });
 
       // 3. Hawala Module - use provided data
       moduleData.hawala.forEach((entry: any) => {
-        const partyA = entry.partyA?.toLowerCase() || '';
-        const partyB = entry.partyB?.toLowerCase() || '';
-
-        if (partyA === clientName) {
-          // Party A (receiver) gets credit (income)
+        if (isPartyNameMatch(entry.partyA, clientRef)) {
           totalCredit += entry.amount || 0;
         }
-        if (partyB === clientName) {
-          // Party B (sender) gets debit (expense)
+        if (isPartyNameMatch(entry.partyB, clientRef)) {
           totalDebit += entry.amount || 0;
         }
       });
 
       // 4. Special Entry Module - use provided data
       moduleData.specialEntry.forEach((entry: any) => {
-        const partyA = entry.partyA?.toLowerCase() || '';
-        const partyB = entry.partyB?.toLowerCase() || '';
-        const partyC = entry.partyC?.toLowerCase() || '';
-
-        if (partyA === clientName) {
-          // Party A: Expense/Debit (-)
+        if (isPartyNameMatch(entry.partyA, clientRef)) {
           totalDebit += entry.amountA || 0;
         }
-        if (partyB === clientName) {
-          // Party B: Income/Credit (+)
+        if (isPartyNameMatch(entry.partyB, clientRef)) {
           totalCredit += entry.amountB || 0;
         }
-        if (partyC === clientName) {
+        if (isPartyNameMatch(entry.partyC, clientRef)) {
           // Party C: Dynamic based on amountC sign
           const amountC = entry.amountC || 0;
           if (amountC > 0) {

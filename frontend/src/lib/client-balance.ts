@@ -4,6 +4,13 @@
  */
 import { transactionApi } from '@/lib/transactions';
 import { fetchAllModuleHistoryData, ModuleHistoryData } from '@/lib/fetch-all-history';
+import {
+  accountingEntryInvolvesClient,
+  isPartyNameMatch,
+  isTransactionReceiver,
+  isTransactionSender,
+  transactionInvolvesClient,
+} from '@/lib/client-match';
 
 export interface ClientBalanceRow {
   name: string;
@@ -26,35 +33,34 @@ export async function fetchAllModuleData(): Promise<ModuleDataCache> {
   }
 }
 
-export function calculateClientBalance(client: { name: string }, moduleData: ModuleDataCache) {
+export function calculateClientBalance(
+  client: { id?: string; name: string },
+  moduleData: ModuleDataCache,
+) {
   let totalCredit = 0;
   let totalDebit = 0;
-  const clientName = client.name.toLowerCase();
+  const clientRef = { id: client.id || '', name: client.name };
 
   moduleData.transactions.forEach((txn: any) => {
-    const receiverName = txn.receiverName?.toLowerCase() || '';
-    const senderName = txn.senderName?.toLowerCase() || '';
+    if (!transactionInvolvesClient(txn, clientRef)) return;
 
-    if (receiverName === clientName || senderName === clientName) {
-      if (txn.type === 'OUTWARD') {
-        if (txn.amountType === 'CREDIT' && senderName === clientName) {
-          totalDebit += (txn.amount || 0) + (txn.commission || 0);
-        } else {
-          totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
-        }
-      } else if (txn.type === 'INWARD') {
-        if (txn.amountType === 'CREDIT' && receiverName === clientName) {
-          totalCredit += txn.amount || 0;
-        } else {
-          totalDebit += txn.amount || 0;
-        }
+    if (txn.type === 'OUTWARD') {
+      if (txn.amountType === 'CREDIT' && isTransactionSender(txn, clientRef)) {
+        totalDebit += (txn.amount || 0) + (txn.commission || 0);
+      } else {
+        totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
+      }
+    } else if (txn.type === 'INWARD') {
+      if (txn.amountType === 'CREDIT' && isTransactionReceiver(txn, clientRef)) {
+        totalCredit += txn.amount || 0;
+      } else {
+        totalDebit += txn.amount || 0;
       }
     }
   });
 
   moduleData.accounting.forEach((entry: any) => {
-    const partyName = entry.party?.name?.toLowerCase() || '';
-    if (partyName === clientName) {
+    if (accountingEntryInvolvesClient(entry, clientRef)) {
       if (entry.type === 'INCOME') {
         totalCredit += entry.creditAmount || entry.amount || 0;
       } else if (entry.type === 'EXPENSE') {
@@ -64,29 +70,22 @@ export function calculateClientBalance(client: { name: string }, moduleData: Mod
   });
 
   moduleData.hawala.forEach((entry: any) => {
-    const partyA = entry.partyA?.toLowerCase() || '';
-    const partyB = entry.partyB?.toLowerCase() || '';
-
-    if (partyA === clientName) {
+    if (isPartyNameMatch(entry.partyA, clientRef)) {
       totalCredit += entry.amount || 0;
     }
-    if (partyB === clientName) {
+    if (isPartyNameMatch(entry.partyB, clientRef)) {
       totalDebit += entry.amount || 0;
     }
   });
 
   moduleData.specialEntry.forEach((entry: any) => {
-    const partyA = entry.partyA?.toLowerCase() || '';
-    const partyB = entry.partyB?.toLowerCase() || '';
-    const partyC = entry.partyC?.toLowerCase() || '';
-
-    if (partyA === clientName) {
+    if (isPartyNameMatch(entry.partyA, clientRef)) {
       totalDebit += entry.amountA || 0;
     }
-    if (partyB === clientName) {
+    if (isPartyNameMatch(entry.partyB, clientRef)) {
       totalCredit += entry.amountB || 0;
     }
-    if (partyC === clientName) {
+    if (isPartyNameMatch(entry.partyC, clientRef)) {
       const amountC = entry.amountC || 0;
       if (amountC > 0) {
         totalCredit += amountC;

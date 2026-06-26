@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 
 export interface PartyNameSyncResult {
   transactionsReceiver: number;
@@ -14,7 +14,7 @@ function namesEqual(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
-function branchScope(branchId?: string | null): Prisma.TransactionWhereInput {
+function branchScope(branchId?: string | null) {
   if (!branchId) return {};
   return { OR: [{ branchId }, { branchId: null }] };
 }

@@ -43,6 +43,7 @@
     "db:check:production:deployment": "tsx scripts/check-production-deployment.ts",
     "db:seed:users:production": "node scripts/seed-users-production.ts",
     "db:reset:fresh-users:production": "tsx scripts/reset-fresh-users-production.ts",
+    "db:restore:archived-users:production": "tsx scripts/restore-archived-users-production.ts",
     "db:migrate:pm2-branch": "tsx scripts/migrate-existing-data-to-pm2-branch.ts",
     "db:seed:parties:pm2-csv": "tsx scripts/seed-parties-pm2-from-csv.ts",
     "db:seed:parties:pm2-csv:fresh": "tsx scripts/seed-parties-pm2-from-csv.ts --fresh",

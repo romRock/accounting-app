@@ -530,30 +530,51 @@ app.use(
     crossOriginEmbedderPolicy: false,
   })
 );
+function isAllowedCorsOrigin(origin: string | undefined): boolean {
+  if (!origin || origin === 'null') {
+    // Same-origin / nginx-proxied requests often omit Origin.
+    return true;
+  }
+
+  const allowedOrigins = new Set([
+    'http://localhost:3000',
+    'http://localhost:3002',
+    'https://client-credit-tracker.in',
+    'https://www.client-credit-tracker.in',
+    ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL.replace(/\/$/, '')] : []),
+  ]);
+
+  if (allowedOrigins.has(origin)) {
+    return true;
+  }
+
+  if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
+    return true;
+  }
+
+  try {
+    const { hostname } = new URL(origin);
+    if (
+      hostname === 'client-credit-tracker.in' ||
+      hostname.endsWith('.client-credit-tracker.in') ||
+      hostname === 'localhost'
+    ) {
+      return true;
+    }
+  } catch {
+    // ignore malformed origin
+  }
+
+  return false;
+}
+
 app.use(cors({
   origin: function (origin, callback) {
-    // Browsers omit Origin on same-origin requests (frontend + /api on one domain via nginx).
-    // Blocking !origin breaks dashboard/metrics/profile after login in production.
-    if (!origin) {
+    if (isAllowedCorsOrigin(origin)) {
       return callback(null, true);
     }
 
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:3002',
-      'https://client-credit-tracker.in',
-      'https://www.client-credit-tracker.in',
-      ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
-    ];
-
-    if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
-      return callback(null, true);
-    }
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
+    console.warn('CORS rejected origin:', origin);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,

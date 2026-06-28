@@ -532,19 +532,18 @@ app.use(
 );
 app.use(cors({
   origin: function (origin, callback) {
-    // In production, require a browser Origin header (blocks direct unauthenticated API scraping)
+    // Browsers omit Origin on same-origin requests (frontend + /api on one domain via nginx).
+    // Blocking !origin breaks dashboard/metrics/profile after login in production.
     if (!origin) {
-      if (process.env.NODE_ENV !== 'production') {
-        return callback(null, true);
-      }
-      return callback(new Error('Not allowed by CORS'));
+      return callback(null, true);
     }
 
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:3002',
       'https://client-credit-tracker.in',
-      'https://www.client-credit-tracker.in'
+      'https://www.client-credit-tracker.in',
+      ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
     ];
 
     if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {

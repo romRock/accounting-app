@@ -404,13 +404,9 @@ export default function HawalaPage() {
 
     try {
       const token = getAuthToken();
-      console.log('=== HAWALA PAGE AUTH DEBUG ===');
-      console.log('Token from getAuthToken():', token);
-      console.log('Auth store state:', JSON.stringify(useAuthStore.getState()));
 
       if (!token) {
         showErrorToast('Please login to save hawala entries');
-        console.log('ERROR: No token found');
         return;
       } else {
         console.log('SUCCESS: Token found, proceeding with API call');

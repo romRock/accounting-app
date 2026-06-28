@@ -53,13 +53,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
         try {
           const data = await authApi.login(email, password);
-          
-          // Debug: Log the user data to identify the issue
-          console.log('STORE LOGIN - User data from API:', data.user);
-          console.log('STORE LOGIN - User role:', data.user?.role);
-          console.log('STORE LOGIN - User role type:', typeof data.user?.role);
-          
-          // Update state and ensure persistence
+
           set({
             user: data.user,
             accessToken: data.accessToken,
@@ -184,24 +178,14 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => (state) => {
-        console.log('STORE HYDRATION - Rehydrated state:', state);
-        console.log('STORE HYDRATION - User from storage:', state?.user);
-        console.log('STORE HYDRATION - Role from storage:', state?.user?.role);
-        console.log('STORE HYDRATION - Role type:', typeof state?.user?.role);
-        
-        // Aggressive: Clear any malformed user data that could cause React errors
         if (state?.user?.role) {
           const role = state.user.role;
-          
-          // If role permissions is an object instead of string, fix it
+
           if (role.permissions && typeof role.permissions === 'object') {
-            console.log('STORE HYDRATION - Converting object permissions to string');
             role.permissions = JSON.stringify(role.permissions);
           }
-          
-          // If entire role is malformed, clear it
+
           if (typeof role !== 'object' || role === null) {
-            console.log('STORE HYDRATION - Malformed role detected, clearing user data');
             state.user = null;
             state.isAuthenticated = false;
             state.accessToken = null;

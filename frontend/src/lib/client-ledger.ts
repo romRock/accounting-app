@@ -17,6 +17,7 @@ import {
   isTransactionSender,
   transactionInvolvesClient,
 } from '@/lib/client-match';
+import { formatCurrency, formatDate, matchesTableSearch } from '@/lib/utils';
 
 export type ClientLedgerModule = 'Transaction' | 'Accounting' | 'Hawala' | 'Special Entry';
 
@@ -271,4 +272,46 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
   });
 
   return ledgerEntries;
+}
+
+/** Match ledger row against any visible/searchable value (name, number, amount, date, etc.). */
+export function clientLedgerEntryMatchesSearch(
+  entry: ClientLedgerEntry,
+  client: ClientLedgerClient,
+  searchTerm: string,
+): boolean {
+  const trimmed = searchTerm.trim();
+  if (!trimmed) return true;
+
+  const amountValues = [entry.debit, entry.credit, entry.balance].flatMap((amount) => [
+    amount,
+    formatCurrency(amount),
+    formatCurrency(amount).replace(/[₹,\s]/g, ''),
+  ]);
+
+  const searchableValues = [
+    client.name,
+    client.mobileNumber,
+    ...(client.knownNames || []),
+    formatDate(entry.date),
+    entry.date,
+    entry.time,
+    entry.module,
+    entry.description,
+    entry.reference,
+    entry.sourceId,
+    entry.branchCode,
+    entry.transactionType,
+    entry.createdAt,
+    entry.updatedAt,
+    ...amountValues,
+  ];
+
+  const searchVariants = [trimmed];
+  const normalized = trimmed.replace(/[,₹\s]/g, '');
+  if (normalized && normalized !== trimmed) {
+    searchVariants.push(normalized);
+  }
+
+  return searchVariants.some((term) => matchesTableSearch(term, ...searchableValues));
 }

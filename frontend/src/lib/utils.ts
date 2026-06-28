@@ -13,7 +13,7 @@ export function formatCurrency(
   const formatted = new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
-    minimumFractionDigits: options?.minimumFractionDigits ?? 2,
+    minimumFractionDigits: options?.minimumFractionDigits ?? 0,
     maximumFractionDigits: options?.maximumFractionDigits ?? 2,
   }).format(num);
   return formatted.replace(/^₹(?!\s)/, '₹ ');

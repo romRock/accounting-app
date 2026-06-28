@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
+import { getJwtSecret, getJwtRefreshSecret } from '../../config/secrets';
 
 const prisma = new PrismaClient();
 
@@ -21,30 +22,18 @@ export const generateTokens = (
     sessionId,
   };
 
-  const accessToken = jwt.sign(
-    payload,
-    process.env.JWT_SECRET || 'your-secret-key',
-    { expiresIn: '3h' } // Increased from 15m to 3h for continuous accountant work
-  );
+  const accessToken = jwt.sign(payload, getJwtSecret(), { expiresIn: '3h' });
 
-  const refreshToken = jwt.sign(
-    payload,
-    process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key',
-    { expiresIn: '7d' }
-  );
+  const refreshToken = jwt.sign(payload, getJwtRefreshSecret(), { expiresIn: '7d' });
 
   return { accessToken, refreshToken };
 };
 
 export const verifyRefreshToken = (token: string): JWTPayload | null => {
   try {
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key'
-    ) as JWTPayload;
-    
+    const decoded = jwt.verify(token, getJwtRefreshSecret()) as JWTPayload;
     return decoded;
-  } catch (error) {
+  } catch {
     return null;
   }
 };
@@ -88,7 +77,6 @@ export const calculateCommission = (
     commission = rate;
   }
 
-  // Apply min/max constraints
   if (minAmount && commission < minAmount) {
     commission = minAmount;
   }

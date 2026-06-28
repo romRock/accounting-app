@@ -26,6 +26,7 @@ import {
 import { compareEntriesByTimeAsc } from '@/lib/entry-sort';
 import { getStoredCommissions } from '@/lib/transaction-commission-display';
 import { showErrorToast, showSuccessToast, Toaster } from '@/lib/toast';
+import { escapeHtml } from '@/lib/security';
 import { useBranchStore } from '@/store/branch-store';
 import { ExcelExportIcon, PdfExportIcon } from '@/components/icons/export-format-icons';
 
@@ -990,7 +991,7 @@ export default function ReportsPage() {
           </div>
           <div class="summary-item">
             <div class="label">Average Amount</div>
-            <div class="value">${summary.totalRecords > 0 ? formatCurrency(summary.totalAmount / summary.totalRecords) : 'â‚¹0.00'}</div>
+            <div class="value">${summary.totalRecords > 0 ? formatCurrency(summary.totalAmount / summary.totalRecords) : formatCurrency(0)}</div>
           </div>
         </div>
         ` : ''}
@@ -1011,7 +1012,7 @@ export default function ReportsPage() {
         displayValue = typeof displayValue === 'string' ? displayValue : formatCurrency(displayValue as number);
       }
 
-      return `<td>${displayValue}</td>`;
+      return `<td>${escapeHtml(String(displayValue))}</td>`;
     }).join('')}
               </tr>
             `).join('')}
@@ -1148,7 +1149,7 @@ export default function ReportsPage() {
               <tr class="module-${row.module}">
                 ${columns.map(column => {
       const displayValue = renderTxnReportCell(row, column);
-      return `<td>${displayValue}</td>`;
+      return `<td>${escapeHtml(String(displayValue))}</td>`;
     }).join('')}
               </tr>
             `).join('')}

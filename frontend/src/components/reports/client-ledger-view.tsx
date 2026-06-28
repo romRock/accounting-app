@@ -10,9 +10,11 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import {
   ClientLedgerClient,
   ClientLedgerEntry,
+  clientLedgerEntryMatchesSearch,
   fetchClientLedgerEntries,
 } from '@/lib/client-ledger';
 import { showErrorToast, Toaster } from '@/lib/toast';
+import { escapeHtml } from '@/lib/security';
 import ClientLedgerEditModal from '@/components/reports/client-ledger-edit-modal';
 import UpdatedEntryBadge from '@/components/reports/updated-entry-badge';
 import BranchBadge from '@/components/reports/branch-badge';
@@ -96,13 +98,8 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
   };
 
   const filteredClientLedger = clientLedger.filter((entry) => {
-    if (ledgerSearchTerm) {
-      const searchLower = ledgerSearchTerm.toLowerCase();
-      const matchesSearch =
-        entry.module?.toLowerCase().includes(searchLower) ||
-        entry.description?.toLowerCase().includes(searchLower) ||
-        entry.reference?.toLowerCase().includes(searchLower);
-      if (!matchesSearch) return false;
+    if (!clientLedgerEntryMatchesSearch(entry, client, ledgerSearchTerm)) {
+      return false;
     }
 
     if (ledgerFilterByDate) {
@@ -179,6 +176,7 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
 
   const generateClientLedgerPDF = () => {
     const reportTitle = `${client.name} - LEDGER REPORT`;
+    const safeTitle = escapeHtml(reportTitle);
     const dataToExport = filteredClientLedger;
 
     let totalDebit = 0;
@@ -193,7 +191,7 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>${reportTitle}</title>
+        <title>${safeTitle}</title>
         <style>
           body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
           .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
@@ -215,7 +213,7 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
       </head>
       <body>
         <div class="header">
-          <h1>${reportTitle}</h1>
+          <h1>${safeTitle}</h1>
           <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
           <p>From ${client.createdAt ? formatDate(client.createdAt) : 'N/A'}</p>
           ${ledgerFilterByDate ? `<p>Filter Period: ${ledgerIsSelectingRange ? `${formatDate(ledgerStartDate)} to ${formatDate(ledgerEndDate)}` : formatDate(ledgerDateFilter)}</p>` : ''}
@@ -238,9 +236,9 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
               .map(
                 (entry) => `
               <tr>
-                <td>${formatDate(entry.date)}</td>
-                <td>${entry.module || '-'}</td>
-                <td>${entry.description || '-'}</td>
+                <td>${escapeHtml(formatDate(entry.date))}</td>
+                <td>${escapeHtml(entry.module || '-')}</td>
+                <td>${escapeHtml(entry.description || '-')}</td>
                 <td class="text-right ${entry.debit > 0 ? 'text-red' : ''}">${entry.debit > 0 ? formatCurrency(entry.debit) : '-'}</td>
                 <td class="text-right ${entry.credit > 0 ? 'text-green' : ''}">${entry.credit > 0 ? formatCurrency(entry.credit) : '-'}</td>
                 <td class="text-right ${entry.balance >= 0 ? 'text-green' : 'text-red'}">${formatCurrency(entry.balance)}</td>
@@ -460,10 +458,10 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
             </div>
 
             <Input
-              placeholder="Search..."
+              placeholder="Search name, number, amount, date..."
               value={ledgerSearchTerm}
               onChange={(e) => setLedgerSearchTerm(e.target.value)}
-              className="bg-white h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm w-48 placeholder:text-gray-600"
+              className="bg-white h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm w-56 placeholder:text-gray-600"
             />
 
             <Button

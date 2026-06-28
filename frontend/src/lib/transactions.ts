@@ -297,9 +297,7 @@ export const transactionApi = {
   // Client CRUD operations
   async addClient(name: string, mobileNumber: string, city: string, notes?: string): Promise<Client> {
     const { accessToken } = useAuthStore.getState();
-    console.log('=== ADD CLIENT API DEBUG ===');
-    console.log('Token length:', accessToken?.length || 0);
-    
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
@@ -353,9 +351,7 @@ export const transactionApi = {
 
   async deleteClient(id: string): Promise<void> {
     const { accessToken } = useAuthStore.getState();
-    console.log('=== DELETE CLIENT API DEBUG ===');
-    console.log('Token length:', accessToken?.length || 0);
-    
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
@@ -426,13 +422,19 @@ export const transactionApi = {
 
   // Roles API functions
   async getRoles(): Promise<any[]> {
-    console.log('=== GET ROLES API DEBUG ===');
-    
+    const { accessToken } = useAuthStore.getState();
+
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+
     const response = await fetch(`${API_BASE_URL}/api/roles`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
     });
 
     if (!response.ok) {
@@ -496,8 +498,7 @@ export const transactionApi = {
 
   async deleteRole(id: string): Promise<void> {
     const { accessToken } = useAuthStore.getState();
-    console.log('=== DELETE ROLE API DEBUG ===');
-    
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
@@ -570,7 +571,6 @@ export const transactionApi = {
 
   async updateUser(id: string, fullName: string, mobileNumber: string, email: string, password: string, roleId: string, branchId?: string, branchIds?: string[]): Promise<any> {
     const { accessToken } = useAuthStore.getState();
-    console.log('=== UPDATE USER API DEBUG ===');
 
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -596,8 +596,7 @@ export const transactionApi = {
 
   async deleteUser(id: string): Promise<void> {
     const { accessToken } = useAuthStore.getState();
-    console.log('=== DELETE USER API DEBUG ===');
-    
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };

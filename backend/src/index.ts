@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-// import rateLimit from 'express-rate-limit'; // Disabled for continuous accountant work
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -20,6 +19,8 @@ import { errorHandler } from './middlewares/errorHandler';
 import { inputSecurityMiddleware } from './middlewares/inputSecurity';
 import { requestLogger } from './middlewares/requestLogger';
 import { cacheMiddleware, invalidateCachePattern } from './middlewares/cache';
+import { devEndpointsOnly, globalRateLimiter } from './middlewares/security';
+import { assertSecretsAtStartup } from './config/secrets';
 import {
   getUserBranchesWithDetails,
   normalizeBranchIds,
@@ -107,7 +108,11 @@ async function initializeDatabase() {
           },
         });
         console.log('✅ Admin user created successfully');
-        console.log('📋 Login credentials: admin@mail.com / admin@1234');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('📋 Login credentials: admin@mail.com / admin@1234');
+        } else {
+          console.log('📋 Default admin created — change the password immediately');
+        }
       } catch (error: any) {
         if (error.code === 'P2002') {
           console.log('⚠️  Admin user or username already exists, skipping creation');
@@ -516,12 +521,7 @@ async function initializeDatabase() {
   }
 }
 
-// Rate limiting
-// const limiter = rateLimit({
-//   windowMs: 25 * 60 * 1000, // 25 minutes
-//   max: 10000, // limit each IP to 10000 requests per windowMs
-//   message: 'Too many requests from this IP, please try again later.',
-// });
+// Rate limiting configured in middlewares/security.ts
 
 // Middleware
 app.use(
@@ -532,35 +532,35 @@ app.use(
 );
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // Allowed origins for development and production
+    // In production, require a browser Origin header (blocks direct unauthenticated API scraping)
+    if (!origin) {
+      if (process.env.NODE_ENV !== 'production') {
+        return callback(null, true);
+      }
+      return callback(new Error('Not allowed by CORS'));
+    }
+
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:3002',
       'https://client-credit-tracker.in',
       'https://www.client-credit-tracker.in'
     ];
-    
-    if (process.env.NODE_ENV === 'development') {
-      // In development, allow all localhost origins
-      if (origin.includes('localhost')) {
-        return callback(null, true);
-      }
+
+    if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
+      return callback(null, true);
     }
-    
+
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    
-    console.log('🚫 CORS blocked origin:', origin);
+
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
 }));
 app.use(morgan('combined'));
-// app.use(limiter); // Disabled for continuous accountant work
+app.use(globalRateLimiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(inputSecurityMiddleware);
@@ -601,8 +601,8 @@ app.get('/api/parties', authenticateToken, async (req, res) => {
   }
 });
 
-// Manual seed endpoint for production
-app.post('/api/seed/cities', async (req, res) => {
+// Manual seed endpoint (development / explicit opt-in only)
+app.post('/api/seed/cities', devEndpointsOnly, authenticateToken, requireRole(['Admin', 'Super Admin']), async (req, res) => {
   try {
     const { seedCities } = await import('./seedCities');
     
@@ -650,8 +650,8 @@ app.post('/api/seed/cities', async (req, res) => {
 
 // Cities CRUD API endpoints - 3 separate POST endpoints
 
-// Simple test endpoint to verify server is working
-app.get('/api/test/status', (req, res) => {
+// Simple test endpoint (development only)
+app.get('/api/test/status', devEndpointsOnly, (req, res) => {
   res.json({
     success: true,
     message: 'Server is working',
@@ -659,8 +659,8 @@ app.get('/api/test/status', (req, res) => {
   });
 });
 
-// Debug endpoint to check token payload transmission
-app.post('/api/debug/token', authenticateToken, async (req, res) => {
+// Debug endpoint (development only)
+app.post('/api/debug/token', devEndpointsOnly, authenticateToken, async (req, res) => {
   try {
     console.log('=== TOKEN PAYLOAD DEBUG ===');
     console.log('Auth header:', req.headers.authorization);
@@ -690,36 +690,26 @@ app.post('/api/debug/token', authenticateToken, async (req, res) => {
   }
 });
 
-// Debug endpoint to check JWT configuration
-app.get('/api/debug/jwt', (req, res) => {
+// Debug endpoint (development only)
+app.get('/api/debug/jwt', devEndpointsOnly, (req, res) => {
   try {
-    console.log('=== JWT CONFIG DEBUG ===');
-    console.log('JWT_SECRET exists:', !!process.env.JWT_SECRET);
-    console.log('JWT_SECRET length:', process.env.JWT_SECRET?.length || 0);
-    console.log('JWT_SECRET value:', process.env.JWT_SECRET ? 'SET' : 'NOT_SET');
-    console.log('Fallback secret:', 'your-secret-key');
-    
     res.json({
       success: true,
       jwtConfig: {
         secretExists: !!process.env.JWT_SECRET,
-        secretLength: process.env.JWT_SECRET?.length || 0,
-        fallbackSecret: 'your-secret-key',
         environment: process.env.NODE_ENV || 'development'
       }
     });
   } catch (error) {
-    console.error('JWT debug error:', error);
     res.status(500).json({
       success: false,
       message: 'JWT debug failed',
-      error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
 
-// Test endpoint (no authentication) for debugging
-app.post('/api/cities/test', async (req, res) => {
+// Test endpoint (development only)
+app.post('/api/cities/test', devEndpointsOnly, async (req, res) => {
   try {
     console.log('=== TEST CITY API CALLED ===');
     console.log('Request body:', req.body);
@@ -843,7 +833,7 @@ app.post('/api/cities/add', authenticateToken, requireRole(['Admin', 'Super Admi
 });
 
 // Temporary test endpoint without authentication
-app.post('/api/cities/add-test', async (req, res) => {
+app.post('/api/cities/add-test', devEndpointsOnly, async (req, res) => {
   try {
     console.log('=== ADD CITY TEST API CALLED ===');
     console.log('Request body:', req.body);
@@ -1096,7 +1086,7 @@ app.post('/api/cities/delete', authenticateToken, requireRole(['Admin', 'Super A
 });
 
 // Test delete endpoint without authentication
-app.post('/api/cities/delete-test', async (req, res) => {
+app.post('/api/cities/delete-test', devEndpointsOnly, async (req, res) => {
   try {
     console.log('=== DELETE TEST API CALLED ===');
     console.log('Request body:', req.body);
@@ -1388,8 +1378,8 @@ app.post('/api/clients/delete', authenticateToken, requireRole(['Admin', 'Super 
   }
 });
 
-// Get all roles (no authentication - same as cities and clients)
-app.get('/api/roles', async (req, res) => {
+// Get all roles (authenticated admins only)
+app.get('/api/roles', authenticateToken, requireRole(['Admin', 'Super Admin']), async (req, res) => {
   try {
     console.log('=== GET ROLES API CALLED ===');
 
@@ -1669,8 +1659,8 @@ app.post('/api/roles/delete', authenticateToken, requireRole(['Admin', 'Super Ad
   }
 });
 
-// Get all users (no authentication - same as cities, clients, roles)
-app.get('/api/users', async (req, res) => {
+// Get all users (authenticated admins only)
+app.get('/api/users', authenticateToken, requireRole(['Admin', 'Super Admin']), async (req, res) => {
   try {
     console.log('=== GET USERS API CALLED ===');
     
@@ -2043,8 +2033,8 @@ app.post('/api/users/delete', authenticateToken, requireRole(['Admin', 'Super Ad
   }
 });
 
-// Get all clients (no authentication - same as cities)
-app.get('/api/clients', async (req, res) => {
+// Get all clients (authenticated users only)
+app.get('/api/clients', authenticateToken, async (req, res) => {
   try {
     console.log('=== GET CLIENTS API CALLED ===');
 
@@ -2118,7 +2108,7 @@ process.on('SIGINT', async () => {
 });
 
 // Manual client seed endpoint for production
-app.post('/api/seed/clients', async (req, res) => {
+app.post('/api/seed/clients', devEndpointsOnly, authenticateToken, requireRole(['Admin', 'Super Admin']), async (req, res) => {
   try {
     console.log("=== MANUAL PRODUCTION CLIENT SEEDING TRIGGERED ===");
 
@@ -2215,7 +2205,7 @@ app.post('/api/seed/clients', async (req, res) => {
 });
 
 // Temporary client seeding endpoint without authentication
-app.post('/api/temp-seed-clients', async (req, res) => {
+app.post('/api/temp-seed-clients', devEndpointsOnly, authenticateToken, requireRole(['Admin', 'Super Admin']), async (req, res) => {
   try {
     console.log("=== TEMPORARY CLIENT SEEDING TRIGGERED ===");
 
@@ -2314,7 +2304,7 @@ app.post('/api/temp-seed-clients', async (req, res) => {
 // Start server with database initialization
 async function startServer() {
   try {
-    // Initialize database and create admin user if needed
+    assertSecretsAtStartup();
     await initializeDatabase();
     
     // Start the server

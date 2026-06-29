@@ -7,6 +7,7 @@ import {
   getMasterBranchFilter,
   isSuperAdminUser,
 } from '../../utils/branchScope';
+import { buildInclusiveDateRangeFilter } from '../../utils/dateFilter';
 import {
   accountingEntryInvolvesClient,
   isPartyNameMatch,
@@ -50,9 +51,10 @@ export const getInwardReport = async (req: Request, res: Response) => {
     await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin, req.user?.assignedBranchIds);
 
     if (dateFrom || dateTo) {
-      where.date = {};
-      if (dateFrom) where.date.gte = new Date(dateFrom as string);
-      if (dateTo) where.date.lte = new Date(dateTo as string);
+      where.date = buildInclusiveDateRangeFilter(
+        dateFrom as string | undefined,
+        dateTo as string | undefined
+      )!;
     }
 
     if (fromCityId) where.fromCityId = fromCityId as string;
@@ -140,9 +142,10 @@ export const getOutwardReport = async (req: Request, res: Response) => {
     await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin, req.user?.assignedBranchIds);
 
     if (dateFrom || dateTo) {
-      where.date = {};
-      if (dateFrom) where.date.gte = new Date(dateFrom as string);
-      if (dateTo) where.date.lte = new Date(dateTo as string);
+      where.date = buildInclusiveDateRangeFilter(
+        dateFrom as string | undefined,
+        dateTo as string | undefined
+      )!;
     }
 
     if (fromCityId) where.fromCityId = fromCityId as string;
@@ -227,9 +230,10 @@ export const getUserLedgerReport = async (req: Request, res: Response) => {
     await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin, req.user?.assignedBranchIds);
 
     if (dateFrom || dateTo) {
-      where.date = {};
-      if (dateFrom) where.date.gte = new Date(dateFrom as string);
-      if (dateTo) where.date.lte = new Date(dateTo as string);
+      where.date = buildInclusiveDateRangeFilter(
+        dateFrom as string | undefined,
+        dateTo as string | undefined
+      )!;
     }
 
     if (userId) {
@@ -340,9 +344,10 @@ export const getBranchPerformanceReport = async (req: Request, res: Response) =>
     await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin, req.user?.assignedBranchIds);
 
     if (dateFrom || dateTo) {
-      where.date = {};
-      if (dateFrom) where.date.gte = new Date(dateFrom as string);
-      if (dateTo) where.date.lte = new Date(dateTo as string);
+      where.date = buildInclusiveDateRangeFilter(
+        dateFrom as string | undefined,
+        dateTo as string | undefined
+      )!;
     }
 
     // Get branch performance data
@@ -414,9 +419,10 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
     // Build date filter
     const dateFilter: any = {};
     if (dateFrom || dateTo) {
-      dateFilter.date = {};
-      if (dateFrom) dateFilter.date.gte = new Date(dateFrom as string);
-      if (dateTo) dateFilter.date.lte = new Date(dateTo as string);
+      dateFilter.date = buildInclusiveDateRangeFilter(
+        dateFrom as string | undefined,
+        dateTo as string | undefined
+      )!;
     }
 
     // Default to last 30 days if no date range provided for performance

@@ -6,6 +6,7 @@ import { transactionApi } from '@/lib/transactions';
 import { fetchAllModuleHistoryData, ModuleHistoryData } from '@/lib/fetch-all-history';
 import {
   accountingEntryInvolvesClient,
+  ClientRef,
   isPartyNameMatch,
   isTransactionReceiver,
   isTransactionSender,
@@ -19,53 +20,76 @@ export interface ClientBalanceRow {
 
 export type ModuleDataCache = ModuleHistoryData;
 
-export async function fetchAllModuleData(): Promise<ModuleDataCache> {
-  try {
-    return await fetchAllModuleHistoryData();
-  } catch (error) {
-    console.error('Error fetching module data:', error);
-    return {
-      transactions: [],
-      accounting: [],
-      hawala: [],
-      specialEntry: [],
-    };
+/** Debit/credit effect for one transaction row — matches backend balance summary rules. */
+export function getTransactionBalanceEffect(
+  txn: {
+    type?: string;
+    amountType?: string | null;
+    amount?: number | null;
+    commission?: number | null;
+    centerCommission?: number | null;
+    receiverName?: string | null;
+    senderName?: string | null;
+    receiverClientId?: string | null;
+    senderClientId?: string | null;
+  },
+  client: ClientRef,
+): { debit: number; credit: number } {
+  if (!transactionInvolvesClient(txn, client)) {
+    return { debit: 0, credit: 0 };
   }
+
+  if (txn.type === 'OUTWARD') {
+    if (txn.amountType === 'CREDIT' && isTransactionSender(txn, client)) {
+      return {
+        debit: (txn.amount || 0) + (txn.commission || 0),
+        credit: 0,
+      };
+    }
+    if (isTransactionReceiver(txn, client)) {
+      return {
+        debit: 0,
+        credit: (txn.amount || 0) + (txn.centerCommission || 0),
+      };
+    }
+    return { debit: 0, credit: 0 };
+  }
+
+  if (txn.type === 'INWARD') {
+    if (txn.amountType === 'CREDIT' && isTransactionReceiver(txn, client)) {
+      return { debit: 0, credit: txn.amount || 0 };
+    }
+    return { debit: txn.amount || 0, credit: 0 };
+  }
+
+  return { debit: 0, credit: 0 };
 }
 
-export function calculateClientBalance(
+export function accumulateModuleBalances(
   client: { id?: string; name: string; knownNames?: string[] },
   moduleData: ModuleDataCache,
 ) {
   let totalCredit = 0;
   let totalDebit = 0;
-  const clientRef = { id: client.id || '', name: client.name, knownNames: client.knownNames || [client.name] };
+  const clientRef = {
+    id: client.id || '',
+    name: client.name,
+    knownNames: client.knownNames || [client.name],
+  };
 
   moduleData.transactions.forEach((txn: any) => {
-    if (!transactionInvolvesClient(txn, clientRef)) return;
-
-    if (txn.type === 'OUTWARD') {
-      if (txn.amountType === 'CREDIT' && isTransactionSender(txn, clientRef)) {
-        totalDebit += (txn.amount || 0) + (txn.commission || 0);
-      } else {
-        totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
-      }
-    } else if (txn.type === 'INWARD') {
-      if (txn.amountType === 'CREDIT' && isTransactionReceiver(txn, clientRef)) {
-        totalCredit += txn.amount || 0;
-      } else {
-        totalDebit += txn.amount || 0;
-      }
-    }
+    const { debit, credit } = getTransactionBalanceEffect(txn, clientRef);
+    totalDebit += debit;
+    totalCredit += credit;
   });
 
   moduleData.accounting.forEach((entry: any) => {
-    if (accountingEntryInvolvesClient(entry, clientRef)) {
-      if (entry.type === 'INCOME') {
-        totalCredit += entry.creditAmount || entry.amount || 0;
-      } else if (entry.type === 'EXPENSE') {
-        totalDebit += entry.debitAmount || entry.amount || 0;
-      }
+    if (!accountingEntryInvolvesClient(entry, clientRef)) return;
+
+    if (entry.type === 'INCOME') {
+      totalCredit += entry.creditAmount || entry.amount || 0;
+    } else if (entry.type === 'EXPENSE') {
+      totalDebit += entry.debitAmount || entry.amount || 0;
     }
   });
 
@@ -95,6 +119,28 @@ export function calculateClientBalance(
     }
   });
 
+  return { totalCredit, totalDebit };
+}
+
+export async function fetchAllModuleData(): Promise<ModuleDataCache> {
+  try {
+    return await fetchAllModuleHistoryData();
+  } catch (error) {
+    console.error('Error fetching module data:', error);
+    return {
+      transactions: [],
+      accounting: [],
+      hawala: [],
+      specialEntry: [],
+    };
+  }
+}
+
+export function calculateClientBalance(
+  client: { id?: string; name: string; knownNames?: string[] },
+  moduleData: ModuleDataCache,
+) {
+  const { totalCredit, totalDebit } = accumulateModuleBalances(client, moduleData);
   const balance = totalCredit - totalDebit;
   return { balance, credit: totalCredit, debit: totalDebit };
 }

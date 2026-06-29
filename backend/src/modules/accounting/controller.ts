@@ -6,6 +6,7 @@ import {
   isSuperAdminUser,
   resolveUserBranchId,
 } from '../../utils/branchScope';
+import { buildInclusiveDateRangeFilter } from '../../utils/dateFilter';
 
 const prisma = new PrismaClient();
 
@@ -89,9 +90,10 @@ export const getLedgerEntries = async (req: Request, res: Response) => {
     if (accountType) where.accountType = accountType as string;
 
     if (dateFrom || dateTo) {
-      where.date = {};
-      if (dateFrom) where.date.gte = new Date(dateFrom as string);
-      if (dateTo) where.date.lte = new Date(dateTo as string);
+      where.date = buildInclusiveDateRangeFilter(
+        dateFrom as string | undefined,
+        dateTo as string | undefined
+      )!;
     }
 
     if (search) {
@@ -359,9 +361,10 @@ export const getTrialBalance = async (req: Request, res: Response) => {
     }
 
     if (dateFrom || dateTo) {
-      where.date = {};
-      if (dateFrom) where.date.gte = new Date(dateFrom as string);
-      if (dateTo) where.date.lte = new Date(dateTo as string);
+      where.date = buildInclusiveDateRangeFilter(
+        dateFrom as string | undefined,
+        dateTo as string | undefined
+      )!;
     }
 
     // Get trial balance by account type
@@ -850,9 +853,10 @@ export const getAccountEntries = async (req: Request, res: Response) => {
     if (allDates === 'true') {
       // no date filter
     } else if (dateFrom || dateTo) {
-      where.date = {};
-      if (dateFrom) where.date.gte = new Date(dateFrom as string);
-      if (dateTo) where.date.lte = new Date(dateTo as string);
+      where.date = buildInclusiveDateRangeFilter(
+        dateFrom as string | undefined,
+        dateTo as string | undefined
+      )!;
     } else {
       // Default: filter to current day (Indian timezone)
       where.date = {
@@ -1213,9 +1217,10 @@ export const getAccountingSummary = async (req: Request, res: Response) => {
     };
 
     if (dateFrom || dateTo) {
-      where.date = {};
-      if (dateFrom) where.date.gte = new Date(dateFrom as string);
-      if (dateTo) where.date.lte = new Date(dateTo as string);
+      where.date = buildInclusiveDateRangeFilter(
+        dateFrom as string | undefined,
+        dateTo as string | undefined
+      )!;
     }
 
     const [

@@ -6,6 +6,7 @@ import {
   isSuperAdminUser,
   resolveUserBranchId,
 } from '../../utils/branchScope';
+import { buildInclusiveDateRangeFilter } from '../../utils/dateFilter';
 
 const prisma = new PrismaClient();
 
@@ -272,9 +273,10 @@ export const getHawalaEntries = async (req: Request, res: Response) => {
     if (allDates === 'true') {
       // no date filter
     } else if (dateFrom || dateTo) {
-      where.date = {};
-      if (dateFrom) where.date.gte = new Date(dateFrom as string);
-      if (dateTo) where.date.lte = new Date(dateTo as string);
+      where.date = buildInclusiveDateRangeFilter(
+        dateFrom as string | undefined,
+        dateTo as string | undefined
+      )!;
     } else {
       // Default: filter to current day (Indian timezone)
       where.date = {

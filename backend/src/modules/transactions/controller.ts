@@ -8,7 +8,6 @@ import {
   resolveUserBranchId,
 } from '../../utils/branchScope';
 import { resolveTransactionClientIds } from '../../lib/resolve-party-client';
-import { buildInclusiveDateRangeFilter } from '../../utils/dateFilter';
 
 // Define enum values as strings since Prisma enums aren't being exported properly
 enum TransactionType {
@@ -288,10 +287,9 @@ export const getTransactions = async (req: Request, res: Response) => {
     if (allDates === 'true') {
       // no date filter
     } else if (dateFrom || dateTo) {
-      where.date = buildInclusiveDateRangeFilter(
-        dateFrom as string | undefined,
-        dateTo as string | undefined
-      )!;
+      where.date = {};
+      if (dateFrom) where.date.gte = new Date(dateFrom as string);
+      if (dateTo) where.date.lte = new Date(dateTo as string);
     } else {
       // Default: filter to current day (Indian timezone)
       where.date = {
@@ -643,10 +641,9 @@ export const getTransactionStats = async (req: Request, res: Response) => {
     );
 
     if (dateFrom || dateTo) {
-      where.date = buildInclusiveDateRangeFilter(
-        dateFrom as string | undefined,
-        dateTo as string | undefined
-      )!;
+      where.date = {};
+      if (dateFrom) where.date.gte = new Date(dateFrom as string);
+      if (dateTo) where.date.lte = new Date(dateTo as string);
     }
 
     const [

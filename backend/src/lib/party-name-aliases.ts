@@ -56,42 +56,6 @@ export async function getPartyKnownNames(
     if (txn.senderClientId === partyId) addName(names, txn.senderName);
   }
 
-  // Include hawala / special-entry spellings that reference this party
-  const aliasList = [...names];
-  if (aliasList.length > 0) {
-    const hawalaEntries = await prisma.hawala.findMany({
-      where: {
-        isDeleted: false,
-        OR: aliasList.flatMap((alias) => [
-          { partyA: { equals: alias, mode: 'insensitive' as const } },
-          { partyB: { equals: alias, mode: 'insensitive' as const } },
-        ]),
-      },
-      select: { partyA: true, partyB: true },
-    });
-    for (const entry of hawalaEntries) {
-      addName(names, entry.partyA);
-      addName(names, entry.partyB);
-    }
-
-    const splEntries = await prisma.specialEntry.findMany({
-      where: {
-        isDeleted: false,
-        OR: aliasList.flatMap((alias) => [
-          { partyA: { equals: alias, mode: 'insensitive' as const } },
-          { partyB: { equals: alias, mode: 'insensitive' as const } },
-          { partyC: { equals: alias, mode: 'insensitive' as const } },
-        ]),
-      },
-      select: { partyA: true, partyB: true, partyC: true },
-    });
-    for (const entry of splEntries) {
-      addName(names, entry.partyA);
-      addName(names, entry.partyB);
-      addName(names, entry.partyC);
-    }
-  }
-
   return [...names];
 }
 
@@ -162,62 +126,6 @@ export async function buildPartyAliasMap(
     }
     if (txn.senderClientId && aliasMap.has(txn.senderClientId)) {
       addName(aliasMap.get(txn.senderClientId)!, txn.senderName);
-    }
-  }
-
-  const allAliases = new Set<string>();
-  for (const set of aliasMap.values()) {
-    for (const name of set) allAliases.add(name);
-  }
-  if (allAliases.size > 0) {
-    const aliasList = [...allAliases];
-    const hawalaEntries = await prisma.hawala.findMany({
-      where: {
-        isDeleted: false,
-        OR: aliasList.flatMap((alias) => [
-          { partyA: { equals: alias, mode: 'insensitive' as const } },
-          { partyB: { equals: alias, mode: 'insensitive' as const } },
-        ]),
-      },
-      select: { partyA: true, partyB: true },
-    });
-    const splEntries = await prisma.specialEntry.findMany({
-      where: {
-        isDeleted: false,
-        OR: aliasList.flatMap((alias) => [
-          { partyA: { equals: alias, mode: 'insensitive' as const } },
-          { partyB: { equals: alias, mode: 'insensitive' as const } },
-          { partyC: { equals: alias, mode: 'insensitive' as const } },
-        ]),
-      },
-      select: { partyA: true, partyB: true, partyC: true },
-    });
-
-    for (const entry of hawalaEntries) {
-      for (const [partyId, set] of aliasMap) {
-        const partyAliases = new Set([...set].map(normalizeName));
-        if (
-          partyAliases.has(normalizeName(entry.partyA)) ||
-          partyAliases.has(normalizeName(entry.partyB))
-        ) {
-          addName(set, entry.partyA);
-          addName(set, entry.partyB);
-        }
-      }
-    }
-    for (const entry of splEntries) {
-      for (const [partyId, set] of aliasMap) {
-        const partyAliases = new Set([...set].map(normalizeName));
-        if (
-          partyAliases.has(normalizeName(entry.partyA)) ||
-          partyAliases.has(normalizeName(entry.partyB)) ||
-          (entry.partyC && partyAliases.has(normalizeName(entry.partyC)))
-        ) {
-          addName(set, entry.partyA);
-          addName(set, entry.partyB);
-          addName(set, entry.partyC);
-        }
-      }
     }
   }
 

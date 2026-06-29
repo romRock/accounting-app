@@ -11,7 +11,7 @@ import { Search, Calendar, Filter, Trash2, Save, RefreshCw, Edit, Check, X, Cloc
 import UpdatedEntryBadge from '@/components/reports/updated-entry-badge';
 import { ClientTypeahead } from '@/components/ui/client-typeahead';
 import { getHawalaEntries, createHawala, updateHawala, deleteHawala, HawalaEntry } from '@/lib/hawala';
-import { getFetchDateRange, matchesIndianDateFilter } from '@/lib/date-filter';
+import { getFetchDateRange } from '@/lib/date-filter';
 import { compareEntriesByTimeDesc } from '@/lib/entry-sort';
 import { DatePicker } from '@/components/ui/date-picker';
 import API_BASE_URL from '@/lib/api';
@@ -282,14 +282,17 @@ export default function HawalaPage() {
         return true;
       }
 
-      return matchesIndianDateFilter(
-        entry.date,
-        filterByDate,
-        dateFilter,
-        isSelectingRange,
-        startDate,
-        endDate
-      );
+      const entryDate = new Date(entry.date);
+      const entryDateString =
+        entryDate.getFullYear() +
+        '-' +
+        String(entryDate.getMonth() + 1).padStart(2, '0') +
+        '-' +
+        String(entryDate.getDate()).padStart(2, '0');
+
+      return isSelectingRange && startDate && endDate
+        ? entryDateString >= startDate && entryDateString <= endDate
+        : entryDateString === dateFilter;
     }).sort(compareEntriesByTimeDesc);
   }, [hawalaEntries, searchTerm, filterByDate, dateFilter, isSelectingRange, startDate, endDate]);
 

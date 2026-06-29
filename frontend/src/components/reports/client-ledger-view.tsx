@@ -13,8 +13,6 @@ import {
   clientLedgerEntryMatchesSearch,
   fetchClientLedgerEntries,
 } from '@/lib/client-ledger';
-import { matchesIndianDateFilter, toIndianDateString } from '@/lib/date-filter';
-import { compareEntriesByTimeAsc } from '@/lib/entry-sort';
 import { showErrorToast, Toaster } from '@/lib/toast';
 import { escapeHtml } from '@/lib/security';
 import ClientLedgerEditModal from '@/components/reports/client-ledger-edit-modal';
@@ -105,17 +103,12 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
     }
 
     if (ledgerFilterByDate) {
-      if (
-        !matchesIndianDateFilter(
-          entry.date,
-          ledgerFilterByDate,
-          ledgerDateFilter,
-          ledgerIsSelectingRange,
-          ledgerStartDate,
-          ledgerEndDate
-        )
-      ) {
-        return false;
+      const entryDate = new Date(entry.date).toISOString().split('T')[0];
+      if (ledgerIsSelectingRange) {
+        if (ledgerStartDate && entryDate < ledgerStartDate) return false;
+        if (ledgerEndDate && entryDate > ledgerEndDate) return false;
+      } else {
+        if (ledgerDateFilter && entryDate !== ledgerDateFilter) return false;
       }
     }
 
@@ -126,7 +119,6 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
     const groups: Array<{
       date: string;
       openingBalance: number;
-      closingBalance: number;
       entries: ClientLedgerEntry[];
       dayExpenseTotal: number;
       dayIncomeTotal: number;
@@ -134,7 +126,11 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
 
     if (filteredClientLedger.length === 0) return groups;
 
-    const getIndianDateKey = (dateStr: string) => toIndianDateString(dateStr);
+    const getIndianDateKey = (dateStr: string) => {
+      const entryDate = new Date(dateStr);
+      const indianDate = new Date(entryDate.getTime() + 5.5 * 60 * 60 * 1000);
+      return indianDate.toISOString().split('T')[0];
+    };
 
     const dateGroups: Record<string, ClientLedgerEntry[]> = {};
     filteredClientLedger.forEach((entry) => {
@@ -145,13 +141,13 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
       dateGroups[dateKey].push(entry);
     });
 
-    Object.values(dateGroups).forEach((entries) => {
-      entries.sort(compareEntriesByTimeAsc);
-    });
+    const sortedDatesAsc = Object.keys(dateGroups).sort(
+      (a, b) => new Date(a).getTime() - new Date(b).getTime()
+    );
 
-    const sortedDatesAsc = Object.keys(dateGroups).sort();
-
-    const allEntriesSorted = [...clientLedger].sort(compareEntriesByTimeAsc);
+    const allEntriesSorted = [...clientLedger].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
     const balanceMap: Record<string, number> = {};
 
     sortedDatesAsc.forEach((date) => {
@@ -160,20 +156,18 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
         .reduce((sum, entry) => sum + (entry.credit || 0) - (entry.debit || 0), 0);
     });
 
-    const sortedDatesDesc = [...sortedDatesAsc].reverse();
+    const sortedDatesDesc = Object.keys(dateGroups).sort(
+      (a, b) => new Date(b).getTime() - new Date(a).getTime()
+    );
 
     sortedDatesDesc.forEach((date) => {
       const entries = dateGroups[date];
-      const dayExpenseTotal = entries.reduce((sum, e) => sum + (e.debit || 0), 0);
-      const dayIncomeTotal = entries.reduce((sum, e) => sum + (e.credit || 0), 0);
-      const openingBalance = balanceMap[date];
       groups.push({
         date,
-        openingBalance,
-        closingBalance: openingBalance + dayIncomeTotal - dayExpenseTotal,
+        openingBalance: balanceMap[date],
         entries,
-        dayExpenseTotal,
-        dayIncomeTotal,
+        dayExpenseTotal: entries.reduce((sum, e) => sum + (e.debit || 0), 0),
+        dayIncomeTotal: entries.reduce((sum, e) => sum + (e.credit || 0), 0),
       });
     });
 
@@ -652,11 +646,7 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
                                 ? formatCurrency(group.dayIncomeTotal)
                                 : '-'}
                             </td>
-                            <td
-                              className={`px-3 py-2 text-sm font-bold text-right ${group.closingBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}
-                            >
-                              {formatCurrency(group.closingBalance)}
-                            </td>
+                            <td className="px-3 py-2 text-sm text-right text-gray-500">-</td>
                             <td className="px-3 py-2 text-sm text-center text-gray-500">-</td>
                           </tr>
                           <tr className="border-b-2 border-gray-300">

@@ -17,8 +17,6 @@ import {
   isTransactionSender,
   transactionInvolvesClient,
 } from '@/lib/client-match';
-import { getTransactionBalanceEffect } from '@/lib/client-balance';
-import { compareEntriesByTimeAsc } from '@/lib/entry-sort';
 import { formatCurrency, formatDate, matchesTableSearch } from '@/lib/utils';
 
 export type ClientLedgerModule = 'Transaction' | 'Accounting' | 'Hawala' | 'Special Entry';
@@ -121,8 +119,26 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
   allTxns.forEach((txn) => {
     if (!transactionInvolvesClient(txn, clientRef)) return;
 
-    const { debit: debitAmount, credit: creditAmount } = getTransactionBalanceEffect(txn, clientRef);
-    if (debitAmount === 0 && creditAmount === 0) return;
+    let debitAmount = 0;
+    let creditAmount = 0;
+
+    if (txn.type === 'OUTWARD') {
+      if (txn.amountType === 'CREDIT' && isTransactionSender(txn, clientRef)) {
+        debitAmount = (txn.amount || 0) + (txn.commission || 0);
+        creditAmount = 0;
+      } else {
+        debitAmount = 0;
+        creditAmount = (txn.amount || 0) + (txn.centerCommission || 0);
+      }
+    } else if (txn.type === 'INWARD') {
+      if (txn.amountType === 'CREDIT' && isTransactionReceiver(txn, clientRef)) {
+        debitAmount = 0;
+        creditAmount = txn.amount || 0;
+      } else {
+        debitAmount = txn.amount || 0;
+        creditAmount = 0;
+      }
+    }
 
     const otherParty = isTransactionReceiver(txn, clientRef)
       ? txn.senderName
@@ -248,7 +264,7 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
     }
   });
 
-  ledgerEntries.sort(compareEntriesByTimeAsc);
+  ledgerEntries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   let runningBalance = 0;
   ledgerEntries.forEach((entry) => {
     runningBalance += (entry.credit || 0) - (entry.debit || 0);

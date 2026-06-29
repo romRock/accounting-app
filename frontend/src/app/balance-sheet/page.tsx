@@ -10,7 +10,13 @@ import { useAuthStore } from '@/store';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { fetchAllModuleHistoryData } from '@/lib/fetch-all-history';
 import { transactionApi } from '@/lib/transactions';
-import { calculateClientBalance } from '@/lib/client-balance';
+import {
+  accountingEntryInvolvesClient,
+  isPartyNameMatch,
+  isTransactionReceiver,
+  isTransactionSender,
+  transactionInvolvesClient,
+} from '@/lib/client-match';
 
 // Balance Sheet Entry Structure
 interface BalanceSheetEntry {
@@ -68,6 +74,84 @@ export default function BalanceSheetPage() {
         specialEntry: []
       };
     }
+  };
+
+  // Calculate client balance from provided data (same logic as customer report)
+  const calculateClientBalance = (client: any, moduleData: any) => {
+    let totalCredit = 0;
+    let totalDebit = 0;
+    const clientRef = {
+      id: client.id,
+      name: client.name,
+      knownNames: client.knownNames || [client.name],
+    };
+
+    try {
+      // 1. Transactions Module - use provided data
+      moduleData.transactions.forEach((txn: any) => {
+        if (!transactionInvolvesClient(txn, clientRef)) return;
+
+        if (txn.type === 'OUTWARD') {
+          if (txn.amountType === 'CREDIT' && isTransactionSender(txn, clientRef)) {
+            totalDebit += (txn.amount || 0) + (txn.commission || 0);
+          } else {
+            totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
+          }
+        } else if (txn.type === 'INWARD') {
+          if (txn.amountType === 'CREDIT' && isTransactionReceiver(txn, clientRef)) {
+            totalCredit += (txn.amount || 0);
+          } else {
+            totalDebit += (txn.amount || 0);
+          }
+        }
+      });
+
+      // 2. Accounting Module - use provided data
+      moduleData.accounting.forEach((entry: any) => {
+        if (!accountingEntryInvolvesClient(entry, clientRef)) return;
+
+        if (entry.type === 'INCOME') {
+          totalCredit += entry.creditAmount || entry.amount || 0;
+        } else if (entry.type === 'EXPENSE') {
+          totalDebit += entry.debitAmount || entry.amount || 0;
+        }
+      });
+
+      // 3. Hawala Module - use provided data
+      moduleData.hawala.forEach((entry: any) => {
+        if (isPartyNameMatch(entry.partyA, clientRef)) {
+          totalCredit += entry.amount || 0;
+        }
+        if (isPartyNameMatch(entry.partyB, clientRef)) {
+          totalDebit += entry.amount || 0;
+        }
+      });
+
+      // 4. Special Entry Module - use provided data
+      moduleData.specialEntry.forEach((entry: any) => {
+        if (isPartyNameMatch(entry.partyA, clientRef)) {
+          totalDebit += entry.amountA || 0;
+        }
+        if (isPartyNameMatch(entry.partyB, clientRef)) {
+          totalCredit += entry.amountB || 0;
+        }
+        if (isPartyNameMatch(entry.partyC, clientRef)) {
+          // Party C: Dynamic based on amountC sign
+          const amountC = entry.amountC || 0;
+          if (amountC > 0) {
+            totalCredit += amountC;
+          } else {
+            totalDebit += Math.abs(amountC);
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error(`Error calculating balance for ${client.name}:`, error);
+    }
+
+    const balance = totalCredit - totalDebit;
+    return { balance, credit: totalCredit, debit: totalDebit };
   };
 
   // Fetch balance sheet data from clients

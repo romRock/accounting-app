@@ -12,7 +12,7 @@ import { RefreshCw, Trash2, Save } from 'lucide-react';
 import UpdatedEntryBadge from '@/components/reports/updated-entry-badge';
 import { ClientTypeahead } from '@/components/ui/client-typeahead';
 import { accountingApi, AccountingEntry } from '@/lib/accounting';
-import { getFetchDateRange, matchesIndianDateFilter } from '@/lib/date-filter';
+import { getFetchDateRange } from '@/lib/date-filter';
 import { compareEntriesByTimeDesc } from '@/lib/entry-sort';
 import { DatePicker } from '@/components/ui/date-picker';
 import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
@@ -277,16 +277,29 @@ export default function AccountingPage() {
     // Backend now filters by current day and branch by default
     // Frontend only filters if user explicitly enables date filter
     if (filterByDate) {
-      filtered = filtered.filter((transaction) =>
-        matchesIndianDateFilter(
-          transaction.date,
-          filterByDate,
-          dateFilter,
-          isSelectingRange,
-          startDate,
-          endDate
-        )
-      );
+      filtered = filtered.filter(transaction => {
+        let transactionDate = transaction.date?.includes('T')
+          ? transaction.date.split('T')[0]
+          : transaction.date || '';
+
+        // Normalize date format - handle DD/MM/YYYY, YYYY-MM-DD, and other formats
+        if (transactionDate.includes('/')) {
+          const parts = transactionDate.split('/');
+          if (parts.length === 3) {
+            // Assume DD/MM/YYYY format
+            transactionDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+          }
+        }
+
+        if (!isSelectingRange) {
+          // Filter to selected date if provided
+          return !dateFilter || transactionDate === dateFilter;
+        }
+
+        return startDate && endDate
+          ? transactionDate >= startDate && transactionDate <= endDate
+          : true;
+      });
     }
 
     return filtered.sort(compareEntriesByTimeDesc);

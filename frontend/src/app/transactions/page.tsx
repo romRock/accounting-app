@@ -27,7 +27,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { RefreshCw, Trash2, Save } from "lucide-react";
 import UpdatedEntryBadge from "@/components/reports/updated-entry-badge";
 import { transactionApi, Transaction } from "@/lib/transactions";
-import { getFetchDateRange } from "@/lib/date-filter";
+import { getFetchDateRange, matchesDateFilter } from "@/lib/date-filter";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
   showSuccessToast,
@@ -760,34 +760,15 @@ export default function TransactionsPage() {
       transaction.time?.includes(searchLower) ||
       transaction.remark?.toLowerCase().includes(searchLower);
 
-    // Convert transaction date to Date object for comparison
-    const transactionDate = new Date(transaction.date);
-    // Check if date is valid before calling toISOString()
-    if (isNaN(transactionDate.getTime())) {
-      return false; // Skip this transaction if date is invalid
-    }
-    const transactionDateString = transactionDate.toISOString().split("T")[0];
-
-    // Get today's date in Indian timezone for comparison
-    const now = new Date();
-    const formatter = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Asia/Kolkata",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
-    const parts = formatter.formatToParts(now);
-    const year = parts.find((p) => p.type === "year")?.value;
-    const month = parts.find((p) => p.type === "month")?.value;
-    const day = parts.find((p) => p.type === "day")?.value;
-    const todayString = `${year}-${month}-${day}`;
-
     // Default to showing current day transactions, or filter by date range
-    const matchesDate = !filterByDate
-      ? transactionDateString === todayString
-      : isSelectingRange && startDate && endDate
-        ? transactionDateString >= startDate && transactionDateString <= endDate
-        : dateFilter && transactionDateString === dateFilter;
+    const matchesDate = matchesDateFilter(
+      transaction.date,
+      filterByDate,
+      dateFilter,
+      isSelectingRange,
+      startDate,
+      endDate,
+    );
 
     return matchesSearch && matchesDate;
   });

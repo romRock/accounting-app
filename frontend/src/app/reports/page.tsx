@@ -29,6 +29,11 @@ import { showErrorToast, showSuccessToast, Toaster } from '@/lib/toast';
 import { escapeHtml } from '@/lib/security';
 import { useBranchStore } from '@/store/branch-store';
 import { ExcelExportIcon, PdfExportIcon } from '@/components/icons/export-format-icons';
+import {
+  getReportFetchDateRange,
+  isDateWithinRange,
+  matchesDateFilter,
+} from '@/lib/date-filter';
 
 // Unified row used only by Transaction Report (report #5)
 type TxnReportModule = 'transaction' | 'accounting' | 'hawala' | 'special';
@@ -137,10 +142,9 @@ function getAmountTypeCashDisplayAmount(transaction: {
   );
 }
 
-/** Cutting report: payable per row = amount + cutting (booking) commission. */
+/** Cutting report: verified tick total uses transaction amount only (no commission). */
 function getCuttingRowPayableAmount(transaction: Transaction) {
-  const stored = getStoredCommissions(transaction);
-  return (transaction.amount || 0) + stored.bookingCommission;
+  return transaction.amount || 0;
 }
 
 function getCuttingRowKey(transaction: Transaction) {
@@ -366,6 +370,13 @@ export default function ReportsPage() {
     setLoading(true);
     try {
       let response;
+      const { dateFrom, dateTo } = getReportFetchDateRange(
+        filterByDate,
+        dateFilter,
+        isSelectingRange,
+        startDate,
+        endDate,
+      );
 
       if (activeReport === 'customer') {
         // Customer Report: Fetch clients and calculate balances
@@ -384,11 +395,15 @@ export default function ReportsPage() {
             type: 'INWARD',
             page: currentPage,
             limit: 100,
+            dateFrom,
+            dateTo,
           }, branchOptions),
           transactionApi.getTransactions({
             type: 'OUTWARD',
             page: currentPage,
             limit: 100,
+            dateFrom,
+            dateTo,
           }, branchOptions)
         ]);
 
@@ -412,6 +427,8 @@ export default function ReportsPage() {
           search: searchTerm,
           page: currentPage,
           limit: 10000, // High limit to ensure all entries are fetched
+          dateFrom,
+          dateTo,
           ...(activeReport === 'amount-type' && filters.amountType && filters.amountType.trim() && { amountType: filters.amountType })
         }, getReportBranchOptions());
 
@@ -425,52 +442,6 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Helpers for Transaction Report (#5)
-  const todayLocalString = () => {
-    const t = new Date();
-    return (
-      t.getFullYear() +
-      '-' +
-      String(t.getMonth() + 1).padStart(2, '0') +
-      '-' +
-      String(t.getDate()).padStart(2, '0')
-    );
-  };
-
-  const toLocalDateString = (dateStr?: string) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    return (
-      d.getFullYear() +
-      '-' +
-      String(d.getMonth() + 1).padStart(2, '0') +
-      '-' +
-      String(d.getDate()).padStart(2, '0')
-    );
-  };
-
-  const isDateInRange = (dateStr?: string, dateFrom?: string, dateTo?: string) => {
-    if (!dateStr) return false;
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return false;
-    const local =
-      d.getFullYear() +
-      '-' +
-      String(d.getMonth() + 1).padStart(2, '0') +
-      '-' +
-      String(d.getDate()).padStart(2, '0');
-
-    // If no date range specified, default to today
-    if (!dateFrom || !dateTo) {
-      const today = todayLocalString();
-      return local === today;
-    }
-
-    // Check if date is within the specified range
-    return local >= dateFrom && local <= dateTo;
   };
 
   const extractTimeAndTs = (dateStr?: string, timeStr?: string) => {
@@ -492,40 +463,32 @@ export default function ReportsPage() {
     return { hhmm, ts };
   };
 
-  // Get the date range from the existing filter UI
-  const getTxnReportDateRange = (): { from: string; to: string } => {
-    const today = todayLocalString();
-    if (!filterByDate) return { from: today, to: today };
-    if (isSelectingRange) {
-      if (startDate && endDate) {
-        return startDate <= endDate
-          ? { from: startDate, to: endDate }
-          : { from: endDate, to: startDate };
-      }
-      return { from: today, to: today };
-    }
-    return dateFilter ? { from: dateFilter, to: dateFilter } : { from: today, to: today };
-  };
-
   // Fetch all 4 modules' GET APIs for the selected date range and build unified rows
   const fetchTransactionReport = async () => {
     try {
-      const { from, to } = getTxnReportDateRange();
+      const { dateFrom, dateTo } = getReportFetchDateRange(
+        filterByDate,
+        dateFilter,
+        isSelectingRange,
+        startDate,
+        endDate,
+      );
+      const dateRange = { from: dateFrom, to: dateTo };
 
       const [txnRes, accRes, hawalaRes, splRes] = await Promise.allSettled([
         // Transactions: get both INWARD and OUTWARD, exclude CASH later
         Promise.all([
-          transactionApi.getTransactions({ type: 'OUTWARD', page: 1, limit: 500 }),
-          transactionApi.getTransactions({ type: 'INWARD', page: 1, limit: 500 }),
+          transactionApi.getTransactions({ type: 'OUTWARD', page: 1, limit: 500, dateFrom, dateTo }),
+          transactionApi.getTransactions({ type: 'INWARD', page: 1, limit: 500, dateFrom, dateTo }),
         ]),
         accountingApi.getAccountEntries({
           page: 1,
           limit: 500,
-          dateFrom: from,
-          dateTo: to,
+          dateFrom,
+          dateTo,
         }),
-        getHawalaEntries({ page: 1, limit: 500, dateFrom: from, dateTo: to }),
-        getSpecialEntries({ page: 1, limit: 500, dateFrom: from, dateTo: to }),
+        getHawalaEntries({ page: 1, limit: 500, dateFrom, dateTo }),
+        getSpecialEntries({ page: 1, limit: 500, dateFrom, dateTo }),
       ]);
 
       const rows: TxnReportRow[] = [];
@@ -535,7 +498,7 @@ export default function ReportsPage() {
         const [outward, inward] = txnRes.value;
         const all: Transaction[] = [...(outward.transactions || []), ...(inward.transactions || [])];
         all.forEach((t) => {
-          if (!isDateInRange(t.date, from, to)) return;
+          if (!isDateWithinRange(t.date, dateRange)) return;
           const at = (t.amountType || '').toUpperCase();
           if (at === 'CASH') return; // exclude cash
           const { hhmm, ts } = extractTimeAndTs(t.date, t.time);
@@ -576,7 +539,7 @@ export default function ReportsPage() {
         const entries: AccountingEntry[] = accRes.value.entries || [];
         entries.forEach((e) => {
           const dateField = e.date;
-          if (!isDateInRange(dateField, from, to)) return;
+          if (!isDateWithinRange(dateField, dateRange)) return;
           const { hhmm, ts } = extractTimeAndTs(dateField, e.statusTime || e.time);
           rows.push({
             key: `acc-${e.id}`,
@@ -607,7 +570,7 @@ export default function ReportsPage() {
       if (hawalaRes.status === 'fulfilled') {
         const list: HawalaEntry[] = hawalaRes.value.data || [];
         list.forEach((h) => {
-          if (!isDateInRange(h.date, from, to)) return;
+          if (!isDateWithinRange(h.date, dateRange)) return;
           const { hhmm, ts } = extractTimeAndTs(h.date, h.time);
           rows.push({
             key: `hwl-${h.id}`,
@@ -638,7 +601,7 @@ export default function ReportsPage() {
       if (splRes.status === 'fulfilled') {
         const list: SpecialEntry[] = splRes.value.data || [];
         list.forEach((s) => {
-          if (!isDateInRange(s.date, from, to)) return;
+          if (!isDateWithinRange(s.date, dateRange)) return;
           const { hhmm, ts } = extractTimeAndTs(s.date, s.time);
           rows.push({
             key: `spl-${s.id}`,
@@ -1059,7 +1022,13 @@ export default function ReportsPage() {
   const generateTransactionReportPDF = () => {
     const columns = TXN_REPORT_COLUMNS;
     const reportTitle = 'TRANSACTION REPORT';
-    const { from, to } = getTxnReportDateRange();
+    const { dateFrom: from, dateTo: to } = getReportFetchDateRange(
+      filterByDate,
+      dateFilter,
+      isSelectingRange,
+      startDate,
+      endDate,
+    );
 
     // Create HTML content for PDF
     const htmlContent = `
@@ -1211,20 +1180,14 @@ export default function ReportsPage() {
   const filteredData = reportData.filter(transaction => {
     // For combo report, only filter by date, no search/filter by customer names
     if (activeReport === 'combo') {
-      // Apply date filters (matching transaction page logic)
-      const transactionDateString = new Date(transaction.date).toISOString().split('T')[0];
-      const today = new Date();
-      const todayString = today.getFullYear() + '-' +
-        String(today.getMonth() + 1).padStart(2, '0') + '-' +
-        String(today.getDate()).padStart(2, '0');
-
-      const matchesDate = !filterByDate ?
-        transactionDateString === todayString :
-        (isSelectingRange && startDate && endDate ?
-          transactionDateString >= startDate && transactionDateString <= endDate :
-          dateFilter && transactionDateString === dateFilter);
-
-      return matchesDate;
+      return matchesDateFilter(
+        transaction.date,
+        filterByDate,
+        dateFilter,
+        isSelectingRange,
+        startDate,
+        endDate,
+      );
     }
 
     // For other reports, use existing filtering logic
@@ -1237,18 +1200,14 @@ export default function ReportsPage() {
       transaction.receiverNumber?.toLowerCase().includes(searchLower) ||
       transaction.senderNumber?.toLowerCase().includes(searchLower);
 
-    // Apply date filters (matching transaction page logic)
-    const transactionDateString = new Date(transaction.date).toISOString().split('T')[0];
-    const today = new Date();
-    const todayString = today.getFullYear() + '-' +
-      String(today.getMonth() + 1).padStart(2, '0') + '-' +
-      String(today.getDate()).padStart(2, '0');
-
-    const matchesDate = !filterByDate ?
-      transactionDateString === todayString :
-      (isSelectingRange && startDate && endDate ?
-        transactionDateString >= startDate && transactionDateString <= endDate :
-        dateFilter && transactionDateString === dateFilter);
+    const matchesDate = matchesDateFilter(
+      transaction.date,
+      filterByDate,
+      dateFilter,
+      isSelectingRange,
+      startDate,
+      endDate,
+    );
 
     // Apply center filter
     const matchesCenter = !filters.center ||
@@ -1513,10 +1472,19 @@ export default function ReportsPage() {
     };
   }, []);
 
-  // Auto-generate report on component mount and when active report changes
+  // Auto-generate report on mount, report switch, and date filter changes
   useEffect(() => {
     generateReport();
-  }, [activeReport]);
+  }, [
+    activeReport,
+    filterByDate,
+    dateFilter,
+    startDate,
+    endDate,
+    isSelectingRange,
+    filters.branchId,
+    filters.amountType,
+  ]);
 
   // Calculate summary based on filtered data
   useEffect(() => {
@@ -1895,7 +1863,7 @@ export default function ReportsPage() {
                     <div className="bg-gradient-to-br from-white to-orange-50/80 p-4 rounded-lg border border-orange-200/60">
                       <div className="text-sm font-medium text-gray-600">Verified Amount (Day Total)</div>
                       <div className="text-2xl font-bold text-gray-900 mt-1">
-                        {formatCurrency(cuttingVerifiedSummary?.total ?? summary.totalAmount + summary.totalCommission)}
+                        {formatCurrency(cuttingVerifiedSummary?.total ?? summary.totalAmount)}
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
                         {cuttingVerifiedSummary?.verifiedCount ?? summary.totalRecords} of {cuttingVerifiedSummary?.totalCount ?? summary.totalRecords} entries included

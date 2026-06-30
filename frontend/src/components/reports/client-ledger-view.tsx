@@ -602,17 +602,17 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
                                   {renderLedgerDescription(entry.description)}
                                 </td>
                                 <td
-                                  className={`px-3 py-2 text-sm text-right border-r border-gray-200 ${entry.debit > 0 ? 'text-red-600' : 'text-gray-900'}`}
+                                  className={`px-3 py-2 text-base font-bold text-right border-r border-gray-200 ${entry.debit > 0 ? 'text-red-600' : 'text-gray-900'}`}
                                 >
                                   {entry.debit > 0 ? formatCurrency(entry.debit) : '-'}
                                 </td>
                                 <td
-                                  className={`px-3 py-2 text-sm text-right border-r border-gray-200 ${entry.credit > 0 ? 'text-green-600' : 'text-gray-900'}`}
+                                  className={`px-3 py-2 text-base font-bold text-right border-r border-gray-200 ${entry.credit > 0 ? 'text-green-600' : 'text-gray-900'}`}
                                 >
                                   {entry.credit > 0 ? formatCurrency(entry.credit) : '-'}
                                 </td>
                                 <td
-                                  className={`px-3 py-2 text-sm text-right font-medium ${entry.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                                  className={`px-3 py-2 text-base font-bold text-right ${entry.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}
                                 >
                                   {formatCurrency(entry.balance)}
                                 </td>

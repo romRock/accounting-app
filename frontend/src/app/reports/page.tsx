@@ -1583,7 +1583,7 @@ export default function ReportsPage() {
       <div className="pt-16 space-y-4 sm:space-y-6">
 
         {/* Filter Section */}
-        {activeReport !== 'transaction-refund' && (
+        {activeReport !== 'transaction-refund' && activeReport !== 'customer' && (
           <Card className={`shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative overflow-visible ${
             activeReport === 'outward' || activeReport === 'inward' ? 'z-30' : 'z-10'
           }`}>
@@ -1824,7 +1824,7 @@ export default function ReportsPage() {
         )}
 
         {/* Report Summary */}
-        {summary && activeReport !== 'transaction-refund' && (
+        {summary && activeReport !== 'transaction-refund' && activeReport !== 'customer' && (
           <Card className={`shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative ${
             activeReport === 'outward' || activeReport === 'inward' ? 'z-0' : 'z-10'
           }`}>
@@ -1842,7 +1842,7 @@ export default function ReportsPage() {
                   <div className="text-sm font-medium text-gray-600">Total Records</div>
                   <div className="text-2xl font-bold text-gray-900 mt-1">{summary.totalRecords}</div>
                 </div>
-                {activeReport === 'customer' ? null : activeReport === 'combo' ? (
+                {activeReport === 'combo' ? (
                   <>
                     <div className="bg-gradient-to-br from-white to-orange-50/80 p-4 rounded-lg border border-orange-200/60">
                       <div className="text-sm font-medium text-gray-600">Outward Total</div>
@@ -1974,7 +1974,7 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
         ) : activeReport === 'customer' ? (
-          <Card className="shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative z-10">
+          <Card className="shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative z-10 mt-4">
             <CardHeader className="pb-4">
               <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
                 <div>
@@ -1985,12 +1985,12 @@ export default function ReportsPage() {
                     {clients.length} clients found
                   </CardDescription>
                 </div>
-                <div className="hidden sm:block">
+                <div className="w-full sm:w-auto sm:shrink-0">
                   <Input
                     placeholder="Search clients..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="bg-white w-48 lg:w-64 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm placeholder:text-gray-600"
+                    className="bg-white w-full sm:w-56 lg:w-96 h-11 sm:h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-base sm:text-sm placeholder:text-gray-800"
                   />
                 </div>
               </div>

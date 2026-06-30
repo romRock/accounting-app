@@ -137,6 +137,16 @@ function getAmountTypeCashDisplayAmount(transaction: {
   );
 }
 
+/** Cutting report: payable per row = amount + cutting (booking) commission. */
+function getCuttingRowPayableAmount(transaction: Transaction) {
+  const stored = getStoredCommissions(transaction);
+  return (transaction.amount || 0) + stored.bookingCommission;
+}
+
+function getCuttingRowKey(transaction: Transaction) {
+  return transaction.id;
+}
+
 export default function ReportsPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
@@ -150,6 +160,8 @@ export default function ReportsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [exporting, setExporting] = useState(false);
   const firstInputRef = useRef<HTMLInputElement>(null);
+  // Cutting report: unchecked row ids are excluded from the verified day total
+  const [cuttingExcludedIds, setCuttingExcludedIds] = useState<Set<string>>(new Set());
 
   // Default to Customer Report and sync header; honour dashboard shortcut via localStorage
   useEffect(() => {
@@ -1279,8 +1291,74 @@ export default function ReportsPage() {
     return filteredData;
   }, [activeReport, comboDisplayData, filteredData]);
 
+  // Reset cutting verification when report data or filters change (day-based, no carry forward)
+  useEffect(() => {
+    if (activeReport === 'inward') {
+      setCuttingExcludedIds(new Set());
+    }
+  }, [
+    activeReport,
+    reportData,
+    searchTerm,
+    filterByDate,
+    dateFilter,
+    startDate,
+    endDate,
+    isSelectingRange,
+    filters.center,
+    filters.branchId,
+  ]);
+
+  const cuttingVerifiedSummary = useMemo(() => {
+    if (activeReport !== 'inward') return null;
+
+    let total = 0;
+    let verifiedCount = 0;
+    reportTableData.forEach((transaction) => {
+      const key = getCuttingRowKey(transaction);
+      if (!cuttingExcludedIds.has(key)) {
+        total += getCuttingRowPayableAmount(transaction);
+        verifiedCount += 1;
+      }
+    });
+
+    return {
+      total,
+      verifiedCount,
+      totalCount: reportTableData.length,
+    };
+  }, [activeReport, reportTableData, cuttingExcludedIds]);
+
+  const toggleCuttingRowVerified = (transactionId: string) => {
+    setCuttingExcludedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(transactionId)) {
+        next.delete(transactionId);
+      } else {
+        next.add(transactionId);
+      }
+      return next;
+    });
+  };
+
+  const toggleAllCuttingRows = (includeAll: boolean) => {
+    if (includeAll) {
+      setCuttingExcludedIds(new Set());
+      return;
+    }
+    setCuttingExcludedIds(new Set(reportTableData.map(getCuttingRowKey)));
+  };
+
+  const isCuttingRowVerified = (transaction: Transaction) =>
+    !cuttingExcludedIds.has(getCuttingRowKey(transaction));
+
+  const allCuttingRowsVerified =
+    reportTableData.length > 0 && cuttingExcludedIds.size === 0;
+  const someCuttingRowsVerified =
+    cuttingExcludedIds.size > 0 && cuttingExcludedIds.size < reportTableData.length;
+
   // Get columns based on report type (for outward and inward transactions)
-  const getColumns = () => {
+  const getColumns = (options?: { includeVerify?: boolean }) => {
     if (activeReport === 'combo') {
       return ['TRANSACTION TYPE', 'TOKEN', 'DATE', 'TIME', 'CENTER', 'OUTWARD AMOUNT', 'INWARD AMOUNT', 'BALANCE'];
     }
@@ -1288,7 +1366,8 @@ export default function ReportsPage() {
       return ['TOKEN', 'DATE', 'TIME', 'CENTER', 'AMOUNT', 'AMOUNT TYPE', 'OUR COMM', 'RECEIVER NAME', 'SENDER NAME', 'REMARKS'];
     }
     if (activeReport === 'inward') {
-      return ['TOKEN', 'DATE', 'TIME', 'CENTER', 'AMOUNT', 'AMOUNT TYPE', 'CUTTING COMM', 'SENDER NAME', 'RECEIVER NAME', 'REMARKS'];
+      const columns = ['TOKEN', 'DATE', 'TIME', 'CENTER', 'AMOUNT', 'AMOUNT TYPE', 'CUTTING COMM', 'SENDER NAME', 'RECEIVER NAME', 'REMARKS'];
+      return options?.includeVerify ? ['VERIFY', ...columns] : columns;
     }
     if (activeReport === 'amount-type') {
       const isCashAmountType = filters.amountType?.toUpperCase() === 'CASH';
@@ -1814,7 +1893,16 @@ export default function ReportsPage() {
                 ) : activeReport === 'inward' ? (
                   <>
                     <div className="bg-gradient-to-br from-white to-orange-50/80 p-4 rounded-lg border border-orange-200/60">
-                      <div className="text-sm font-medium text-gray-600">Amount + Commission</div>
+                      <div className="text-sm font-medium text-gray-600">Verified Amount (Day Total)</div>
+                      <div className="text-2xl font-bold text-gray-900 mt-1">
+                        {formatCurrency(cuttingVerifiedSummary?.total ?? summary.totalAmount + summary.totalCommission)}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {cuttingVerifiedSummary?.verifiedCount ?? summary.totalRecords} of {cuttingVerifiedSummary?.totalCount ?? summary.totalRecords} entries included
+                      </div>
+                    </div>
+                    <div className="bg-gradient-to-br from-white to-orange-50/80 p-4 rounded-lg border border-orange-200/60">
+                      <div className="text-sm font-medium text-gray-600">Full Day Amount + Commission</div>
                       <div className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(summary.totalAmount + summary.totalCommission)}</div>
                     </div>
                   </>
@@ -2129,20 +2217,63 @@ export default function ReportsPage() {
                   <table className="w-full border border-orange-200/60 rounded-lg overflow-hidden">
                     <thead>
                       <tr className="bg-gradient-to-r from-orange-600 via-orange-700 to-orange-800 text-white">
-                        {getColumns().map((column, index) => (
+                        {getColumns({ includeVerify: activeReport === 'inward' }).map((column, index) => (
                           <th
                             key={index}
-                            className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-orange-500/30 last:border-r-0"
+                            className={`px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-orange-500/30 last:border-r-0 ${
+                              column === 'VERIFY' ? 'text-center w-14' : ''
+                            }`}
                           >
-                            {column}
+                            {column === 'VERIFY' ? (
+                              <input
+                                type="checkbox"
+                                checked={allCuttingRowsVerified}
+                                ref={(el) => {
+                                  if (el) el.indeterminate = someCuttingRowsVerified;
+                                }}
+                                onChange={(e) => toggleAllCuttingRows(e.target.checked)}
+                                className="h-4 w-4 text-white focus:ring-white border-white rounded cursor-pointer"
+                                aria-label="Toggle all cutting entries"
+                              />
+                            ) : (
+                              column
+                            )}
                           </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {reportTableData.map((transaction, rowIndex) => (
-                        <tr key={rowIndex} className={`border-b transition-colors ${rowIndex % 2 === 0 ? 'bg-white/90 hover:bg-orange-50/70' : 'bg-orange-50/45 hover:bg-orange-100/55'}`}>
-                          {getColumns().map((column, colIndex) => {
+                      {reportTableData.map((transaction, rowIndex) => {
+                        const rowVerified = activeReport === 'inward' ? isCuttingRowVerified(transaction) : true;
+                        return (
+                        <tr
+                          key={transaction.id || rowIndex}
+                          className={`border-b transition-colors ${
+                            activeReport === 'inward' && !rowVerified
+                              ? 'bg-gray-100/80 opacity-70'
+                              : rowIndex % 2 === 0
+                                ? 'bg-white/90 hover:bg-orange-50/70'
+                                : 'bg-orange-50/45 hover:bg-orange-100/55'
+                          }`}
+                        >
+                          {getColumns({ includeVerify: activeReport === 'inward' }).map((column, colIndex) => {
+                            if (column === 'VERIFY') {
+                              return (
+                                <td
+                                  key={colIndex}
+                                  className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200 text-center"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={rowVerified}
+                                    onChange={() => toggleCuttingRowVerified(getCuttingRowKey(transaction))}
+                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                                    aria-label={`Include cutting entry ${transaction.tokenNo ?? rowIndex + 1} in verified total`}
+                                  />
+                                </td>
+                              );
+                            }
+
                             const cellValue = renderCell(transaction, column, rowIndex);
                             return (
                               <td
@@ -2169,7 +2300,8 @@ export default function ReportsPage() {
                             );
                           })}
                         </tr>
-                      ))}
+                      );
+                      })}
                     </tbody>
                   </table>
                 </div>

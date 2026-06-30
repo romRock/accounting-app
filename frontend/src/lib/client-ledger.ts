@@ -104,6 +104,11 @@ export async function fetchSourceRecordForLedgerEntry(
   }
 }
 
+function isClientLedgerCreditTransaction(txn: { amountType?: string | null }): boolean {
+  const amountType = (txn.amountType || '').toUpperCase();
+  return amountType === 'CREDIT' || amountType === 'ACCOUNT / CREDIT';
+}
+
 /** Build ledger rows for a client from pre-fetched module data (shared by ledger view + customer report). */
 export function buildClientLedgerEntries(
   client: ClientLedgerClient,
@@ -121,26 +126,20 @@ export function buildClientLedgerEntries(
 
   allTxns.forEach((txn) => {
     if (!transactionInvolvesClient(txn, clientRef)) return;
+    // CASH bookings/cuttings do not affect client ledger — only CREDIT entries do
+    if (!isClientLedgerCreditTransaction(txn)) return;
 
     let debitAmount = 0;
     let creditAmount = 0;
 
     if (txn.type === 'OUTWARD') {
-      if (txn.amountType === 'CREDIT' && isTransactionSender(txn, clientRef)) {
-        debitAmount = (txn.amount || 0) + (txn.commission || 0);
-        creditAmount = 0;
-      } else {
-        debitAmount = 0;
-        creditAmount = (txn.amount || 0) + (txn.centerCommission || 0);
-      }
+      if (!isTransactionSender(txn, clientRef)) return;
+      debitAmount = (txn.amount || 0) + (txn.commission || 0);
     } else if (txn.type === 'INWARD') {
-      if (txn.amountType === 'CREDIT' && isTransactionReceiver(txn, clientRef)) {
-        debitAmount = 0;
-        creditAmount = txn.amount || 0;
-      } else {
-        debitAmount = txn.amount || 0;
-        creditAmount = 0;
-      }
+      if (!isTransactionReceiver(txn, clientRef)) return;
+      creditAmount = txn.amount || 0;
+    } else {
+      return;
     }
 
     const otherParty = isTransactionReceiver(txn, clientRef)

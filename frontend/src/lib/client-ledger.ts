@@ -8,6 +8,7 @@ import {
   fetchAllModuleHistoryData,
   fetchAllSpecialEntries,
   fetchAllTransactions,
+  ModuleHistoryData,
 } from '@/lib/fetch-all-history';
 import { useBranchStore } from '@/store/branch-store';
 import {
@@ -103,8 +104,11 @@ export async function fetchSourceRecordForLedgerEntry(
   }
 }
 
-/** Fetch ledger entries for a client from all modules (same logic as Customer Report). */
-export async function fetchClientLedgerEntries(client: ClientLedgerClient): Promise<ClientLedgerEntry[]> {
+/** Build ledger rows for a client from pre-fetched module data (shared by ledger view + customer report). */
+export function buildClientLedgerEntries(
+  client: ClientLedgerClient,
+  data: ModuleHistoryData,
+): ClientLedgerEntry[] {
   const ledgerEntries: ClientLedgerEntry[] = [];
   const clientRef = {
     id: client.id,
@@ -113,8 +117,7 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
   };
   const branchLookup = getBranchCodeLookup();
 
-  const { transactions: allTxns, accounting: accEntries, hawala: hawalaEntries, specialEntry: splEntries } =
-    await fetchAllModuleHistoryData();
+  const { transactions: allTxns, accounting: accEntries, hawala: hawalaEntries, specialEntry: splEntries } = data;
 
   allTxns.forEach((txn) => {
     if (!transactionInvolvesClient(txn, clientRef)) return;
@@ -272,6 +275,31 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
   });
 
   return ledgerEntries;
+}
+
+/** Summary totals from ledger rows — matches the client ledger top balance. */
+export function getClientBalanceFromLedgerEntries(entries: ClientLedgerEntry[]): {
+  balance: number;
+  credit: number;
+  debit: number;
+} {
+  if (entries.length === 0) {
+    return { balance: 0, credit: 0, debit: 0 };
+  }
+
+  const credit = entries.reduce((sum, entry) => sum + (entry.credit || 0), 0);
+  const debit = entries.reduce((sum, entry) => sum + (entry.debit || 0), 0);
+  return {
+    balance: entries[entries.length - 1].balance,
+    credit,
+    debit,
+  };
+}
+
+/** Fetch ledger entries for a client from all modules. */
+export async function fetchClientLedgerEntries(client: ClientLedgerClient): Promise<ClientLedgerEntry[]> {
+  const data = await fetchAllModuleHistoryData();
+  return buildClientLedgerEntries(client, data);
 }
 
 /** Match ledger row against any visible/searchable value (name, number, amount, date, etc.). */

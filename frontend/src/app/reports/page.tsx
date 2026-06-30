@@ -17,12 +17,9 @@ import { getHawalaEntries, HawalaEntry } from '@/lib/hawala';
 import { getSpecialEntries, SpecialEntry } from '@/lib/specialEntry';
 import { fetchAllModuleHistoryData } from '@/lib/fetch-all-history';
 import {
-  accountingEntryInvolvesClient,
-  isPartyNameMatch,
-  isTransactionReceiver,
-  isTransactionSender,
-  transactionInvolvesClient,
-} from '@/lib/client-match';
+  buildClientLedgerEntries,
+  getClientBalanceFromLedgerEntries,
+} from '@/lib/client-ledger';
 import { compareEntriesByTimeAsc } from '@/lib/entry-sort';
 import { getStoredCommissions } from '@/lib/transaction-commission-display';
 import { showErrorToast, showSuccessToast, Toaster } from '@/lib/toast';
@@ -262,87 +259,23 @@ export default function ReportsPage() {
     }
   };
 
-  // Fetch all client balances - OPTIMIZED: Batch fetch all data upfront instead of N+1 queries
+  // Fetch all client balances using the same ledger logic as the client ledger view
   const fetchAllClientBalances = async (clientList: any[]) => {
     const balances: Record<string, { balance: number; credit: number; debit: number }> = {};
 
     try {
-      const {
-        transactions: allTxns,
-        accounting: allAccEntries,
-        hawala: allHawalaEntries,
-        specialEntry: allSplEntries,
-      } = await fetchAllModuleHistoryData();
+      const moduleData = await fetchAllModuleHistoryData();
 
-      // Calculate balances for all clients in memory
       for (const client of clientList) {
-        const clientRef = {
-          id: client.id,
-          name: client.name,
-          knownNames: client.knownNames || [client.name],
-        };
-        let totalCredit = 0;
-        let totalDebit = 0;
-
-        // Process transactions
-        allTxns.forEach(txn => {
-          if (!transactionInvolvesClient(txn, clientRef)) return;
-
-          if (txn.type === 'OUTWARD') {
-            if (txn.amountType === 'CREDIT' && isTransactionSender(txn, clientRef)) {
-              totalDebit += (txn.amount || 0) + (txn.commission || 0);
-            } else {
-              totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
-            }
-          } else if (txn.type === 'INWARD') {
-            if (txn.amountType === 'CREDIT' && isTransactionReceiver(txn, clientRef)) {
-              totalCredit += (txn.amount || 0);
-            } else {
-              totalDebit += (txn.amount || 0);
-            }
-          }
-        });
-
-        // Process accounting entries
-        allAccEntries.forEach(entry => {
-          if (!accountingEntryInvolvesClient(entry, clientRef)) return;
-
-          if (entry.type === 'INCOME') {
-            totalCredit += entry.creditAmount || entry.amount || 0;
-          } else if (entry.type === 'EXPENSE') {
-            totalDebit += entry.debitAmount || entry.amount || 0;
-          }
-        });
-
-        // Process hawala entries
-        allHawalaEntries.forEach(entry => {
-          if (isPartyNameMatch(entry.partyA, clientRef)) {
-            totalCredit += entry.amount || 0;
-          }
-          if (isPartyNameMatch(entry.partyB, clientRef)) {
-            totalDebit += entry.amount || 0;
-          }
-        });
-
-        // Process special entries
-        allSplEntries.forEach(entry => {
-          if (isPartyNameMatch(entry.partyA, clientRef)) {
-            totalDebit += entry.amountA || 0;
-          }
-          if (isPartyNameMatch(entry.partyB, clientRef)) {
-            totalCredit += entry.amountB || 0;
-          }
-          if (isPartyNameMatch(entry.partyC, clientRef)) {
-            const amountC = entry.amountC || 0;
-            if (amountC > 0) {
-              totalCredit += amountC;
-            } else {
-              totalDebit += Math.abs(amountC);
-            }
-          }
-        });
-
-        balances[client.id] = { balance: totalCredit - totalDebit, credit: totalCredit, debit: totalDebit };
+        const entries = buildClientLedgerEntries(
+          {
+            id: client.id,
+            name: client.name,
+            knownNames: client.knownNames || [client.name],
+          },
+          moduleData,
+        );
+        balances[client.id] = getClientBalanceFromLedgerEntries(entries);
       }
 
       setClientBalances(balances);

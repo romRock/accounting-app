@@ -73,66 +73,90 @@ export default function BalanceSheetPage() {
     }
   };
 
-  // Same balance logic as client ledger view and customer report
-  const calculateClientBalance = (client: any, moduleData: ModuleHistoryData) => {
-    const entries = buildClientLedgerEntries(
-      {
-        id: client.id,
-        name: client.name,
-        knownNames: client.knownNames || [client.name],
+  // Shared builder: client ledger logic → income/expense sides (screen + Excel + PDF)
+  const buildBalanceSheetData = (
+    allClients: Array<{ id: string; name: string; knownNames?: string[] }>,
+    moduleData: ModuleHistoryData,
+  ): BalanceSheetData => {
+    const incomeEntries: BalanceSheetEntry[] = [];
+    const expenseEntries: BalanceSheetEntry[] = [];
+
+    for (const client of allClients) {
+      const entries = buildClientLedgerEntries(
+        {
+          id: client.id,
+          name: client.name,
+          knownNames: client.knownNames || [client.name],
+        },
+        moduleData,
+      );
+      const { balance } = getClientBalanceFromLedgerEntries(entries);
+
+      if (balance < 0) {
+        incomeEntries.push({
+          accountName: client.name,
+          amount: Math.abs(balance),
+        });
+      } else if (balance > 0) {
+        expenseEntries.push({
+          accountName: client.name,
+          amount: balance,
+        });
+      }
+    }
+
+    return { incomeEntries, expenseEntries };
+  };
+
+  const sortBalanceSheetEntries = (entries: BalanceSheetEntry[]) => {
+    if (!sortConfig) return entries;
+
+    return [...entries].sort((a, b) => {
+      const aValue = sortConfig.key === 'accountName' ? a.accountName : a.amount;
+      const bValue = sortConfig.key === 'accountName' ? b.accountName : b.amount;
+
+      if (aValue < bValue) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  };
+
+  const buildExportRows = (data: BalanceSheetData) => {
+    const sortedIncome = sortBalanceSheetEntries(data.incomeEntries);
+    const sortedExpense = sortBalanceSheetEntries(data.expenseEntries);
+    const totalIncome = data.incomeEntries.reduce((sum, entry) => sum + entry.amount, 0);
+    const totalExpense = data.expenseEntries.reduce((sum, entry) => sum + entry.amount, 0);
+
+    return {
+      sortedIncome,
+      sortedExpense,
+      totals: {
+        totalIncome,
+        totalExpense,
+        netPayable: totalExpense - totalIncome,
       },
-      moduleData,
-    );
-    return getClientBalanceFromLedgerEntries(entries);
+      maxRows: Math.max(sortedIncome.length, sortedExpense.length),
+    };
   };
 
   // Fetch balance sheet data from clients
   const fetchBalanceSheet = async () => {
     setLoading(true);
     try {
-      // First, fetch all module data once (5 API calls total)
       const moduleData = await fetchAllModuleData();
-
-      // Then get clients and calculate balances using fetched data
       const allClients = await transactionApi.getClients();
-      const incomeEntries: BalanceSheetEntry[] = [];
-      const expenseEntries: BalanceSheetEntry[] = [];
+      const sheetData = buildBalanceSheetData(allClients, moduleData);
 
-      for (const client of allClients) {
-        const balanceData = calculateClientBalance(client, moduleData);
-        const balance = balanceData.balance;
-
-        if (balance < 0) {
-          // Negative balance = money to collect = income side
-          incomeEntries.push({
-            accountName: client.name,
-            amount: Math.abs(balance)
-          });
-        } else if (balance > 0) {
-          // Positive balance = money to pay = expense side
-          expenseEntries.push({
-            accountName: client.name,
-            amount: balance
-          });
-        }
-        // Zero balance clients are not shown (as per customer report behavior)
-      }
-
-      console.log('Balance sheet calculated:', {
-        incomeCount: incomeEntries.length,
-        expenseCount: expenseEntries.length,
-        totalClients: allClients.length
-      });
-
-      setBalanceSheetData({
-        incomeEntries,
-        expenseEntries
-      });
+      setBalanceSheetData(sheetData);
     } catch (error) {
       console.error('Failed to fetch balance sheet data:', error);
       setBalanceSheetData({
         incomeEntries: [],
-        expenseEntries: []
+        expenseEntries: [],
       });
     } finally {
       setLoading(false);
@@ -161,23 +185,8 @@ export default function BalanceSheetPage() {
     setSortConfig({ key, direction });
   };
 
-  // Sort entries
-  const sortEntries = (entries: BalanceSheetEntry[]) => {
-    if (!sortConfig) return entries;
-
-    return [...entries].sort((a, b) => {
-      const aValue = sortConfig.key === 'accountName' ? a.accountName : a.amount;
-      const bValue = sortConfig.key === 'accountName' ? b.accountName : b.amount;
-
-      if (aValue < bValue) {
-        return sortConfig.direction === 'asc' ? -1 : 1;
-      }
-      if (aValue > bValue) {
-        return sortConfig.direction === 'asc' ? 1 : -1;
-      }
-      return 0;
-    });
-  };
+  // Sort entries for on-screen table
+  const sortEntries = sortBalanceSheetEntries;
 
   const escapeCSV = (value: string | number) => {
     const str = String(value);
@@ -194,25 +203,7 @@ export default function BalanceSheetPage() {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
 
-  const buildExportRows = useCallback(() => {
-    const sortedIncome = sortEntries(balanceSheetData.incomeEntries);
-    const sortedExpense = sortEntries(balanceSheetData.expenseEntries);
-    const totals = {
-      totalIncome: balanceSheetData.incomeEntries.reduce((sum, entry) => sum + entry.amount, 0),
-      totalExpense: balanceSheetData.expenseEntries.reduce((sum, entry) => sum + entry.amount, 0),
-      netPayable: 0 as number,
-    };
-    totals.netPayable = totals.totalExpense - totals.totalIncome;
-
-    return {
-      sortedIncome,
-      sortedExpense,
-      totals,
-      maxRows: Math.max(sortedIncome.length, sortedExpense.length),
-    };
-  }, [balanceSheetData, sortConfig]); // sortEntries uses sortConfig
-
-  const generatePDF = useCallback((exportRows: ReturnType<typeof buildExportRows>) => {
+  const generatePDF = (exportRows: ReturnType<typeof buildExportRows>) => {
     const { sortedIncome, sortedExpense, totals, maxRows } = exportRows;
     const generatedOn = formatDate(new Date());
 
@@ -276,8 +267,10 @@ export default function BalanceSheetPage() {
               `;
             }).join('')}
             <tr class="totals">
-              <td class="text-left" colspan="3">Net Payable</td>
-              <td class="text-right">${formatCurrency(totals.netPayable)}</td>
+              <td class="text-left">TOTALS</td>
+              <td class="text-right">${formatCurrency(totals.totalIncome)}</td>
+              <td class="text-left">TOTALS</td>
+              <td class="text-right">${formatCurrency(totals.totalExpense)}</td>
             </tr>
           </tbody>
         </table>
@@ -296,14 +289,17 @@ export default function BalanceSheetPage() {
     } else {
       alert('Please allow popups to generate PDF');
     }
-  }, []);
+  };
 
-  // Export functionality
-  const exportBalanceSheet = useCallback((format: 'excel' | 'pdf') => {
+  // Export — recalculate with same ledger logic as on-screen balance sheet
+  const exportBalanceSheet = useCallback(async (format: 'excel' | 'pdf') => {
     setExporting(true);
 
     try {
-      const exportRows = buildExportRows();
+      const moduleData = await fetchAllModuleData();
+      const allClients = await transactionApi.getClients();
+      const freshData = buildBalanceSheetData(allClients, moduleData);
+      const exportRows = buildExportRows(freshData);
       const { sortedIncome, sortedExpense, totals, maxRows } = exportRows;
 
       if (format === 'excel') {
@@ -333,7 +329,7 @@ export default function BalanceSheetPage() {
           headerRow,
           ...dataRows,
           '',
-          ['Net Payable', '', '', formatCurrency(totals.netPayable)].map(escapeCSV).join(','),
+          ['TOTALS', formatCurrency(totals.totalIncome), 'TOTALS', formatCurrency(totals.totalExpense)].map(escapeCSV).join(','),
         ].join('\n');
 
         const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -354,7 +350,7 @@ export default function BalanceSheetPage() {
     } finally {
       setExporting(false);
     }
-  }, [buildExportRows, generatePDF]);
+  }, [sortConfig]);
 
   // Listen for tab changes from header
   useEffect(() => {

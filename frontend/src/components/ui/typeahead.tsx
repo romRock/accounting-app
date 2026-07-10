@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { Input } from './input';
 import { Label } from './label';
 import { City } from '@/lib/transactions';
+import { useBranchStore } from '@/store/branch-store';
 
 interface TypeaheadProps {
   id: string;
@@ -39,6 +40,7 @@ export function CityTypeahead({
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const activeBranchId = useBranchStore((s) => s.activeTransactionBranchId);
   
   const localInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -47,6 +49,10 @@ export function CityTypeahead({
 
   // Use external ref if provided, otherwise use internal ref
   const finalInputRef = inputRef || localInputRef;
+
+  useEffect(() => {
+    setResults([]);
+  }, [activeBranchId]);
 
   // Expose the input ref to parent component when inputRef is provided
   useEffect(() => {

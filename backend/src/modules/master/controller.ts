@@ -5,6 +5,11 @@ import { invalidateCachePattern } from '../../middlewares/cache';
 import { syncPartyNameReferences, syncPartyNameByClientId, syncAllPartyNameAliases } from '../../lib/party-name-sync';
 import { backfillTransactionClientIdsForParty } from '../../lib/resolve-party-client';
 import { buildPartyAliasMap, getPartyKnownNames } from '../../lib/party-name-aliases';
+import {
+  applyMasterBranchListFilter,
+  canModifyBranchRecord,
+  resolveActiveTransactionBranchId,
+} from '../../utils/branchScope';
 import bcrypt from 'bcryptjs';
 
 // PrismaClient singleton pattern to prevent connection exhaustion
@@ -41,23 +46,33 @@ const assertCanModifyBranchRecord = (
   req: Request,
   recordBranchId: string | null | undefined
 ) => {
-  if (isSuperAdminUser(req)) return;
-  if (!req.user?.branchId) {
-    throw createError('Insufficient permissions', 403);
-  }
-  if (recordBranchId !== req.user.branchId) {
+  if (!canModifyBranchRecord(req, recordBranchId)) {
     throw createError('Cannot modify data from another branch', 403);
   }
 };
 
-const resolveBranchIdForWrite = (
+const resolveBranchIdForWrite = async (
   req: Request,
   requestedBranchId?: string | null
-): string | null | undefined => {
+): Promise<string | null | undefined> => {
   if (isSuperAdminUser(req)) {
     return requestedBranchId ?? null;
   }
-  return req.user?.branchId ?? null;
+
+  const assigned = req.user?.assignedBranchIds ?? [];
+  if (requestedBranchId) {
+    if (assigned.length > 0 && !assigned.includes(requestedBranchId)) {
+      throw createError('Branch not assigned to user', 403);
+    }
+    return requestedBranchId;
+  }
+
+  try {
+    const active = await resolveActiveTransactionBranchId(req, prisma);
+    return active ?? req.user?.branchId ?? null;
+  } catch {
+    return req.user?.branchId ?? null;
+  }
 };
 
 const branchDuplicateScope = (branchId: string | null | undefined) =>
@@ -837,14 +852,15 @@ export const getCities = async (req: Request, res: Response) => {
     const isSuperAdmin = isSuperAdminUser(req);
     const branchIdParam = getFirstValue(branchIdQuery);
 
-    if (isSuperAdmin) {
-      if (branchIdParam) {
-        where.branchId = branchIdParam;
-      }
-    } else if (req.user?.branchId) {
-      where.branchId = req.user.branchId;
-    } else {
-      where.branchId = 'non-existent-branch-id-to-return-empty';
+    applyMasterBranchListFilter(where, req, {
+      branchIdQuery: branchIdParam,
+      permissions: req.user?.role?.permissions,
+    });
+
+    // Super-admin without query still unrestricted (applyMaster already no-ops);
+    // keep explicit branchIdParam path for clarity when isSuperAdmin + param.
+    if (isSuperAdmin && branchIdParam) {
+      where.branchId = branchIdParam;
     }
 
     if (search) {
@@ -899,15 +915,20 @@ export const createCity = async (req: Request, res: Response) => {
     const { name, code, state, branchId } = req.body;
     const userId = req.user?.id;
 
-    const cityBranchId = resolveBranchIdForWrite(req, branchId);
+    const cityBranchId = await resolveBranchIdForWrite(req, branchId);
+    const cityName = typeof name === 'string' ? name.trim() : name;
+    const cityCode = typeof code === 'string' ? code.trim() : code;
 
-    // Duplicate name/code only within the same branch
+    // Duplicate name/code only within the same branch (same values OK in other branches)
     const existingCity = await prisma.city.findFirst({
       where: {
-        OR: [{ name }, { code }],
         isActive: true,
         isDeleted: false,
         ...branchDuplicateScope(cityBranchId),
+        OR: [
+          { name: { equals: cityName, mode: 'insensitive' } },
+          { code: { equals: cityCode, mode: 'insensitive' } },
+        ],
       },
     });
 
@@ -917,8 +938,8 @@ export const createCity = async (req: Request, res: Response) => {
 
     const city = await prisma.city.create({
       data: {
-        name,
-        code,
+        name: cityName,
+        code: cityCode,
         state,
         branchId: cityBranchId,
       },
@@ -961,10 +982,17 @@ export const updateCity = async (req: Request, res: Response) => {
 
     // Duplicate name/code only within the same branch
     if (name || code) {
-      const scopeBranchId =
-        isSuperAdminUser(req) && branchId !== undefined
-          ? branchId
-          : existingCity.branchId;
+      let scopeBranchId = existingCity.branchId;
+      if (branchId !== undefined) {
+        if (isSuperAdminUser(req)) {
+          scopeBranchId = branchId;
+        } else if (
+          branchId &&
+          (req.user?.assignedBranchIds ?? []).includes(branchId)
+        ) {
+          scopeBranchId = branchId;
+        }
+      }
 
       const duplicateCity = await prisma.city.findFirst({
         where: {
@@ -975,8 +1003,12 @@ export const updateCity = async (req: Request, res: Response) => {
             branchDuplicateScope(scopeBranchId),
             {
               OR: [
-                name ? { name } : {},
-                code ? { code } : {},
+                name
+                  ? { name: { equals: String(name).trim(), mode: 'insensitive' as const } }
+                  : {},
+                code
+                  ? { code: { equals: String(code).trim(), mode: 'insensitive' as const } }
+                  : {},
               ].filter((condition) => Object.keys(condition).length > 0),
             },
           ],
@@ -988,13 +1020,25 @@ export const updateCity = async (req: Request, res: Response) => {
       }
     }
 
+    let nextBranchId: string | null | undefined = undefined;
+    if (branchId !== undefined) {
+      if (isSuperAdminUser(req)) {
+        nextBranchId = branchId;
+      } else if (
+        branchId &&
+        (req.user?.assignedBranchIds ?? []).includes(branchId)
+      ) {
+        nextBranchId = branchId;
+      }
+    }
+
     const city = await prisma.city.update({
       where: { id: cityId },
       data: {
         name,
         code,
         state,
-        ...(isSuperAdminUser(req) && branchId !== undefined ? { branchId } : {}),
+        ...(nextBranchId !== undefined ? { branchId: nextBranchId } : {}),
       },
     });
 
@@ -1098,14 +1142,13 @@ export const getParties = async (req: Request, res: Response) => {
     const isSuperAdmin = isSuperAdminUser(req);
     const branchIdParam = getFirstValue(branchIdQuery);
 
-    if (isSuperAdmin) {
-      if (branchIdParam) {
-        where.branchId = branchIdParam;
-      }
-    } else if (req.user?.branchId) {
-      where.branchId = req.user.branchId;
-    } else {
-      where.branchId = 'non-existent-branch-id-to-return-empty';
+    applyMasterBranchListFilter(where, req, {
+      branchIdQuery: branchIdParam,
+      permissions: req.user?.role?.permissions,
+    });
+
+    if (isSuperAdmin && branchIdParam) {
+      where.branchId = branchIdParam;
     }
 
     if (search) {
@@ -1170,7 +1213,22 @@ export const createParty = async (req: Request, res: Response) => {
     } = req.body;
 
     // If branchId not provided, use user's branchId (branch users) or explicit branch (super admin)
-    const partyBranchId = resolveBranchIdForWrite(req, branchId);
+    const partyBranchId = await resolveBranchIdForWrite(req, branchId);
+
+    // Same client name is allowed in other branches — only block within this branch
+    if (name?.trim()) {
+      const existingParty = await prisma.party.findFirst({
+        where: {
+          name: { equals: name.trim(), mode: 'insensitive' },
+          isActive: true,
+          isDeleted: false,
+          ...branchDuplicateScope(partyBranchId),
+        },
+      });
+      if (existingParty) {
+        throw createError('Client with this name already exists in this branch', 409);
+      }
+    }
 
     const party = await prisma.party.create({
       data: {
@@ -1233,6 +1291,36 @@ export const updateParty = async (req: Request, res: Response) => {
 
     assertCanModifyBranchRecord(req, existingParty.branchId);
 
+    let nextPartyBranchId: string | null | undefined = undefined;
+    if (branchId !== undefined) {
+      if (isSuperAdminUser(req)) {
+        nextPartyBranchId = branchId;
+      } else if (
+        branchId &&
+        (req.user?.assignedBranchIds ?? []).includes(branchId)
+      ) {
+        nextPartyBranchId = branchId;
+      }
+    }
+
+    const scopeBranchId =
+      nextPartyBranchId !== undefined ? nextPartyBranchId : existingParty.branchId;
+
+    if (name?.trim()) {
+      const duplicateParty = await prisma.party.findFirst({
+        where: {
+          id: { not: partyId },
+          name: { equals: name.trim(), mode: 'insensitive' },
+          isActive: true,
+          isDeleted: false,
+          ...branchDuplicateScope(scopeBranchId),
+        },
+      });
+      if (duplicateParty) {
+        throw createError('Client with this name already exists in this branch', 409);
+      }
+    }
+
     const party = await prisma.party.update({
       where: { id: partyId },
       data: {
@@ -1243,26 +1331,29 @@ export const updateParty = async (req: Request, res: Response) => {
         panNumber,
         gstNumber,
         city,
-        ...(isSuperAdminUser(req) && branchId !== undefined ? { branchId } : {}),
+        ...(nextPartyBranchId !== undefined ? { branchId: nextPartyBranchId } : {}),
       },
     });
+
+    const effectiveBranchId =
+      nextPartyBranchId !== undefined ? nextPartyBranchId : existingParty.branchId;
 
     if (name && name !== existingParty.name) {
       await syncPartyNameReferences(prisma, {
         partyId,
         oldName: existingParty.name,
         newName: name,
-        branchId: existingParty.branchId,
+        branchId: effectiveBranchId,
       });
     }
 
-    await syncAllPartyNameAliases(prisma, partyId, party.name, existingParty.branchId);
+    await syncAllPartyNameAliases(prisma, partyId, party.name, effectiveBranchId);
     await syncPartyNameByClientId(prisma, partyId, party.name);
     await backfillTransactionClientIdsForParty(
       prisma,
       partyId,
       await getPartyKnownNames(prisma, partyId),
-      existingParty.branchId,
+      effectiveBranchId,
     );
 
     // Invalidate parties cache after successful update
@@ -1861,13 +1952,9 @@ export const searchCities = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    // Filter by branch if user has branchId assigned
-    if (req.user?.branchId) {
-      where.branchId = req.user.branchId;
-      console.log("Filtering by branchId:", req.user.branchId);
-    } else {
-      console.log("No branchId assigned to user - showing all cities");
-    }
+    applyMasterBranchListFilter(where, req, {
+      permissions: req.user?.role?.permissions,
+    });
 
     // Build search conditions
     if (searchValue && searchValue.trim()) {
@@ -1996,13 +2083,9 @@ export const searchParties = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    // Filter by branch if user has branchId assigned
-    if (req.user?.branchId) {
-      where.branchId = req.user.branchId;
-      console.log("Filtering by branchId:", req.user.branchId);
-    } else {
-      console.log("No branchId assigned to user - showing all parties");
-    }
+    applyMasterBranchListFilter(where, req, {
+      permissions: req.user?.role?.permissions,
+    });
 
     // Build search conditions
     if (searchValue && searchValue.trim()) {
@@ -2041,6 +2124,7 @@ export const searchParties = async (req: Request, res: Response) => {
         phone: true,
         email: true,
         city: true,
+        branchId: true,
         createdAt: true,
         updatedAt: true,
       },

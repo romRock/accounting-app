@@ -84,7 +84,15 @@ interface ReportFilters {
   status: string;
 }
 
-const BRANCH_FILTER_REPORTS: ReportType[] = ['outward', 'inward', 'combo', 'amount-type'];
+const BRANCH_FILTER_REPORTS: ReportType[] = [
+  'outward',
+  'inward',
+  'combo',
+  'amount-type',
+  'transaction',
+  'customer',
+  'transaction-refund',
+];
 
 interface ReportData {
   id?: string;
@@ -250,7 +258,10 @@ export default function ReportsPage() {
   // Fetch all clients
   const fetchClients = async () => {
     try {
-      const allClients = await transactionApi.getClients();
+      const branchOpts = getReportBranchOptions();
+      const allClients = await transactionApi.getClients(
+        branchOpts ?? { useDefaultBranchHeader: false }
+      );
       setClients(allClients);
       return allClients;
     } catch (error) {
@@ -264,7 +275,10 @@ export default function ReportsPage() {
     const balances: Record<string, { balance: number; credit: number; debit: number }> = {};
 
     try {
-      const moduleData = await fetchAllModuleHistoryData();
+      const branchOpts = getReportBranchOptions();
+      const moduleData = await fetchAllModuleHistoryData(
+        branchOpts ?? { useDefaultBranchHeader: false }
+      );
 
       for (const client of clientList) {
         const entries = buildClientLedgerEntries(
@@ -272,6 +286,7 @@ export default function ReportsPage() {
             id: client.id,
             name: client.name,
             knownNames: client.knownNames || [client.name],
+            branchId: client.branchId || branchOpts?.branchId,
           },
           moduleData,
         );
@@ -349,7 +364,10 @@ export default function ReportsPage() {
         setReportData([]); // unified table renders from txnReportRows
       } else if (activeReport === 'transaction-refund') {
         // Transaction Refund Report - fetch deleted entries (defaults to last 7 days)
-        const refundData = await transactionApi.getTransactionRefundReport(); // No date parameter - uses default 7-day range
+        const refundData = await transactionApi.getTransactionRefundReport(
+          undefined,
+          getReportBranchOptions()
+        ); // No date parameter - uses default 7-day range
         setRefundReportData(refundData.deletedEntries || []);
         setRefundSummary(refundData.summary || null);
         setReportData([]); // no regular data for this report
@@ -407,21 +425,22 @@ export default function ReportsPage() {
         endDate,
       );
       const dateRange = { from: dateFrom, to: dateTo };
+      const branchOpts = getReportBranchOptions();
 
       const [txnRes, accRes, hawalaRes, splRes] = await Promise.allSettled([
         // Transactions: get both INWARD and OUTWARD, exclude CASH later
         Promise.all([
-          transactionApi.getTransactions({ type: 'OUTWARD', page: 1, limit: 500, dateFrom, dateTo }),
-          transactionApi.getTransactions({ type: 'INWARD', page: 1, limit: 500, dateFrom, dateTo }),
+          transactionApi.getTransactions({ type: 'OUTWARD', page: 1, limit: 500, dateFrom, dateTo }, branchOpts),
+          transactionApi.getTransactions({ type: 'INWARD', page: 1, limit: 500, dateFrom, dateTo }, branchOpts),
         ]),
         accountingApi.getAccountEntries({
           page: 1,
           limit: 500,
           dateFrom,
           dateTo,
-        }),
-        getHawalaEntries({ page: 1, limit: 500, dateFrom, dateTo }),
-        getSpecialEntries({ page: 1, limit: 500, dateFrom, dateTo }),
+        }, branchOpts),
+        getHawalaEntries({ page: 1, limit: 500, dateFrom, dateTo }, branchOpts),
+        getSpecialEntries({ page: 1, limit: 500, dateFrom, dateTo }, branchOpts),
       ]);
 
       const rows: TxnReportRow[] = [];
@@ -1515,6 +1534,38 @@ export default function ReportsPage() {
     <div className="bg-white min-h-screen w-full">
       <div className="pt-16 space-y-4 sm:space-y-6">
 
+        {/* Branch-only filter for Customer & Refund reports (main Filters card is hidden for these) */}
+        {(activeReport === 'customer' || activeReport === 'transaction-refund') &&
+          assignedBranches.length > 0 && (
+          <Card className="shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative z-10">
+            <CardContent className="pt-6">
+              <div className="max-w-xs">
+                <Label htmlFor="reportBranchStandalone" className="text-sm font-medium text-gray-700">
+                  Branch
+                </Label>
+                {assignedBranches.length === 1 ? (
+                  <div className="mt-1 flex h-10 items-center rounded-md border border-gray-300 bg-gray-50 px-3 text-sm font-medium text-gray-900">
+                    {assignedBranches[0].name} ({assignedBranches[0].code})
+                  </div>
+                ) : (
+                  <select
+                    id="reportBranchStandalone"
+                    value={filters.branchId || assignedBranches[0]?.id || ''}
+                    onChange={(e) => setFilters({ ...filters, branchId: e.target.value })}
+                    className="mt-1 w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-black text-sm"
+                  >
+                    {assignedBranches.map((branch) => (
+                      <option key={branch.id} value={branch.id}>
+                        {branch.name} ({branch.code})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Filter Section */}
         {activeReport !== 'transaction-refund' && activeReport !== 'customer' && (
           <Card className={`shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative overflow-visible ${
@@ -1629,7 +1680,7 @@ export default function ReportsPage() {
                   )}
                 </div>
 
-                {/* Branch Filter - Booking, Cutting, Combo, Amount Type */}
+                {/* Branch Filter — all report types */}
                 {BRANCH_FILTER_REPORTS.includes(activeReport) && assignedBranches.length > 0 && (
                   <div>
                     <Label htmlFor="reportBranch" className="text-sm font-medium text-gray-700">Branch</Label>

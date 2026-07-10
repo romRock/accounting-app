@@ -1,5 +1,9 @@
 import API_BASE_URL, { safeJsonStringify } from './api';
 import { useAuthStore } from '@/store';
+import {
+  BranchRequestOptions,
+  resolveBranchRequestHeaders,
+} from './branch-headers';
 
 // Accounting Entry Types
 export interface AccountingEntry {
@@ -79,17 +83,20 @@ const getAuthToken = () => {
 // Accounting Entry API
 export const accountingApi = {
   // Get all accounting entries
-  getAccountEntries: async (params?: {
-    page?: number;
-    limit?: number;
-    categoryId?: string;
-    type?: string;
-    partyId?: string;
-    dateFrom?: string;
-    dateTo?: string;
-    search?: string;
-    allDates?: boolean;
-  }): Promise<{ entries: AccountingEntry[]; pagination: any }> => {
+  getAccountEntries: async (
+    params?: {
+      page?: number;
+      limit?: number;
+      categoryId?: string;
+      type?: string;
+      partyId?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      search?: string;
+      allDates?: boolean;
+    },
+    options?: BranchRequestOptions
+  ): Promise<{ entries: AccountingEntry[]; pagination: any }> => {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
@@ -109,6 +116,7 @@ export const accountingApi = {
         headers: {
           'Authorization': `Bearer ${getAuthToken()}`,
           'Content-Type': 'application/json',
+          ...resolveBranchRequestHeaders(options),
         },
         cache: 'no-store',
       }
@@ -128,6 +136,7 @@ export const accountingApi = {
       headers: {
         'Authorization': `Bearer ${getAuthToken()}`,
         'Content-Type': 'application/json',
+        ...resolveBranchRequestHeaders(),
       },
       body: safeJsonStringify(data),
     });
@@ -144,6 +153,7 @@ export const accountingApi = {
       headers: {
         'Authorization': `Bearer ${getAuthToken()}`,
         'Content-Type': 'application/json',
+        ...resolveBranchRequestHeaders(),
       },
     });
 
@@ -161,6 +171,7 @@ export const accountingApi = {
       headers: {
         'Authorization': `Bearer ${getAuthToken()}`,
         'Content-Type': 'application/json',
+        ...resolveBranchRequestHeaders(),
       },
       body: safeJsonStringify(data),
     });
@@ -179,6 +190,7 @@ export const accountingApi = {
       headers: {
         'Authorization': `Bearer ${getAuthToken()}`,
         'Content-Type': 'application/json',
+        ...resolveBranchRequestHeaders(),
       },
     });
 

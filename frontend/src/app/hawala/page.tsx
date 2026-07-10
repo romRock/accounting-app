@@ -17,6 +17,8 @@ import { DatePicker } from '@/components/ui/date-picker';
 import API_BASE_URL from '@/lib/api';
 import { useAuthStore } from '@/store/index';
 import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
+import { getActiveBranchHeaders } from '@/lib/branch-headers';
+import { useBranchStore } from '@/store/branch-store';
 
 // Get auth token from store (same as transactions)
 const getAuthToken = () => {
@@ -143,6 +145,7 @@ export default function HawalaPage() {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
+          ...getActiveBranchHeaders(),
         },
       });
       const result = await response.json();
@@ -183,6 +186,7 @@ export default function HawalaPage() {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
+            ...getActiveBranchHeaders(),
           },
         });
         const result = await response.json();
@@ -251,9 +255,61 @@ export default function HawalaPage() {
     }
   };
 
+  // Refetch when branch changes from header
+  const activeBranchId = useBranchStore((s) => s.activeTransactionBranchId);
+
   useEffect(() => {
     void fetchHawalaEntries();
-  }, [filterByDate, dateFilter, startDate, endDate, isSelectingRange]);
+  }, [filterByDate, dateFilter, startDate, endDate, isSelectingRange, activeBranchId]);
+
+  useEffect(() => {
+    const handleBranchChange = async () => {
+      await fetchHawalaEntries();
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      const parts = formatter.formatToParts(now);
+      const year = parts.find((p) => p.type === 'year')?.value;
+      const month = parts.find((p) => p.type === 'month')?.value;
+      const day = parts.find((p) => p.type === 'day')?.value;
+      const today = `${year}-${month}-${day}`;
+      await fetchNextTokenForDate(today);
+      try {
+        const token = getAuthToken();
+        const response = await fetch(
+          `${API_BASE_URL}/api/hawala/next-ids?date=${today}&type=INWARD`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              ...getActiveBranchHeaders(),
+            },
+          }
+        );
+        const result = await response.json();
+        if (result.success) {
+          setFormData((prev) => ({
+            ...prev,
+            transactionId: result.nextTransactionId,
+            tokenNo: result.nextTokenNo,
+          }));
+        }
+      } catch {
+        // keep current form ids
+      }
+    };
+
+    window.addEventListener('setActiveBranch', handleBranchChange as EventListener);
+    window.addEventListener('setTransactionBranch', handleBranchChange as EventListener);
+    return () => {
+      window.removeEventListener('setActiveBranch', handleBranchChange as EventListener);
+      window.removeEventListener('setTransactionBranch', handleBranchChange as EventListener);
+    };
+  }, []);
 
   const entryMatchesSearch = (entry: HawalaEntry) =>
     matchesTableSearch(
@@ -468,6 +524,7 @@ export default function HawalaPage() {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
+            ...getActiveBranchHeaders(),
           },
         });
         const result = await response.json();

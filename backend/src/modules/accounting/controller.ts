@@ -3,8 +3,9 @@ import { PrismaClient } from '@prisma/client';
 import { createError } from '../../middlewares/errorHandler';
 import {
   applyEntryBranchScope,
+  getActiveBranchHeaderFromRequest,
   isSuperAdminUser,
-  resolveUserBranchId,
+  resolveActiveTransactionBranchId,
 } from '../../utils/branchScope';
 
 const prisma = new PrismaClient();
@@ -587,7 +588,7 @@ export const createAccountEntry = async (req: Request, res: Response) => {
       entryId,
     } = req.body;
     const userId = req.user?.id;
-    const branchId = await resolveUserBranchId(prisma, userId!, req.user?.branchId);
+    const branchId = await resolveActiveTransactionBranchId(req, prisma);
 
     // Validate required fields
     if (!date || !categoryId || !amount || !type) {
@@ -839,7 +840,21 @@ export const getAccountEntries = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin, req.user?.assignedBranchIds);
+    const useActiveBranchOnly =
+      !isSuperAdmin &&
+      (getActiveBranchHeaderFromRequest(req) != null || allDates !== 'true');
+    const activeBranchId = useActiveBranchOnly
+      ? await resolveActiveTransactionBranchId(req, prisma)
+      : null;
+
+    await applyEntryBranchScope(
+      where,
+      prisma,
+      userBranchId,
+      isSuperAdmin,
+      req.user?.assignedBranchIds,
+      activeBranchId
+    );
 
     // Map accounting params to AccountEntry fields
     if (categoryId) where.categoryId = categoryId as string;

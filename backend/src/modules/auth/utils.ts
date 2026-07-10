@@ -38,22 +38,29 @@ export const verifyRefreshToken = (token: string): JWTPayload | null => {
   }
 };
 
-/** True when this session id is the user's only active server session (single-device login). */
+/**
+ * True when this exact session is still active for this user.
+ * Other users' sessions are never affected — only this userId + sessionId pair.
+ * Re-login for the same user deletes their older sessions (see auth login).
+ */
 export const isCurrentUserSession = async (
   userId: string,
   sessionId: string
 ): Promise<boolean> => {
-  const activeSession = await prisma.userSession.findFirst({
+  if (!userId || !sessionId) return false;
+
+  const session = await prisma.userSession.findFirst({
     where: {
+      id: sessionId,
       userId,
       isActive: true,
       isDeleted: false,
       expiresAt: { gt: new Date() },
     },
-    orderBy: { createdAt: 'desc' },
+    select: { id: true },
   });
 
-  return activeSession?.id === sessionId;
+  return session !== null;
 };
 
 export const generateTransactionId = (): string => {

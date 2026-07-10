@@ -42,7 +42,7 @@ export default function LayoutWrapper({
     }
   }, [user]);
 
-  // Single-session: verify with server so another-device login clears this tab
+  // Per-user single-device: if THIS user logs in elsewhere, clear this tab only
   useEffect(() => {
     if (!isHydrated || pathname === '/login') return;
 
@@ -601,8 +601,9 @@ export default function LayoutWrapper({
   </svg>
 </Button>
               
-              {/* Transaction Tabs - Only show on transactions page with RBAC */}
-              {pathname === '/transactions' && assignedBranches.length > 0 && (
+              {/* Branch selector — transactions, accounting, hawala, special entry */}
+              {['/transactions', '/accounting', '/hawala', '/spl'].includes(pathname) &&
+                assignedBranches.length > 0 && (
                 <div className="flex items-center space-x-3">
                   {assignedBranches.length === 1 ? (
                     <div className="relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md px-4 py-2 font-medium text-sm bg-orange-600 border-orange-400 text-white">
@@ -613,6 +614,9 @@ export default function LayoutWrapper({
                       value={activeTransactionBranchId || assignedBranches[0]?.id || ''}
                       onChange={(e) => {
                         setActiveTransactionBranchId(e.target.value);
+                        window.dispatchEvent(
+                          new CustomEvent('setActiveBranch', { detail: e.target.value })
+                        );
                         window.dispatchEvent(
                           new CustomEvent('setTransactionBranch', { detail: e.target.value })
                         );
@@ -627,7 +631,12 @@ export default function LayoutWrapper({
                       ))}
                     </select>
                   )}
+                </div>
+              )}
 
+              {/* Transaction Tabs - Only show on transactions page with RBAC */}
+              {pathname === '/transactions' && (
+                <div className="flex items-center space-x-3">
                   {hasPermission('transactions', 'outward') && (
                     <button
                       onClick={() => {

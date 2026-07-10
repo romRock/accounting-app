@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/store';
+import { useBranchStore } from '@/store/branch-store';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { fetchAllModuleHistoryData, ModuleHistoryData } from '@/lib/fetch-all-history';
 import { transactionApi } from '@/lib/transactions';
@@ -31,9 +31,13 @@ interface SortConfig {
   direction: 'asc' | 'desc';
 }
 
+const ALL_BRANCHES = 'all';
+
 export default function BalanceSheetPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
+  const assignedBranches = useBranchStore((s) => s.assignedBranches);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
   const [balanceSheetData, setBalanceSheetData] = useState<BalanceSheetData>({
     incomeEntries: [],
     expenseEntries: []
@@ -55,10 +59,27 @@ export default function BalanceSheetPage() {
     specialEntry: []
   });
 
+  // Default to first allowed branch; allow explicit "all"
+  useEffect(() => {
+    if (assignedBranches.length === 0) return;
+    setSelectedBranchId((prev) => {
+      if (prev === ALL_BRANCHES) return prev;
+      if (prev && assignedBranches.some((b) => b.id === prev)) return prev;
+      return assignedBranches[0].id;
+    });
+  }, [assignedBranches]);
+
+  const getBranchFetchOptions = useCallback(() => {
+    if (!selectedBranchId || selectedBranchId === ALL_BRANCHES) {
+      return { useDefaultBranchHeader: false as const };
+    }
+    return { branchId: selectedBranchId };
+  }, [selectedBranchId]);
+
   // Fetch all module data (paginated under the hood — no record cap)
-  const fetchAllModuleData = async () => {
+  const fetchAllModuleData = useCallback(async () => {
     try {
-      const moduleData = await fetchAllModuleHistoryData();
+      const moduleData = await fetchAllModuleHistoryData(getBranchFetchOptions());
 
       setCachedData(moduleData);
       return moduleData;
@@ -71,11 +92,11 @@ export default function BalanceSheetPage() {
         specialEntry: []
       };
     }
-  };
+  }, [getBranchFetchOptions]);
 
   // Shared builder: client ledger logic → income/expense sides (screen + Excel + PDF)
   const buildBalanceSheetData = (
-    allClients: Array<{ id: string; name: string; knownNames?: string[] }>,
+    allClients: Array<{ id: string; name: string; knownNames?: string[]; branchId?: string }>,
     moduleData: ModuleHistoryData,
   ): BalanceSheetData => {
     const incomeEntries: BalanceSheetEntry[] = [];
@@ -87,6 +108,9 @@ export default function BalanceSheetPage() {
           id: client.id,
           name: client.name,
           knownNames: client.knownNames || [client.name],
+          branchId:
+            client.branchId ||
+            (selectedBranchId !== ALL_BRANCHES ? selectedBranchId : undefined),
         },
         moduleData,
       );
@@ -144,11 +168,12 @@ export default function BalanceSheetPage() {
   };
 
   // Fetch balance sheet data from clients
-  const fetchBalanceSheet = async () => {
+  const fetchBalanceSheet = useCallback(async () => {
+    if (!selectedBranchId) return;
     setLoading(true);
     try {
       const moduleData = await fetchAllModuleData();
-      const allClients = await transactionApi.getClients();
+      const allClients = await transactionApi.getClients(getBranchFetchOptions());
       const sheetData = buildBalanceSheetData(allClients, moduleData);
 
       setBalanceSheetData(sheetData);
@@ -161,7 +186,7 @@ export default function BalanceSheetPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedBranchId, fetchAllModuleData, getBranchFetchOptions]);
 
   // Calculate totals
   const calculateTotals = () => {
@@ -297,7 +322,7 @@ export default function BalanceSheetPage() {
 
     try {
       const moduleData = await fetchAllModuleData();
-      const allClients = await transactionApi.getClients();
+      const allClients = await transactionApi.getClients(getBranchFetchOptions());
       const freshData = buildBalanceSheetData(allClients, moduleData);
       const exportRows = buildExportRows(freshData);
       const { sortedIncome, sortedExpense, totals, maxRows } = exportRows;
@@ -350,7 +375,7 @@ export default function BalanceSheetPage() {
     } finally {
       setExporting(false);
     }
-  }, [sortConfig]);
+  }, [sortConfig, fetchAllModuleData, getBranchFetchOptions]);
 
   // Listen for tab changes from header
   useEffect(() => {
@@ -371,14 +396,15 @@ export default function BalanceSheetPage() {
     };
   }, [exportBalanceSheet]);
 
-  // Auto-load data on component mount
+  // Auto-load data on component mount / branch change
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/login');
       return;
     }
-    fetchBalanceSheet();
-  }, [isAuthenticated, router]);
+    if (!selectedBranchId) return;
+    void fetchBalanceSheet();
+  }, [isAuthenticated, router, selectedBranchId, fetchBalanceSheet]);
 
   if (!isAuthenticated) {
     return null;
@@ -404,8 +430,33 @@ export default function BalanceSheetPage() {
     <div className="bg-white min-h-screen w-full">
       <div className="pt-16 space-y-4 sm:space-y-6">
 
-        {/* Summary Card - Net Payable Only */}
-        <div className="flex justify-center mt-4">
+        {/* Branch (left) + Net Payable (main) — one row */}
+        <div className="flex flex-wrap items-center justify-center gap-4 mt-4 px-4 relative">
+          {assignedBranches.length > 0 && (
+            <div className="w-full max-w-[200px] sm:absolute sm:left-4 sm:top-1/2 sm:-translate-y-1/2 sm:w-auto sm:min-w-[180px]">
+              {assignedBranches.length === 1 ? (
+                <div className="flex h-12 items-center rounded-2xl border-2 border-orange-300 bg-orange-50 px-4 text-sm font-semibold text-orange-900">
+                  {assignedBranches[0].name} ({assignedBranches[0].code})
+                </div>
+              ) : (
+                <select
+                  id="balanceSheetBranch"
+                  aria-label="Select branch"
+                  value={selectedBranchId || assignedBranches[0]?.id || ''}
+                  onChange={(e) => setSelectedBranchId(e.target.value)}
+                  className="h-12 w-full min-w-[180px] rounded-2xl border-2 border-orange-300 bg-white px-4 text-sm font-semibold text-gray-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200"
+                >
+                  {assignedBranches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name} ({branch.code})
+                    </option>
+                  ))}
+                  <option value={ALL_BRANCHES}>All branches</option>
+                </select>
+              )}
+            </div>
+          )}
+
           <div className={`px-8 py-4 rounded-2xl font-bold text-3xl shadow-md border-2 backdrop-blur-md ${
             totals.netPayable > 0
               ? 'bg-gradient-to-r from-green-400/80 to-green-600/80 border-green-700 text-white'

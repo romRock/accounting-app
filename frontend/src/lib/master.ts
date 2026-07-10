@@ -1,5 +1,6 @@
 import API_BASE_URL, { safeJsonStringify } from './api';
 import { useAuthStore } from '@/store';
+import { getBranchHeadersForId } from './branch-headers';
 
 export interface MasterCity {
   id: string;
@@ -25,11 +26,12 @@ export interface MasterParty {
   updatedAt?: string;
 }
 
-const authHeaders = (): HeadersInit => {
+const authHeaders = (branchId?: string | null): HeadersInit => {
   const { accessToken } = useAuthStore.getState();
   return {
     'Content-Type': 'application/json',
     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    ...getBranchHeadersForId(branchId),
   };
 };
 
@@ -42,7 +44,7 @@ export const masterApi = {
 
     const response = await fetch(`${API_BASE_URL}/api/master/cities?${qs.toString()}`, {
       method: 'GET',
-      headers: authHeaders(),
+      headers: authHeaders(params?.branchId),
     });
 
     if (!response.ok) {
@@ -57,7 +59,7 @@ export const masterApi = {
   async createCity(payload: { name: string; code: string; state: string; branchId?: string }): Promise<MasterCity> {
     const response = await fetch(`${API_BASE_URL}/api/master/cities`, {
       method: 'POST',
-      headers: authHeaders(),
+      headers: authHeaders(payload.branchId),
       body: safeJsonStringify(payload),
     });
 
@@ -76,7 +78,7 @@ export const masterApi = {
   ): Promise<MasterCity> {
     const response = await fetch(`${API_BASE_URL}/api/master/cities/${id}`, {
       method: 'PUT',
-      headers: authHeaders(),
+      headers: authHeaders(payload.branchId),
       body: safeJsonStringify(payload),
     });
 
@@ -89,10 +91,10 @@ export const masterApi = {
     return data.city;
   },
 
-  async deleteCity(id: string): Promise<void> {
+  async deleteCity(id: string, branchId?: string): Promise<void> {
     const response = await fetch(`${API_BASE_URL}/api/master/cities/${id}`, {
       method: 'DELETE',
-      headers: authHeaders(),
+      headers: authHeaders(branchId),
     });
 
     if (!response.ok) {
@@ -108,7 +110,7 @@ export const masterApi = {
 
     const response = await fetch(`${API_BASE_URL}/api/master/parties?${qs.toString()}`, {
       method: 'GET',
-      headers: authHeaders(),
+      headers: authHeaders(params?.branchId),
     });
 
     if (!response.ok) {
@@ -130,7 +132,7 @@ export const masterApi = {
   }): Promise<MasterParty> {
     const response = await fetch(`${API_BASE_URL}/api/master/parties`, {
       method: 'POST',
-      headers: authHeaders(),
+      headers: authHeaders(payload.branchId),
       body: safeJsonStringify(payload),
     });
 
@@ -149,7 +151,7 @@ export const masterApi = {
   ): Promise<MasterParty> {
     const response = await fetch(`${API_BASE_URL}/api/master/parties/${id}`, {
       method: 'PUT',
-      headers: authHeaders(),
+      headers: authHeaders(payload.branchId),
       body: safeJsonStringify(payload),
     });
 
@@ -162,10 +164,10 @@ export const masterApi = {
     return data.party;
   },
 
-  async deleteParty(id: string): Promise<void> {
+  async deleteParty(id: string, branchId?: string): Promise<void> {
     const response = await fetch(`${API_BASE_URL}/api/master/parties/${id}`, {
       method: 'DELETE',
-      headers: authHeaders(),
+      headers: authHeaders(branchId),
     });
 
     if (!response.ok) {
@@ -174,4 +176,3 @@ export const masterApi = {
     }
   },
 };
-

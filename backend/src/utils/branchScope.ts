@@ -191,3 +191,73 @@ export async function resolveUserBranchId(
 
   return user?.branchId ?? null;
 }
+
+/** Read X-Active-Branch-Id without falling back to first assigned. */
+export function getActiveBranchHeaderFromRequest(req: Request): string | null {
+  const headerValue = req.headers[ACTIVE_BRANCH_HEADER];
+  const headerBranchId = Array.isArray(headerValue)
+    ? headerValue[0]
+    : headerValue;
+  return headerBranchId || null;
+}
+
+/**
+ * Master list scope: active header → that branch;
+ * else all assigned branches; super admin optional query branchId.
+ */
+export function applyMasterBranchListFilter(
+  where: Record<string, unknown>,
+  req: Request,
+  options?: { branchIdQuery?: string | null; permissions?: unknown }
+): void {
+  const permissions = options?.permissions ?? req.user?.role?.permissions;
+  const assigned = req.user?.assignedBranchIds ?? [];
+
+  if (options?.branchIdQuery) {
+    if (!isSuperAdminUser(permissions)) {
+      if (assigned.length > 0 && !assigned.includes(options.branchIdQuery)) {
+        throw createError('Branch not assigned to user', 403);
+      }
+    }
+    where.branchId = options.branchIdQuery;
+    return;
+  }
+
+  if (isSuperAdminUser(permissions)) {
+    return;
+  }
+
+  const headerBranchId = getActiveBranchHeaderFromRequest(req);
+
+  if (headerBranchId) {
+    if (assigned.length > 0 && !assigned.includes(headerBranchId)) {
+      throw createError('Branch not assigned to user', 403);
+    }
+    where.branchId = headerBranchId;
+    return;
+  }
+
+  if (assigned.length === 1) {
+    where.branchId = assigned[0];
+  } else if (assigned.length > 1) {
+    where.branchId = { in: assigned };
+  } else if (req.user?.branchId) {
+    where.branchId = req.user.branchId;
+  } else {
+    where.branchId = EMPTY_BRANCH_SCOPE;
+  }
+}
+
+/** Whether the user may modify a record belonging to recordBranchId. */
+export function canModifyBranchRecord(
+  req: Request,
+  recordBranchId: string | null | undefined,
+  permissions?: unknown
+): boolean {
+  if (isSuperAdminUser(permissions ?? req.user?.role?.permissions)) return true;
+
+  const assigned = req.user?.assignedBranchIds ?? [];
+  if (recordBranchId && assigned.includes(recordBranchId)) return true;
+  if (recordBranchId && recordBranchId === req.user?.branchId) return true;
+  return false;
+}

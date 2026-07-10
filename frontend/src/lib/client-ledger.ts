@@ -42,6 +42,7 @@ export interface ClientLedgerClient {
   id: string;
   name: string;
   knownNames?: string[];
+  branchId?: string;
   createdAt?: string;
   mobileNumber?: string;
 }
@@ -119,6 +120,7 @@ export function buildClientLedgerEntries(
     id: client.id,
     name: client.name,
     knownNames: client.knownNames || [client.name],
+    branchId: client.branchId,
   };
   const branchLookup = getBranchCodeLookup();
 
@@ -199,8 +201,8 @@ export function buildClientLedgerEntries(
   });
 
   hawalaEntries.forEach((entry) => {
-    const isPartyA = isPartyNameMatch(entry.partyA, clientRef);
-    const isPartyB = isPartyNameMatch(entry.partyB, clientRef);
+    const isPartyA = isPartyNameMatch(entry.partyA, clientRef, entry.branchId);
+    const isPartyB = isPartyNameMatch(entry.partyB, clientRef, entry.branchId);
 
     if (isPartyA || isPartyB) {
       const isCredit = isPartyA;
@@ -224,9 +226,9 @@ export function buildClientLedgerEntries(
   });
 
   splEntries.forEach((entry) => {
-    const isPartyA = isPartyNameMatch(entry.partyA, clientRef);
-    const isPartyB = isPartyNameMatch(entry.partyB, clientRef);
-    const isPartyC = isPartyNameMatch(entry.partyC, clientRef);
+    const isPartyA = isPartyNameMatch(entry.partyA, clientRef, entry.branchId);
+    const isPartyB = isPartyNameMatch(entry.partyB, clientRef, entry.branchId);
+    const isPartyC = isPartyNameMatch(entry.partyC, clientRef, entry.branchId);
 
     if (isPartyA || isPartyB || isPartyC) {
       let isCredit = false;
@@ -295,9 +297,13 @@ export function getClientBalanceFromLedgerEntries(entries: ClientLedgerEntry[]):
   };
 }
 
-/** Fetch ledger entries for a client from all modules. */
+/** Fetch ledger entries for a client from all modules (scoped to the client's branch). */
 export async function fetchClientLedgerEntries(client: ClientLedgerClient): Promise<ClientLedgerEntry[]> {
-  const data = await fetchAllModuleHistoryData();
+  const data = await fetchAllModuleHistoryData(
+    client.branchId
+      ? { branchId: client.branchId }
+      : { useDefaultBranchHeader: false }
+  );
   return buildClientLedgerEntries(client, data);
 }
 

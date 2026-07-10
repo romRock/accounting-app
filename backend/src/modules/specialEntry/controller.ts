@@ -4,8 +4,9 @@ import { generateAuditLog } from '../audit/auditService';
 import { token } from 'morgan';
 import {
   applyEntryBranchScope,
+  getActiveBranchHeaderFromRequest,
   isSuperAdminUser,
-  resolveUserBranchId,
+  resolveActiveTransactionBranchId,
 } from '../../utils/branchScope';
 
 const prisma = new PrismaClient();
@@ -67,7 +68,7 @@ async function generateSpecialEntryTokenNo(date?: string, branchId?: string): Pr
 export const getSpecialEntryNextIds = async (req: Request, res: Response) => {
   try {
     const { date } = req.query;
-    const branchId = req.user?.branchId;
+    const branchId = await resolveActiveTransactionBranchId(req, prisma);
 
     const dateStr = (date as string) || new Date().toISOString().split('T')[0];
     const nextTokenNo = await generateSpecialEntryTokenNo(dateStr, branchId || undefined);
@@ -124,8 +125,22 @@ export const getSpecialEntries = async (req: Request, res: Response) => {
       isDeleted: false
     };
 
+    const useActiveBranchOnly =
+      !isSuperAdmin &&
+      (getActiveBranchHeaderFromRequest(req) != null || allDates !== 'true');
+    const activeBranchId = useActiveBranchOnly
+      ? await resolveActiveTransactionBranchId(req, prisma)
+      : null;
+
     // Filter by branch if user is not Super Admin
-    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin, req.user?.assignedBranchIds);
+    await applyEntryBranchScope(
+      where,
+      prisma,
+      userBranchId,
+      isSuperAdmin,
+      req.user?.assignedBranchIds,
+      activeBranchId
+    );
 
     // Add search filter
     if (search) {
@@ -246,11 +261,7 @@ export const createSpecialEntry = async (req: Request, res: Response) => {
       createdBy
     } = req.body;
 
-    const userBranchId = await resolveUserBranchId(
-      prisma,
-      req.user?.id || '',
-      req.user?.branchId
-    );
+    const userBranchId = await resolveActiveTransactionBranchId(req, prisma);
 
     // Validation
     if (!date || !time || !partyA || !partyB || !partyC || !amountA || !amountB || !amountC) {
@@ -292,9 +303,32 @@ export const createSpecialEntry = async (req: Request, res: Response) => {
     // Create client ledger entries for Special Entry - BATCHED for performance
     try {
       const [partyAEntity, partyBEntity, partyCEntity] = await Promise.all([
-        prisma.party.findFirst({ where: { name: partyA } }),
-        prisma.party.findFirst({ where: { name: partyB } }),
-        partyC ? prisma.party.findFirst({ where: { name: partyC } }) : Promise.resolve(null)
+        prisma.party.findFirst({
+          where: {
+            name: partyA,
+            isActive: true,
+            isDeleted: false,
+            ...(userBranchId ? { branchId: userBranchId } : {}),
+          },
+        }),
+        prisma.party.findFirst({
+          where: {
+            name: partyB,
+            isActive: true,
+            isDeleted: false,
+            ...(userBranchId ? { branchId: userBranchId } : {}),
+          },
+        }),
+        partyC
+          ? prisma.party.findFirst({
+              where: {
+                name: partyC,
+                isActive: true,
+                isDeleted: false,
+                ...(userBranchId ? { branchId: userBranchId } : {}),
+              },
+            })
+          : Promise.resolve(null),
       ]);
 
       const ledgerPromises = [];

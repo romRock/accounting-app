@@ -1,6 +1,6 @@
 // Real transaction API service for backend
 import API_BASE_URL, { safeJsonStringify } from './api';
-import { getBranchHeadersForId, getTransactionBranchHeaders } from './branch-headers';
+import { getBranchHeadersForId, getTransactionBranchHeaders, resolveBranchRequestHeaders } from './branch-headers';
 import { useAuthStore } from '../store/index';
 
 export interface Transaction {
@@ -57,6 +57,7 @@ interface Client {
   mobileNumber: string;
   city: string;
   notes?: string;
+  branchId?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -197,6 +198,7 @@ export const transactionApi = {
     const { accessToken } = useAuthStore.getState();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      ...getTransactionBranchHeaders(),
     };
 
     if (accessToken) {
@@ -221,11 +223,11 @@ export const transactionApi = {
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      ...getTransactionBranchHeaders(),
     };
     
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
-      } else {
     }
     
     const response = await fetch(`${API_BASE_URL}/api/cities/add`, {
@@ -248,11 +250,11 @@ export const transactionApi = {
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      ...getTransactionBranchHeaders(),
     };
     
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
-      } else {
     }
     
     const response = await fetch(`${API_BASE_URL}/api/cities/update`, {
@@ -300,11 +302,11 @@ export const transactionApi = {
 
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      ...getTransactionBranchHeaders(),
     };
     
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
-      } else {
     }
     
     const response = await fetch(`${API_BASE_URL}/api/clients/add`, {
@@ -327,11 +329,11 @@ export const transactionApi = {
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      ...getTransactionBranchHeaders(),
     };
     
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
-      } else {
     }
     
     const response = await fetch(`${API_BASE_URL}/api/clients/update`, {
@@ -373,10 +375,14 @@ export const transactionApi = {
     }
   },
 
-  async getClients(): Promise<Client[]> {
+  async getClients(options?: {
+    branchId?: string | null;
+    useDefaultBranchHeader?: boolean;
+  }): Promise<Client[]> {
     const { accessToken } = useAuthStore.getState();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      ...resolveBranchRequestHeaders(options),
     };
 
     if (accessToken) {
@@ -400,6 +406,7 @@ export const transactionApi = {
       name: string;
       phone?: string;
       city?: string;
+      branchId?: string | null;
       knownNames?: string[];
       createdAt?: string | Date;
       updatedAt?: string | Date;
@@ -409,6 +416,7 @@ export const transactionApi = {
       knownNames: party.knownNames || [party.name],
       mobileNumber: party.phone || '',
       city: party.city || '',
+      branchId: party.branchId || undefined,
       createdAt:
         party.createdAt instanceof Date
           ? party.createdAt.toISOString()
@@ -618,22 +626,26 @@ export const transactionApi = {
   },
 
   // Transaction Refund Report API
-  async getTransactionRefundReport(date?: string): Promise<any> {
+  async getTransactionRefundReport(
+    date?: string,
+    options?: { branchId?: string | null; useDefaultBranchHeader?: boolean }
+  ): Promise<any> {
     const { accessToken } = useAuthStore.getState();
-    
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      ...resolveBranchRequestHeaders(options),
     };
-    
+
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
     }
-    
+
     const url = new URL(`${API_BASE_URL}/api/reports/transaction-refund`);
     if (date) {
       url.searchParams.append('date', date);
     }
-    
+
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: headers,

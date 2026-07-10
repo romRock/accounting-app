@@ -141,7 +141,7 @@ export const useAuthStore = create<AuthState>()(
         } catch (error) {
           const message = error instanceof Error ? error.message : '';
 
-          if (message.includes('Token expired')) {
+          if (message.includes('Token expired') || message.includes('jwt expired')) {
             try {
               await refreshAccessToken();
               const newToken = get().accessToken;
@@ -149,19 +149,31 @@ export const useAuthStore = create<AuthState>()(
                 await authApi.getProfile(newToken);
                 return true;
               }
-            } catch {
-              await logout();
-              return false;
+            } catch (refreshError) {
+              const refreshMessage =
+                refreshError instanceof Error ? refreshError.message : '';
+              // Only force logout when this user's session was revoked / invalid
+              if (
+                isSessionRevokedError(refreshMessage) ||
+                refreshMessage.includes('Invalid refresh token') ||
+                refreshMessage.includes('Refresh token required')
+              ) {
+                await logout();
+                return false;
+              }
+              // Transient failure — keep this user's local session
+              return true;
             }
           }
 
-          if (isSessionRevokedError(message)) {
+          // Same credentials used on another device (this user only)
+          if (isSessionRevokedError(message) || message.includes('Invalid token')) {
             await logout();
             return false;
           }
 
-          await logout();
-          return false;
+          // Network / server blips must not log this user out (or affect others)
+          return true;
         }
       },
 

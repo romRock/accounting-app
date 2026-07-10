@@ -1,6 +1,10 @@
 // Special Entry API service
 import API_BASE_URL, { safeJsonStringify } from './api';
 import { useAuthStore } from '../store/index';
+import {
+  BranchRequestOptions,
+  resolveBranchRequestHeaders,
+} from './branch-headers';
 
 export interface SpecialEntry {
   id: string;
@@ -51,17 +55,20 @@ export interface SpecialEntryCreateRequest {
 }
 
 // Get all special entries
-export const getSpecialEntries = async (params?: {
-  page?: number;
-  limit?: number;
-  search?: string;
-  dateFrom?: string;
-  dateTo?: string;
-  partyA?: string;
-  partyB?: string;
-  status?: 'all' | 'pending' | 'completed';
-  allDates?: boolean;
-}): Promise<SpecialEntryResponse> => {
+export const getSpecialEntries = async (
+  params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    partyA?: string;
+    partyB?: string;
+    status?: 'all' | 'pending' | 'completed';
+    allDates?: boolean;
+  },
+  options?: BranchRequestOptions
+): Promise<SpecialEntryResponse> => {
   try {
     const queryParams = new URLSearchParams();
     
@@ -78,6 +85,7 @@ export const getSpecialEntries = async (params?: {
     const { accessToken } = useAuthStore.getState();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      ...resolveBranchRequestHeaders(options),
     };
     
     if (accessToken) {
@@ -107,6 +115,7 @@ export const getSpecialEntryById = async (id: string): Promise<SpecialEntry> => 
     const { accessToken } = useAuthStore.getState();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      ...resolveBranchRequestHeaders(),
     };
     
     if (accessToken) {
@@ -137,6 +146,7 @@ export const createSpecialEntry = async (data: SpecialEntryCreateRequest): Promi
     const { accessToken } = useAuthStore.getState();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      ...resolveBranchRequestHeaders(),
     };
     
     if (accessToken) {
@@ -168,6 +178,7 @@ export const updateSpecialEntry = async (id: string, data: Partial<SpecialEntryC
     const { accessToken } = useAuthStore.getState();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      ...resolveBranchRequestHeaders(),
     };
     
     if (accessToken) {
@@ -199,6 +210,7 @@ export const deleteSpecialEntry = async (id: string): Promise<void> => {
     const { accessToken } = useAuthStore.getState();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      ...resolveBranchRequestHeaders(),
     };
     
     if (accessToken) {

@@ -34,12 +34,17 @@ export async function fetchAllModuleData(): Promise<ModuleDataCache> {
 }
 
 export function calculateClientBalance(
-  client: { id?: string; name: string; knownNames?: string[] },
+  client: { id?: string; name: string; knownNames?: string[]; branchId?: string },
   moduleData: ModuleDataCache,
 ) {
   let totalCredit = 0;
   let totalDebit = 0;
-  const clientRef = { id: client.id || '', name: client.name, knownNames: client.knownNames || [client.name] };
+  const clientRef = {
+    id: client.id || '',
+    name: client.name,
+    knownNames: client.knownNames || [client.name],
+    branchId: client.branchId,
+  };
 
   moduleData.transactions.forEach((txn: any) => {
     if (!transactionInvolvesClient(txn, clientRef)) return;
@@ -70,22 +75,22 @@ export function calculateClientBalance(
   });
 
   moduleData.hawala.forEach((entry: any) => {
-    if (isPartyNameMatch(entry.partyA, clientRef)) {
+    if (isPartyNameMatch(entry.partyA, clientRef, entry.branchId)) {
       totalCredit += entry.amount || 0;
     }
-    if (isPartyNameMatch(entry.partyB, clientRef)) {
+    if (isPartyNameMatch(entry.partyB, clientRef, entry.branchId)) {
       totalDebit += entry.amount || 0;
     }
   });
 
   moduleData.specialEntry.forEach((entry: any) => {
-    if (isPartyNameMatch(entry.partyA, clientRef)) {
+    if (isPartyNameMatch(entry.partyA, clientRef, entry.branchId)) {
       totalDebit += entry.amountA || 0;
     }
-    if (isPartyNameMatch(entry.partyB, clientRef)) {
+    if (isPartyNameMatch(entry.partyB, clientRef, entry.branchId)) {
       totalCredit += entry.amountB || 0;
     }
-    if (isPartyNameMatch(entry.partyC, clientRef)) {
+    if (isPartyNameMatch(entry.partyC, clientRef, entry.branchId)) {
       const amountC = entry.amountC || 0;
       if (amountC > 0) {
         totalCredit += amountC;

@@ -3,8 +3,9 @@ import { PrismaClient } from '@prisma/client';
 import { generateAuditLog } from '../audit/auditService';
 import {
   applyEntryBranchScope,
+  getActiveBranchHeaderFromRequest,
   isSuperAdminUser,
-  resolveUserBranchId,
+  resolveActiveTransactionBranchId,
 } from '../../utils/branchScope';
 
 const prisma = new PrismaClient();
@@ -80,11 +81,7 @@ export const createHawala = async (req: Request, res: Response) => {
     // Get authenticated user from JWT token
     const authenticatedUser = (req as any).user;
     const createdBy = authenticatedUser?.id || 'system';
-    const userBranchId = await resolveUserBranchId(
-      prisma,
-      authenticatedUser?.id || '',
-      authenticatedUser?.branchId
-    );
+    const userBranchId = await resolveActiveTransactionBranchId(req, prisma);
 
     // Validate required fields (transactionId is optional - backend will generate it)
     if (!date || !time || !partyA || !partyB || !amount) {
@@ -146,8 +143,22 @@ export const createHawala = async (req: Request, res: Response) => {
     // Create client ledger entries for Hawala - BATCHED for performance
     try {
       const [partyAEntity, partyBEntity] = await Promise.all([
-        prisma.party.findFirst({ where: { name: partyA } }),
-        prisma.party.findFirst({ where: { name: partyB } })
+        prisma.party.findFirst({
+          where: {
+            name: partyA,
+            isActive: true,
+            isDeleted: false,
+            ...(userBranchId ? { branchId: userBranchId } : {}),
+          },
+        }),
+        prisma.party.findFirst({
+          where: {
+            name: partyB,
+            isActive: true,
+            isDeleted: false,
+            ...(userBranchId ? { branchId: userBranchId } : {}),
+          },
+        }),
       ]);
 
       const ledgerPromises = [];
@@ -255,8 +266,22 @@ export const getHawalaEntries = async (req: Request, res: Response) => {
       isDeleted: false
     };
 
+    const useActiveBranchOnly =
+      !isSuperAdmin &&
+      (getActiveBranchHeaderFromRequest(req) != null || allDates !== 'true');
+    const activeBranchId = useActiveBranchOnly
+      ? await resolveActiveTransactionBranchId(req, prisma)
+      : null;
+
     // Filter by branch if user is not Super Admin
-    await applyEntryBranchScope(where, prisma, userBranchId, isSuperAdmin, req.user?.assignedBranchIds);
+    await applyEntryBranchScope(
+      where,
+      prisma,
+      userBranchId,
+      isSuperAdmin,
+      req.user?.assignedBranchIds,
+      activeBranchId
+    );
 
     // Add search filter
     if (search) {
@@ -435,10 +460,10 @@ export const updateHawala = async (req: Request, res: Response) => {
 export const getHawalaNextIds = async (req: Request, res: Response) => {
   try {
     const { date } = req.query;
-    const branchId = req.user?.branchId;
+    const branchId = await resolveActiveTransactionBranchId(req, prisma);
 
     const dateStr = (date as string) || new Date().toISOString().split('T')[0];
-    const nextTokenNo = await generateHawalaTokenNo(dateStr, branchId);
+    const nextTokenNo = await generateHawalaTokenNo(dateStr, branchId || undefined);
 
     // Get last hawala entry globally for transaction ID
     const lastGlobalHawala = await prisma.hawala.findFirst({

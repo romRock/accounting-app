@@ -38,7 +38,8 @@ export const login = async (req: Request, res: Response) => {
 
     const sessionExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-    // Single-device login: atomically revoke old sessions and create the new one
+    // Per-user single-device login: revoke ONLY this user's prior sessions.
+    // Other users (same branch or any branch) keep their sessions.
     const session = await prisma.$transaction(async (tx) => {
       await tx.userSession.deleteMany({
         where: { userId: user.id },

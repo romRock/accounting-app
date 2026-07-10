@@ -48,7 +48,7 @@ function ClientLedgerPageContent() {
     let cancelled = false;
     setLoading(true);
     transactionApi
-      .getClients()
+      .getClients({ useDefaultBranchHeader: false })
       .then((clients) => {
         if (cancelled) return;
         const match = clients.find((c) => c.id === clientId);
@@ -60,6 +60,7 @@ function ClientLedgerPageContent() {
             id: match.id,
             name: match.name,
             knownNames: match.knownNames || [match.name],
+            branchId: match.branchId,
             createdAt: match.createdAt,
             mobileNumber: match.mobileNumber,
           });

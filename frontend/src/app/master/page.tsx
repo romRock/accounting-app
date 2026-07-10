@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/store';
+import { useBranchStore } from '@/store/branch-store';
 import { formatDate } from '@/lib/utils';
 import { transactionApi } from '@/lib/transactions';
 import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
@@ -279,7 +280,17 @@ export default function MasterPage() {
     window.dispatchEvent(event);
   }, [isAuthenticated, user, activeTab]);
 
-  const getSuperAdminBranchId = () => (isSuperAdmin() && branchFilterId ? branchFilterId : undefined);
+  const assignedBranches = useBranchStore((s) => s.assignedBranches);
+
+  /** Branches the current user can pick for cities/clients (all for super admin). */
+  const masterBranchOptions = isSuperAdmin()
+    ? branches.map((b) => ({ id: b.id, name: b.name, code: b.code }))
+    : assignedBranches.map((b) => ({ id: b.id, name: b.name, code: b.code }));
+
+  const getSelectedMasterBranchId = () => (branchFilterId ? branchFilterId : undefined);
+
+  const showMasterBranchPicker =
+    (hasMasterAccess('cities') || hasMasterAccess('clients')) && masterBranchOptions.length > 0;
 
   // Load real centers data
   const loadCenters = async () => {
@@ -287,7 +298,7 @@ export default function MasterPage() {
       console.log("=== MASTER PAGE: Loading centers ===");
       setCentersLoading(true);
 
-      const branchId = getSuperAdminBranchId();
+      const branchId = getSelectedMasterBranchId();
       const cities = await masterApi.getCities(branchId ? { branchId } : undefined);
       console.log("API returned cities:", cities.length, cities);
       
@@ -319,7 +330,7 @@ export default function MasterPage() {
     try {
       console.log("=== MASTER PAGE: Loading clients ===");
 
-      const branchId = getSuperAdminBranchId();
+      const branchId = getSelectedMasterBranchId();
       const parties = await masterApi.getParties(branchId ? { branchId } : undefined);
       console.log("API returned parties:", parties.length, parties);
 
@@ -578,14 +589,20 @@ export default function MasterPage() {
     if (hasMasterAccess('clients')) loadClients(); // "Clients" tab
     if (hasMasterAccess('roles')) loadRoles(); // "Roles" tab
     if (hasMasterAccess('users')) loadUsers(); // "Users" tab
-    if (hasMasterAccess('branches') || isSuperAdmin()) loadBranches(); // Branches list for super admin city/client assignment
+    if (hasMasterAccess('branches') || isSuperAdmin() || hasMasterAccess('cities') || hasMasterAccess('clients')) {
+      loadBranches(); // Branches list for city/client assignment
+    }
   }, [isAuthenticated, router, user, branchFilterId]);
 
-  // Default super admin branch filter to first branch
+  // Default branch filter to first available option
   useEffect(() => {
-    if (!isSuperAdmin() || branchFilterId || branches.length === 0) return;
-    setBranchFilterId(branches[0].id);
-  }, [branches, user, branchFilterId]);
+    if (masterBranchOptions.length === 0) return;
+    setBranchFilterId((prev) => {
+      if (prev && masterBranchOptions.some((b) => b.id === prev)) return prev;
+      if (isSuperAdmin() && prev === '') return prev;
+      return masterBranchOptions[0].id;
+    });
+  }, [branches, assignedBranches, user]);
 
   // Listen for tab changes from header
   useEffect(() => {
@@ -717,10 +734,10 @@ export default function MasterPage() {
                 code: centerForm.code!,
                 state: centerForm.city!,
               };
-              if (isSuperAdmin() && branchFilterId) {
-                createPayload.branchId = branchFilterId;
-              } else if (isSuperAdmin() && centerForm.branchId) {
-                createPayload.branchId = centerForm.branchId;
+              createPayload.branchId = centerForm.branchId || branchFilterId || undefined;
+              if (!createPayload.branchId && !isSuperAdmin()) {
+                showErrorToast('Please select a branch for this city');
+                return;
               }
               const newCity = await masterApi.createCity(createPayload);
 
@@ -732,6 +749,7 @@ export default function MasterPage() {
                 city: newCity.state,
                 address: newCity.address || `${newCity.name}, ${newCity.state}`,
                 contactNumber: newCity.number || 'N/A',
+                branchId: newCity.branchId || createPayload.branchId,
                 status: 'Active',
                 createdAt: newCity.createdAt || new Date().toISOString(),
                 updatedAt: newCity.updatedAt || new Date().toISOString()
@@ -773,10 +791,10 @@ export default function MasterPage() {
                 city: clientForm.city!,
                 address: clientForm.notes,
               };
-              if (isSuperAdmin() && branchFilterId) {
-                createPayload.branchId = branchFilterId;
-              } else if (isSuperAdmin() && clientForm.branchId) {
-                createPayload.branchId = clientForm.branchId;
+              createPayload.branchId = clientForm.branchId || branchFilterId || undefined;
+              if (!createPayload.branchId && !isSuperAdmin()) {
+                showErrorToast('Please select a branch for this client');
+                return;
               }
               const newClient = await masterApi.createParty(createPayload);
 
@@ -787,6 +805,7 @@ export default function MasterPage() {
                 mobileNumber: newClient.phone || '',
                 city: newClient.city || '',
                 notes: newClient.address || undefined,
+                branchId: newClient.branchId || createPayload.branchId,
                 createdAt: newClient.createdAt || new Date().toISOString(),
                 updatedAt: newClient.updatedAt || new Date().toISOString()
               };
@@ -889,9 +908,11 @@ export default function MasterPage() {
         break;
       case 'centers':
         setCenterForm(item);
+        if (item.branchId) setBranchFilterId(item.branchId);
         break;
       case 'clients':
         setClientForm(item);
+        if (item.branchId) setBranchFilterId(item.branchId);
         break;
       case 'branches':
         setBranchForm(item);
@@ -947,7 +968,8 @@ export default function MasterPage() {
           const deleteCity = async () => {
             try {
               setLoading(true);
-              await masterApi.deleteCity(id);
+              const existing = centers.find((c) => c.id === id);
+              await masterApi.deleteCity(id, existing?.branchId || branchFilterId || undefined);
               setCenters(centers.filter(c => c.id !== id));
               showDeleteToast('City deleted successfully!');
             } catch (error) {
@@ -969,7 +991,8 @@ export default function MasterPage() {
           const deleteClient = async () => {
             try {
               setLoading(true);
-              await masterApi.deleteParty(id);
+              const existing = clients.find((c) => c.id === id);
+              await masterApi.deleteParty(id, existing?.branchId || branchFilterId || undefined);
               setClients(clients.filter(c => c.id !== id));
               showDeleteToast('Client deleted successfully!');
             } catch (error) {
@@ -1106,11 +1129,7 @@ export default function MasterPage() {
               code: centerForm.code!,
               state: centerForm.city!,
             };
-            if (isSuperAdmin() && branchFilterId) {
-              updatePayload.branchId = branchFilterId;
-            } else if (isSuperAdmin() && centerForm.branchId) {
-              updatePayload.branchId = centerForm.branchId;
-            }
+            updatePayload.branchId = centerForm.branchId || branchFilterId || undefined;
             const updatedCity = await masterApi.updateCity(editingId!, updatePayload);
 
             // Convert to Center format and update local state
@@ -1121,6 +1140,7 @@ export default function MasterPage() {
               city: updatedCity.state,
               address: updatedCity.address || `${updatedCity.name}, ${updatedCity.state}`,
               contactNumber: updatedCity.number || 'N/A',
+              branchId: updatedCity.branchId || updatePayload.branchId,
               status: 'Active',
               createdAt: updatedCity.createdAt || new Date().toISOString(),
               updatedAt: updatedCity.updatedAt || new Date().toISOString()
@@ -1159,11 +1179,7 @@ export default function MasterPage() {
               city: clientForm.city!,
               address: clientForm.notes,
             };
-            if (isSuperAdmin() && branchFilterId) {
-              updatePayload.branchId = branchFilterId;
-            } else if (isSuperAdmin() && clientForm.branchId) {
-              updatePayload.branchId = clientForm.branchId;
-            }
+            updatePayload.branchId = clientForm.branchId || branchFilterId || undefined;
             const updatedClient = await masterApi.updateParty(editingId!, updatePayload);
 
             // Convert to Client format and update local state
@@ -1173,6 +1189,7 @@ export default function MasterPage() {
               mobileNumber: updatedClient.phone || '',
               city: updatedClient.city || '',
               notes: updatedClient.address || undefined,
+              branchId: updatedClient.branchId || undefined,
               createdAt: updatedClient.createdAt || new Date().toISOString(),
               updatedAt: updatedClient.updatedAt || new Date().toISOString()
             };
@@ -2112,24 +2129,33 @@ export default function MasterPage() {
             {/* CENTERS TAB */}
             {activeTab === 'centers' && hasMasterAccess('cities') && (
               <div className="space-y-6">
-                {isSuperAdmin() && (
+                {showMasterBranchPicker && (
                   <div className="bg-white p-4 rounded-lg border border-gray-200">
                     <Label htmlFor="centersBranchFilter" className="text-sm font-medium text-gray-700">
-                      Branch filter
+                      Branch
                     </Label>
-                    <select
-                      id="centersBranchFilter"
-                      value={branchFilterId}
-                      onChange={(e) => setBranchFilterId(e.target.value)}
-                      className="w-full max-w-md bg-white border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 h-10 px-3"
-                    >
-                      <option value="">All branches</option>
-                      {branches.map((branch) => (
-                        <option key={branch.id} value={branch.id}>
-                          {branch.name} ({branch.code})
-                        </option>
-                      ))}
-                    </select>
+                    {masterBranchOptions.length === 1 ? (
+                      <div className="mt-1 flex h-10 max-w-md items-center rounded-md border border-gray-300 bg-gray-50 px-3 text-sm font-medium text-gray-900">
+                        {masterBranchOptions[0].name} ({masterBranchOptions[0].code})
+                      </div>
+                    ) : (
+                      <select
+                        id="centersBranchFilter"
+                        value={branchFilterId}
+                        onChange={(e) => setBranchFilterId(e.target.value)}
+                        className="w-full max-w-md bg-white border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 h-10 px-3"
+                      >
+                        {isSuperAdmin() && <option value="">All branches</option>}
+                        {masterBranchOptions.map((branch) => (
+                          <option key={branch.id} value={branch.id}>
+                            {branch.name} ({branch.code})
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <p className="mt-1 text-xs text-gray-500">
+                      Cities are listed and saved for the selected branch.
+                    </p>
                   </div>
                 )}
                 {/* Center Form */}
@@ -2188,22 +2214,32 @@ export default function MasterPage() {
                         placeholder="Enter contact number"
                       />
                     </div>
-                    {isSuperAdmin() && (
+                    {showMasterBranchPicker && (
                       <div>
                         <Label htmlFor="centerBranch" className="text-sm font-medium text-gray-700">Branch</Label>
-                        <select
-                          id="centerBranch"
-                          value={centerForm.branchId || ''}
-                          onChange={(e) => setCenterForm({ ...centerForm, branchId: e.target.value || undefined })}
-                          className="w-full bg-white border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 h-10 px-3"
-                        >
-                          <option value="">Unassigned</option>
-                          {branches.map((branch) => (
-                            <option key={branch.id} value={branch.id}>
-                              {branch.name} ({branch.code})
-                            </option>
-                          ))}
-                        </select>
+                        {masterBranchOptions.length === 1 ? (
+                          <div className="mt-1 flex h-10 items-center rounded-md border border-gray-300 bg-gray-50 px-3 text-sm font-medium text-gray-900">
+                            {masterBranchOptions[0].name} ({masterBranchOptions[0].code})
+                          </div>
+                        ) : (
+                          <select
+                            id="centerBranch"
+                            value={centerForm.branchId || branchFilterId || ''}
+                            onChange={(e) => {
+                              const next = e.target.value || undefined;
+                              setCenterForm({ ...centerForm, branchId: next });
+                              if (next) setBranchFilterId(next);
+                            }}
+                            className="w-full bg-white border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 h-10 px-3"
+                          >
+                            {isSuperAdmin() && <option value="">Unassigned</option>}
+                            {masterBranchOptions.map((branch) => (
+                              <option key={branch.id} value={branch.id}>
+                                {branch.name} ({branch.code})
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
                     )}
                   </div>
@@ -2344,24 +2380,33 @@ export default function MasterPage() {
             {/* CLIENTS TAB */}
             {activeTab === 'clients' && hasMasterAccess('clients') && (
               <div className="space-y-6">
-                {isSuperAdmin() && (
+                {showMasterBranchPicker && (
                   <div className="bg-white p-4 rounded-lg border border-gray-200">
                     <Label htmlFor="clientsBranchFilter" className="text-sm font-medium text-gray-700">
-                      Branch filter
+                      Branch
                     </Label>
-                    <select
-                      id="clientsBranchFilter"
-                      value={branchFilterId}
-                      onChange={(e) => setBranchFilterId(e.target.value)}
-                      className="w-full max-w-md bg-white border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 h-10 px-3"
-                    >
-                      <option value="">All branches</option>
-                      {branches.map((branch) => (
-                        <option key={branch.id} value={branch.id}>
-                          {branch.name} ({branch.code})
-                        </option>
-                      ))}
-                    </select>
+                    {masterBranchOptions.length === 1 ? (
+                      <div className="mt-1 flex h-10 max-w-md items-center rounded-md border border-gray-300 bg-gray-50 px-3 text-sm font-medium text-gray-900">
+                        {masterBranchOptions[0].name} ({masterBranchOptions[0].code})
+                      </div>
+                    ) : (
+                      <select
+                        id="clientsBranchFilter"
+                        value={branchFilterId}
+                        onChange={(e) => setBranchFilterId(e.target.value)}
+                        className="w-full max-w-md bg-white border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 h-10 px-3"
+                      >
+                        {isSuperAdmin() && <option value="">All branches</option>}
+                        {masterBranchOptions.map((branch) => (
+                          <option key={branch.id} value={branch.id}>
+                            {branch.name} ({branch.code})
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <p className="mt-1 text-xs text-gray-500">
+                      Clients are listed and saved for the selected branch.
+                    </p>
                   </div>
                 )}
                 {/* Client Form */}
@@ -2411,22 +2456,32 @@ export default function MasterPage() {
                         placeholder="Enter notes"
                       />
                     </div>
-                    {isSuperAdmin() && (
+                    {showMasterBranchPicker && (
                       <div className="sm:col-span-2">
                         <Label htmlFor="clientBranch" className="text-sm font-medium text-gray-700">Branch</Label>
-                        <select
-                          id="clientBranch"
-                          value={clientForm.branchId || ''}
-                          onChange={(e) => setClientForm({ ...clientForm, branchId: e.target.value || undefined })}
-                          className="w-full bg-white border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 h-10 px-3"
-                        >
-                          <option value="">Unassigned</option>
-                          {branches.map((branch) => (
-                            <option key={branch.id} value={branch.id}>
-                              {branch.name} ({branch.code})
-                            </option>
-                          ))}
-                        </select>
+                        {masterBranchOptions.length === 1 ? (
+                          <div className="mt-1 flex h-10 items-center rounded-md border border-gray-300 bg-gray-50 px-3 text-sm font-medium text-gray-900">
+                            {masterBranchOptions[0].name} ({masterBranchOptions[0].code})
+                          </div>
+                        ) : (
+                          <select
+                            id="clientBranch"
+                            value={clientForm.branchId || branchFilterId || ''}
+                            onChange={(e) => {
+                              const next = e.target.value || undefined;
+                              setClientForm({ ...clientForm, branchId: next });
+                              if (next) setBranchFilterId(next);
+                            }}
+                            className="w-full bg-white border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 h-10 px-3"
+                          >
+                            {isSuperAdmin() && <option value="">Unassigned</option>}
+                            {masterBranchOptions.map((branch) => (
+                              <option key={branch.id} value={branch.id}>
+                                {branch.name} ({branch.code})
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
                     )}
                   </div>

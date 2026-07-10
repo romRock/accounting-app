@@ -219,7 +219,11 @@ export const getCustomerReviewProgram = async (req: Request, res: Response) => {
     for (const client of clients) {
       let totalCredit = 0;
       let totalDebit = 0;
-      const clientRef = { id: client.id, name: client.name };
+      const clientRef = {
+        id: client.id,
+        name: client.name,
+        branchId: client.branchId,
+      };
 
       try {
         // 1. Transactions Module
@@ -270,10 +274,10 @@ export const getCustomerReviewProgram = async (req: Request, res: Response) => {
         });
 
         hawalaEntries.forEach((entry: any) => {
-          if (isPartyNameMatch(entry.partyA, clientRef)) {
+          if (isPartyNameMatch(entry.partyA, clientRef, entry.branchId)) {
             totalDebit += entry.amount || 0;
           }
-          if (isPartyNameMatch(entry.partyB, clientRef)) {
+          if (isPartyNameMatch(entry.partyB, clientRef, entry.branchId)) {
             totalCredit += entry.amount || 0;
           }
         });
@@ -287,13 +291,13 @@ export const getCustomerReviewProgram = async (req: Request, res: Response) => {
         });
 
         splEntries.forEach((entry) => {
-          if (isPartyNameMatch(entry.partyA, clientRef)) {
+          if (isPartyNameMatch(entry.partyA, clientRef, entry.branchId)) {
             totalDebit += entry.amountA || 0;
           }
-          if (isPartyNameMatch(entry.partyB, clientRef)) {
+          if (isPartyNameMatch(entry.partyB, clientRef, entry.branchId)) {
             totalDebit += entry.amountB || 0;
           }
-          if (isPartyNameMatch(entry.partyC, clientRef)) {
+          if (isPartyNameMatch(entry.partyC, clientRef, entry.branchId)) {
             totalCredit += entry.amountC || 0;
           }
         });

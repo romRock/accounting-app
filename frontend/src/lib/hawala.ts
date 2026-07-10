@@ -1,6 +1,10 @@
 // Real hawala API service for backend
 import API_BASE_URL, { safeJsonStringify } from './api';
 import { useAuthStore } from '../store/index';
+import {
+  BranchRequestOptions,
+  resolveBranchRequestHeaders,
+} from './branch-headers';
 
 const API_URL = API_BASE_URL;
 
@@ -90,11 +94,11 @@ export const createHawala = async (data: CreateHawalaData): Promise<HawalaRespon
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      ...resolveBranchRequestHeaders(),
     };
     
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
-    } else {
     }
     
     const response = await fetch(`${API_URL}/api/hawala`, {
@@ -116,7 +120,10 @@ export const createHawala = async (data: CreateHawalaData): Promise<HawalaRespon
 };
 
 // Get hawala entries
-export const getHawalaEntries = async (filters: HawalaFilters = {}): Promise<HawalaListResponse> => {
+export const getHawalaEntries = async (
+  filters: HawalaFilters = {},
+  options?: BranchRequestOptions
+): Promise<HawalaListResponse> => {
   try {
     const token = getAuthToken();
     const queryParams = new URLSearchParams();
@@ -134,6 +141,7 @@ export const getHawalaEntries = async (filters: HawalaFilters = {}): Promise<Haw
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
+        ...resolveBranchRequestHeaders(options),
       },
     });
 
@@ -157,6 +165,7 @@ export const getHawalaById = async (id: string): Promise<HawalaResponse> => {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
+        ...resolveBranchRequestHeaders(),
       },
     });
 
@@ -181,6 +190,7 @@ export const updateHawala = async (id: string, data: UpdateHawalaData): Promise<
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
+        ...resolveBranchRequestHeaders(),
       },
       body: safeJsonStringify(data),
     });
@@ -206,6 +216,7 @@ export const deleteHawala = async (id: string, createdBy: string): Promise<Hawal
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
+        ...resolveBranchRequestHeaders(),
       },
       body: safeJsonStringify({ createdBy }),
     });

@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { createError } from '../../middlewares/errorHandler';
 import {
   applyEntryBranchScope,
+  getActiveBranchHeaderFromRequest,
   isSuperAdminUser,
   resolveActiveTransactionBranchId,
   resolveUserBranchId,
@@ -262,7 +263,9 @@ export const getTransactions = async (req: Request, res: Response) => {
       isDeleted: false,
     };
 
-    const useActiveBranchOnly = allDates !== 'true' && !isSuperAdmin;
+    const useActiveBranchOnly =
+      !isSuperAdmin &&
+      (getActiveBranchHeaderFromRequest(req) != null || allDates !== 'true');
     const activeBranchId = useActiveBranchOnly
       ? await resolveActiveTransactionBranchId(req, prisma)
       : null;

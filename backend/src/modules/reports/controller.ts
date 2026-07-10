@@ -6,6 +6,8 @@ import {
   getEntryBranchFilter,
   getMasterBranchFilter,
   isSuperAdminUser,
+  resolveActiveTransactionBranchId,
+  getActiveBranchHeaderFromRequest,
 } from '../../utils/branchScope';
 import {
   accountingEntryInvolvesClient,
@@ -442,7 +444,7 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
         isDeleted: false,
         ...masterBranchFilter
       },
-      select: { id: true, name: true, city: true }
+      select: { id: true, name: true, city: true, branchId: true }
     });
 
     // Fetch data from all modules in parallel with sufficient limits for accurate calculations
@@ -500,6 +502,7 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
       id: client.id,
       name: client.name,
       knownNames: aliasMap.get(client.id) || [client.name],
+      branchId: client.branchId,
     }));
 
     clientRefs.forEach((client) => {
@@ -558,10 +561,10 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
     // Process hawala entries - O(n)
     hawalaEntries.forEach((entry) => {
       clientRefs.forEach((client) => {
-        if (isPartyNameMatch(entry.partyA, client)) {
+        if (isPartyNameMatch(entry.partyA, client, entry.branchId)) {
           applyBalance(client.id, entry.amount || 0, 0);
         }
-        if (isPartyNameMatch(entry.partyB, client)) {
+        if (isPartyNameMatch(entry.partyB, client, entry.branchId)) {
           applyBalance(client.id, 0, entry.amount || 0);
         }
       });
@@ -570,16 +573,19 @@ export const getBalanceSummaryReport = async (req: Request, res: Response) => {
     // Process special entries - O(n)
     specialEntries.forEach((entry) => {
       clientRefs.forEach((client) => {
-        if (isPartyNameMatch(entry.partyA, client)) {
+        if (isPartyNameMatch(entry.partyA, client, entry.branchId)) {
           applyBalance(client.id, 0, entry.amountA || 0);
         }
-        if (isPartyNameMatch(entry.partyB, client)) {
+        if (isPartyNameMatch(entry.partyB, client, entry.branchId)) {
           applyBalance(client.id, entry.amountB || 0, 0);
         }
-        if (isPartyNameMatch(entry.partyC, client)) {
+        if (isPartyNameMatch(entry.partyC, client, entry.branchId)) {
           const amountC = entry.amountC || 0;
-          if (amountC > 0) applyBalance(client.id, amountC, 0);
-          else applyBalance(client.id, 0, Math.abs(amountC));
+          if (amountC > 0) {
+            applyBalance(client.id, amountC, 0);
+          } else {
+            applyBalance(client.id, 0, Math.abs(amountC));
+          }
         }
       });
     });
@@ -692,11 +698,17 @@ export const getTransactionRefundReport = async (req: Request, res: Response) =>
       startOfDay.setHours(0, 0, 0, 0);
     }
 
+    const activeBranchId =
+      !isSuperAdmin && getActiveBranchHeaderFromRequest(req)
+        ? await resolveActiveTransactionBranchId(req, prisma)
+        : null;
+
     const entryBranchFilter = await getEntryBranchFilter(
       prisma,
       userBranchId,
       isSuperAdmin,
-      assignedBranchIds
+      assignedBranchIds,
+      activeBranchId
     );
 
     // Query deleted entries from all 4 modules

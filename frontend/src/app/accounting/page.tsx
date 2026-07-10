@@ -16,6 +16,7 @@ import { getFetchDateRange, matchesDateFilter } from '@/lib/date-filter';
 import { compareEntriesByTimeDesc } from '@/lib/entry-sort';
 import { DatePicker } from '@/components/ui/date-picker';
 import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
+import { useBranchStore } from '@/store/branch-store';
 
 // Category Data Structure
 interface Category {
@@ -134,6 +135,38 @@ export default function AccountingPage() {
     return () => window.removeEventListener('setAccountingTab', handleTabChange as EventListener);
   }, []);
 
+  // Refetch list + next ID when active branch changes
+  const activeBranchId = useBranchStore((s) => s.activeTransactionBranchId);
+  useEffect(() => {
+    const handleBranchChange = async () => {
+      if (!isAuthenticated) return;
+      await fetchAccountingEntries();
+      try {
+        const nextIdResponse = await accountingApi.getNextTransactionId();
+        if (nextIdResponse?.nextTransactionId) {
+          setTransactionForm((prev) => ({
+            ...prev,
+            transactionNo: nextIdResponse.nextTransactionId,
+          }));
+        }
+      } catch {
+        // keep current form id on failure
+      }
+    };
+
+    window.addEventListener('setActiveBranch', handleBranchChange as EventListener);
+    window.addEventListener('setTransactionBranch', handleBranchChange as EventListener);
+    return () => {
+      window.removeEventListener('setActiveBranch', handleBranchChange as EventListener);
+      window.removeEventListener('setTransactionBranch', handleBranchChange as EventListener);
+    };
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    void fetchAccountingEntries();
+  }, [isAuthenticated, filterByDate, dateFilter, startDate, endDate, isSelectingRange, activeBranchId]);
+
   // Auto-refresh time every second
   useEffect(() => {
     const interval = setInterval(() => {
@@ -223,11 +256,6 @@ export default function AccountingPage() {
 
     void loadData();
   }, [isAuthenticated, router]);
-
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    void fetchAccountingEntries();
-  }, [isAuthenticated, filterByDate, dateFilter, startDate, endDate, isSelectingRange]);
 
   const filteredTransactions = useMemo(() => {
     let filtered = transactions;

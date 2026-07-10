@@ -26,6 +26,7 @@ import {
   normalizeBranchIds,
   syncUserBranches,
 } from './utils/userBranches';
+import { resolveActiveTransactionBranchId } from './utils/branchScope';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
@@ -774,7 +775,7 @@ app.post('/api/cities/add', authenticateToken, requireRole(['Admin', 'Super Admi
     console.log('User:', req.user);
     console.log('User role:', req.user?.role?.name);
 
-    const { name, code, state, number } = req.body;
+    const { name, code, state, number, branchId: bodyBranchId } = req.body;
     
     // Validate required fields
     if (!name || !code || !state) {
@@ -784,13 +785,20 @@ app.post('/api/cities/add', authenticateToken, requireRole(['Admin', 'Super Admi
       });
     }
 
-    // Check if city with same name or code already exists
+    const cityBranchId =
+      bodyBranchId ||
+      (await resolveActiveTransactionBranchId(req, prisma)) ||
+      req.user?.branchId ||
+      null;
+
+    // Duplicate name/code only within the same branch (same name OK in other branches)
     const existingCity = await prisma.city.findFirst({
       where: {
         OR: [
           { name: name.trim(), isActive: true, isDeleted: false },
           { code: code.trim().toUpperCase(), isActive: true, isDeleted: false }
-        ]
+        ],
+        ...(cityBranchId ? { branchId: cityBranchId } : { branchId: null }),
       }
     });
     console.log('Existing city check completed');
@@ -798,7 +806,7 @@ app.post('/api/cities/add', authenticateToken, requireRole(['Admin', 'Super Admi
     if (existingCity) {
       return res.status(409).json({
         success: false,
-        message: 'City with this name or code already exists'
+        message: 'City with this name or code already exists in this branch'
       });
     }
 
@@ -814,6 +822,7 @@ app.post('/api/cities/add', authenticateToken, requireRole(['Admin', 'Super Admi
         state: state.trim(),
         address: address,
         number: number || null,
+        branchId: cityBranchId,
         isActive: true,
         isDeleted: false
       }
@@ -965,21 +974,24 @@ app.post('/api/cities/update', authenticateToken, requireRole(['Admin', 'Super A
       });
     }
 
-    // Check if another city with same name or code already exists
+    // Check if another city with same name or code already exists in the same branch
     const duplicateCity = await prisma.city.findFirst({
       where: {
         id: { not: id },
         OR: [
           { name: name.trim(), isActive: true, isDeleted: false },
           { code: code.trim().toUpperCase(), isActive: true, isDeleted: false }
-        ]
+        ],
+        ...(existingCity.branchId
+          ? { branchId: existingCity.branchId }
+          : { branchId: null }),
       }
     });
 
     if (duplicateCity) {
       return res.status(409).json({
         success: false,
-        message: 'City with this name or code already exists'
+        message: 'City with this name or code already exists in this branch'
       });
     }
 
@@ -1188,7 +1200,7 @@ app.post('/api/clients/add', authenticateToken, requireRole(['Admin', 'Super Adm
     console.log('User:', req.user);
     console.log('User role:', req.user?.role?.name);
 
-    const { name, mobileNumber, city, notes } = req.body;
+    const { name, mobileNumber, city, notes, branchId: bodyBranchId } = req.body;
     
     // Validate required fields
     if (!name || !mobileNumber || !city) {
@@ -1198,19 +1210,29 @@ app.post('/api/clients/add', authenticateToken, requireRole(['Admin', 'Super Adm
       });
     }
 
-    // Check if client with same mobile number already exists
+    const partyBranchId =
+      bodyBranchId ||
+      (await resolveActiveTransactionBranchId(req, prisma)) ||
+      req.user?.branchId ||
+      null;
+
+    // Same name/phone allowed in other branches — only block within this branch
     const existingClient = await prisma.party.findFirst({
       where: {
-        phone: mobileNumber.trim(),
         isActive: true,
-        isDeleted: false
+        isDeleted: false,
+        ...(partyBranchId ? { branchId: partyBranchId } : { branchId: null }),
+        OR: [
+          { name: { equals: name.trim(), mode: 'insensitive' } },
+          { phone: mobileNumber.trim() },
+        ],
       }
     });
 
     if (existingClient) {
       return res.status(409).json({
         success: false,
-        message: 'Client with this mobile number already exists'
+        message: 'Client with this name or mobile number already exists in this branch'
       });
     }
 
@@ -1221,6 +1243,7 @@ app.post('/api/clients/add', authenticateToken, requireRole(['Admin', 'Super Adm
         phone: mobileNumber.trim(),
         city: city.trim(), // Use city directly as text field
         address: notes || null,
+        branchId: partyBranchId,
         isActive: true,
         isDeleted: false
       }
@@ -1285,20 +1308,26 @@ app.post('/api/clients/update', authenticateToken, requireRole(['Admin', 'Super 
       });
     }
 
-    // Check if another client has the same mobile number
+    // Check if another client has the same name or mobile in the same branch
     const duplicateClient = await prisma.party.findFirst({
       where: {
-        phone: mobileNumber.trim(),
         isActive: true,
         isDeleted: false,
-        id: { not: id }
+        id: { not: id },
+        ...(existingClient.branchId
+          ? { branchId: existingClient.branchId }
+          : { branchId: null }),
+        OR: [
+          { name: { equals: name.trim(), mode: 'insensitive' } },
+          { phone: mobileNumber.trim() },
+        ],
       }
     });
 
     if (duplicateClient) {
       return res.status(409).json({
         success: false,
-        message: 'Another client with this mobile number already exists'
+        message: 'Another client with this name or mobile number already exists in this branch'
       });
     }
 

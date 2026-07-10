@@ -160,8 +160,9 @@ export async function findPartyIdByAnyKnownName(
 ): Promise<string | null> {
   if (!name?.trim()) return null;
 
+  // Strict branch match when branch is known — never resolve another branch's client
   const branchFilter = branchId
-    ? { OR: [{ branchId }, { branchId: null }] }
+    ? { branchId }
     : {};
 
   const direct = await prisma.party.findFirst({
@@ -175,6 +176,21 @@ export async function findPartyIdByAnyKnownName(
     orderBy: { createdAt: 'asc' },
   });
   if (direct) return direct.id;
+
+  // Legacy rows with null branchId only when searching without a branch scope
+  if (branchId) {
+    const legacy = await prisma.party.findFirst({
+      where: {
+        isActive: true,
+        isDeleted: false,
+        branchId: null,
+        name: { equals: name.trim(), mode: 'insensitive' },
+      },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (legacy) return legacy.id;
+  }
 
   const audits = await prisma.auditLog.findMany({
     where: { entity: 'Party', action: 'UPDATE' },
@@ -197,7 +213,7 @@ export async function findPartyIdByAnyKnownName(
           id: audit.entityId,
           isActive: true,
           isDeleted: false,
-          ...branchFilter,
+          ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}),
         },
         select: { id: true },
       });

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Input } from './input';
 import { Label } from './label';
+import { useBranchStore } from '@/store/branch-store';
 
 export interface Client {
   id: string;
@@ -42,6 +43,7 @@ export function ClientTypeahead({
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const activeBranchId = useBranchStore((s) => s.activeTransactionBranchId);
   
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -53,6 +55,11 @@ export function ClientTypeahead({
   useEffect(() => {
     setSearchTerm(value || '');
   }, [value]);
+
+  // Clear cached clients when active branch changes
+  useEffect(() => {
+    setResults([]);
+  }, [activeBranchId]);
 
   // Calculate dropdown position when it opens
   useEffect(() => {

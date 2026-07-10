@@ -47,6 +47,8 @@ import {
 } from '@/lib/specialEntry';
 import { getFetchDateRange } from '@/lib/date-filter';
 import { DatePicker } from '@/components/ui/date-picker';
+import { getActiveBranchHeaders } from '@/lib/branch-headers';
+import { useBranchStore } from '@/store/branch-store';
 
 // Types
 interface SPLEntry {
@@ -140,7 +142,10 @@ export default function SPLPage() {
       }
       const response = await fetch(`${API_BASE_URL}/api/specialEntry/next-ids?date=${selectedDate}`, {
         method: 'GET',
-        headers,
+        headers: {
+          ...headers,
+          ...getActiveBranchHeaders(),
+        },
       });
       const result = await response.json();
       if (result.success) {
@@ -183,7 +188,10 @@ export default function SPLPage() {
 
         const response = await fetch(`${API_BASE_URL}/api/specialEntry/next-ids?date=${today}&type=INWARD`, {
           method: 'GET',
-          headers: headers,
+          headers: {
+            ...headers,
+            ...getActiveBranchHeaders(),
+          },
         });
         const result = await response.json();
 
@@ -216,7 +224,9 @@ export default function SPLPage() {
     initializeForm();
   }, []);
 
-  // Fetch special entries on component mount
+  // Fetch special entries on component mount / filter / branch change
+  const activeBranchId = useBranchStore((s) => s.activeTransactionBranchId);
+
   useEffect(() => {
     const fetchSpecialEntries = async () => {
       try {
@@ -247,7 +257,79 @@ export default function SPLPage() {
     };
 
     fetchSpecialEntries();
-  }, [statusFilter, filterByDate, dateFilter, startDate, endDate, isSelectingRange]);
+  }, [statusFilter, filterByDate, dateFilter, startDate, endDate, isSelectingRange, activeBranchId]);
+
+  useEffect(() => {
+    const handleBranchChange = async () => {
+      try {
+        const { dateFrom, dateTo } = getFetchDateRange(
+          filterByDate,
+          dateFilter,
+          isSelectingRange,
+          startDate,
+          endDate
+        );
+        const response = await getSpecialEntries({
+          page: 1,
+          limit: 1000,
+          status: statusFilter === 'all' ? undefined : statusFilter,
+          dateFrom,
+          dateTo,
+        });
+        if (response.success && response.data) {
+          setSPLEntries(response.data);
+        }
+      } catch {
+        // ignore
+      }
+
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      const parts = formatter.formatToParts(now);
+      const year = parts.find((p) => p.type === 'year')?.value;
+      const month = parts.find((p) => p.type === 'month')?.value;
+      const day = parts.find((p) => p.type === 'day')?.value;
+      const today = `${year}-${month}-${day}`;
+      await fetchNextTokenForDate(today!);
+
+      try {
+        const { accessToken } = useAuthStore.getState();
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+          ...getActiveBranchHeaders(),
+        };
+        if (accessToken) {
+          headers['Authorization'] = `Bearer ${accessToken}`;
+        }
+        const response = await fetch(
+          `${API_BASE_URL}/api/specialEntry/next-ids?date=${today}&type=INWARD`,
+          { method: 'GET', headers }
+        );
+        const result = await response.json();
+        if (result.success) {
+          setFormData((prev) => ({
+            ...prev,
+            transactionId: result.nextTransactionId,
+            tokenNo: result.nextTokenNo,
+          }));
+        }
+      } catch {
+        // keep current form ids
+      }
+    };
+
+    window.addEventListener('setActiveBranch', handleBranchChange as EventListener);
+    window.addEventListener('setTransactionBranch', handleBranchChange as EventListener);
+    return () => {
+      window.removeEventListener('setActiveBranch', handleBranchChange as EventListener);
+      window.removeEventListener('setTransactionBranch', handleBranchChange as EventListener);
+    };
+  }, []);
 
   // Generate transaction ID based on latest SPL entries
   const generateTransactionId = () => {
@@ -450,7 +532,10 @@ export default function SPLPage() {
         }
         const nextIdsResponse = await fetch(`${API_BASE_URL}/api/specialEntry/next-ids?date=${today}&type=INWARD`, {
           method: 'GET',
-          headers,
+          headers: {
+            ...headers,
+            ...getActiveBranchHeaders(),
+          },
         });
         const nextIdsResult = await nextIdsResponse.json();
 

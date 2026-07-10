@@ -2,6 +2,8 @@ export interface ClientRef {
   id: string;
   name: string;
   knownNames?: string[];
+  /** When set, name-based matches only apply to entries from this branch. */
+  branchId?: string | null;
 }
 
 function normalizeName(name: string): string {
@@ -26,30 +28,39 @@ function nameMatchesClient(
   return getClientAliases(client).has(normalized);
 }
 
+function branchAllowsNameMatch(
+  entryBranchId: string | null | undefined,
+  client: ClientRef,
+): boolean {
+  if (!client.branchId) return true;
+  if (!entryBranchId) return false;
+  return entryBranchId === client.branchId;
+}
+
 export function isTransactionReceiver(
   txn: {
     receiverName?: string | null;
     receiverClientId?: string | null;
+    branchId?: string | null;
   },
   client: ClientRef,
 ): boolean {
-  return (
-    (!!client.id && txn.receiverClientId === client.id) ||
-    nameMatchesClient(txn.receiverName, client)
-  );
+  if (client.id && txn.receiverClientId === client.id) return true;
+  if (!branchAllowsNameMatch(txn.branchId, client)) return false;
+  return nameMatchesClient(txn.receiverName, client);
 }
 
 export function isTransactionSender(
   txn: {
     senderName?: string | null;
     senderClientId?: string | null;
+    branchId?: string | null;
   },
   client: ClientRef,
 ): boolean {
-  return (
-    (!!client.id && txn.senderClientId === client.id) ||
-    nameMatchesClient(txn.senderName, client)
-  );
+  if (client.id && txn.senderClientId === client.id) return true;
+  if (!branchAllowsNameMatch(txn.branchId, client)) return false;
+  return nameMatchesClient(txn.senderName, client);
 }
 
 export function transactionInvolvesClient(
@@ -58,6 +69,7 @@ export function transactionInvolvesClient(
     senderName?: string | null;
     receiverClientId?: string | null;
     senderClientId?: string | null;
+    branchId?: string | null;
   },
   client: ClientRef,
 ): boolean {
@@ -67,16 +79,21 @@ export function transactionInvolvesClient(
 export function isPartyNameMatch(
   name: string | null | undefined,
   client: ClientRef,
+  entryBranchId?: string | null,
 ): boolean {
+  if (!branchAllowsNameMatch(entryBranchId, client)) return false;
   return nameMatchesClient(name, client);
 }
 
 export function accountingEntryInvolvesClient(
-  entry: { partyId?: string | null; party?: { name?: string | null } | null },
+  entry: {
+    partyId?: string | null;
+    party?: { name?: string | null } | null;
+    branchId?: string | null;
+  },
   client: ClientRef,
 ): boolean {
-  return (
-    (!!client.id && entry.partyId === client.id) ||
-    isPartyNameMatch(entry.party?.name, client)
-  );
+  if (client.id && entry.partyId === client.id) return true;
+  if (!branchAllowsNameMatch(entry.branchId, client)) return false;
+  return nameMatchesClient(entry.party?.name, client);
 }

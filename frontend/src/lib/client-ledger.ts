@@ -17,10 +17,13 @@ import {
   isTransactionReceiver,
   isTransactionSender,
   transactionInvolvesClient,
+  type ClientMatchOptions,
 } from '@/lib/client-match';
 import { formatCurrency, formatDate, matchesTableSearch } from '@/lib/utils';
+import { useAuthStore } from '@/store';
 
 export type ClientLedgerModule = 'Transaction' | 'Accounting' | 'Hawala' | 'Special Entry';
+
 
 export interface ClientLedgerEntry {
   date: string;
@@ -110,10 +113,33 @@ function isClientLedgerCreditTransaction(txn: { amountType?: string | null }): b
   return amountType === 'CREDIT' || amountType === 'ACCOUNT / CREDIT';
 }
 
+function isCurrentUserSuperAdmin(): boolean {
+  try {
+    const user = useAuthStore.getState().user;
+    const raw = user?.role?.permissions;
+    const permissions =
+      typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return permissions?.masterData === 'full_access';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Branch users fetch history already scoped to the client branch — allow null-branchId
+ * name matches so SA-created legacy rows appear. Super Admin list APIs ignore the
+ * branch header (unscoped), so keep null name-match off for them.
+ */
+export function getLedgerMatchOptions(clientBranchId?: string | null): ClientMatchOptions {
+  if (!clientBranchId || isCurrentUserSuperAdmin()) return {};
+  return { treatNullEntryBranchAsMatch: true };
+}
+
 /** Build ledger rows for a client from pre-fetched module data (shared by ledger view + customer report). */
 export function buildClientLedgerEntries(
   client: ClientLedgerClient,
   data: ModuleHistoryData,
+  matchOptions?: ClientMatchOptions,
 ): ClientLedgerEntry[] {
   const ledgerEntries: ClientLedgerEntry[] = [];
   const clientRef = {
@@ -122,12 +148,13 @@ export function buildClientLedgerEntries(
     knownNames: client.knownNames || [client.name],
     branchId: client.branchId,
   };
+  const matchOpts = matchOptions ?? getLedgerMatchOptions(client.branchId);
   const branchLookup = getBranchCodeLookup();
 
   const { transactions: allTxns, accounting: accEntries, hawala: hawalaEntries, specialEntry: splEntries } = data;
 
   allTxns.forEach((txn) => {
-    if (!transactionInvolvesClient(txn, clientRef)) return;
+    if (!transactionInvolvesClient(txn, clientRef, matchOpts)) return;
     // CASH bookings/cuttings do not affect client ledger — only CREDIT entries do
     if (!isClientLedgerCreditTransaction(txn)) return;
 
@@ -135,16 +162,16 @@ export function buildClientLedgerEntries(
     let creditAmount = 0;
 
     if (txn.type === 'OUTWARD') {
-      if (!isTransactionSender(txn, clientRef)) return;
+      if (!isTransactionSender(txn, clientRef, matchOpts)) return;
       debitAmount = (txn.amount || 0) + (txn.commission || 0);
     } else if (txn.type === 'INWARD') {
-      if (!isTransactionReceiver(txn, clientRef)) return;
+      if (!isTransactionReceiver(txn, clientRef, matchOpts)) return;
       creditAmount = txn.amount || 0;
     } else {
       return;
     }
 
-    const otherParty = isTransactionReceiver(txn, clientRef)
+    const otherParty = isTransactionReceiver(txn, clientRef, matchOpts)
       ? txn.senderName
       : txn.receiverName;
     const descParts = [txn.type, otherParty];
@@ -170,7 +197,7 @@ export function buildClientLedgerEntries(
   });
 
   accEntries.forEach((entry) => {
-    if (!accountingEntryInvolvesClient(entry, clientRef)) return;
+    if (!accountingEntryInvolvesClient(entry, clientRef, matchOpts)) return;
 
     const isCredit = entry.type === 'INCOME';
     const descParts: string[] = entry.type ? [entry.type] : [];
@@ -201,8 +228,8 @@ export function buildClientLedgerEntries(
   });
 
   hawalaEntries.forEach((entry) => {
-    const isPartyA = isPartyNameMatch(entry.partyA, clientRef, entry.branchId);
-    const isPartyB = isPartyNameMatch(entry.partyB, clientRef, entry.branchId);
+    const isPartyA = isPartyNameMatch(entry.partyA, clientRef, entry.branchId, matchOpts);
+    const isPartyB = isPartyNameMatch(entry.partyB, clientRef, entry.branchId, matchOpts);
 
     if (isPartyA || isPartyB) {
       const isCredit = isPartyA;
@@ -226,9 +253,9 @@ export function buildClientLedgerEntries(
   });
 
   splEntries.forEach((entry) => {
-    const isPartyA = isPartyNameMatch(entry.partyA, clientRef, entry.branchId);
-    const isPartyB = isPartyNameMatch(entry.partyB, clientRef, entry.branchId);
-    const isPartyC = isPartyNameMatch(entry.partyC, clientRef, entry.branchId);
+    const isPartyA = isPartyNameMatch(entry.partyA, clientRef, entry.branchId, matchOpts);
+    const isPartyB = isPartyNameMatch(entry.partyB, clientRef, entry.branchId, matchOpts);
+    const isPartyC = isPartyNameMatch(entry.partyC, clientRef, entry.branchId, matchOpts);
 
     if (isPartyA || isPartyB || isPartyC) {
       let isCredit = false;
@@ -304,7 +331,7 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
       ? { branchId: client.branchId }
       : { useDefaultBranchHeader: false }
   );
-  return buildClientLedgerEntries(client, data);
+  return buildClientLedgerEntries(client, data, getLedgerMatchOptions(client.branchId));
 }
 
 /** Match ledger row against any visible/searchable value (name, number, amount, date, etc.). */

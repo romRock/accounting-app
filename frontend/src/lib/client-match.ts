@@ -6,6 +6,16 @@ export interface ClientRef {
   branchId?: string | null;
 }
 
+/** Options for branch-aware name matching. */
+export interface ClientMatchOptions {
+  /**
+   * When true, null entry.branchId is treated as in-scope for this client.
+   * Use only when the API response was already branch-scoped (branch users).
+   * Super Admin unscoped fetches must keep this false.
+   */
+  treatNullEntryBranchAsMatch?: boolean;
+}
+
 function normalizeName(name: string): string {
   return name.trim().toLowerCase();
 }
@@ -32,9 +42,12 @@ function nameMatchesClient(
 function branchAllowsNameMatch(
   entryBranchId: string | null | undefined,
   client: ClientRef,
+  options?: ClientMatchOptions,
 ): boolean {
   if (!client.branchId) return true;
-  if (!entryBranchId) return false;
+  if (!entryBranchId) {
+    return options?.treatNullEntryBranchAsMatch === true;
+  }
   return entryBranchId === client.branchId;
 }
 
@@ -45,9 +58,10 @@ export function isTransactionReceiver(
     branchId?: string | null;
   },
   client: ClientRef,
+  options?: ClientMatchOptions,
 ): boolean {
   if (client.id && txn.receiverClientId === client.id) return true;
-  if (!branchAllowsNameMatch(txn.branchId, client)) return false;
+  if (!branchAllowsNameMatch(txn.branchId, client, options)) return false;
   return nameMatchesClient(txn.receiverName, client);
 }
 
@@ -58,9 +72,10 @@ export function isTransactionSender(
     branchId?: string | null;
   },
   client: ClientRef,
+  options?: ClientMatchOptions,
 ): boolean {
   if (client.id && txn.senderClientId === client.id) return true;
-  if (!branchAllowsNameMatch(txn.branchId, client)) return false;
+  if (!branchAllowsNameMatch(txn.branchId, client, options)) return false;
   return nameMatchesClient(txn.senderName, client);
 }
 
@@ -73,16 +88,21 @@ export function transactionInvolvesClient(
     branchId?: string | null;
   },
   client: ClientRef,
+  options?: ClientMatchOptions,
 ): boolean {
-  return isTransactionReceiver(txn, client) || isTransactionSender(txn, client);
+  return (
+    isTransactionReceiver(txn, client, options) ||
+    isTransactionSender(txn, client, options)
+  );
 }
 
 export function isPartyNameMatch(
   name: string | null | undefined,
   client: ClientRef,
   entryBranchId?: string | null,
+  options?: ClientMatchOptions,
 ): boolean {
-  if (!branchAllowsNameMatch(entryBranchId, client)) return false;
+  if (!branchAllowsNameMatch(entryBranchId, client, options)) return false;
   return nameMatchesClient(name, client);
 }
 
@@ -93,8 +113,9 @@ export function accountingEntryInvolvesClient(
     branchId?: string | null;
   },
   client: ClientRef,
+  options?: ClientMatchOptions,
 ): boolean {
   if (client.id && entry.partyId === client.id) return true;
-  if (!branchAllowsNameMatch(entry.branchId, client)) return false;
+  if (!branchAllowsNameMatch(entry.branchId, client, options)) return false;
   return nameMatchesClient(entry.party?.name, client);
 }

@@ -10,7 +10,9 @@ import {
   isTransactionReceiver,
   isTransactionSender,
   transactionInvolvesClient,
+  type ClientMatchOptions,
 } from '@/lib/client-match';
+import { getLedgerMatchOptions } from '@/lib/client-ledger';
 
 export interface ClientBalanceRow {
   name: string;
@@ -36,6 +38,7 @@ export async function fetchAllModuleData(): Promise<ModuleDataCache> {
 export function calculateClientBalance(
   client: { id?: string; name: string; knownNames?: string[]; branchId?: string },
   moduleData: ModuleDataCache,
+  matchOptions?: ClientMatchOptions,
 ) {
   let totalCredit = 0;
   let totalDebit = 0;
@@ -45,18 +48,19 @@ export function calculateClientBalance(
     knownNames: client.knownNames || [client.name],
     branchId: client.branchId,
   };
+  const matchOpts = matchOptions ?? getLedgerMatchOptions(client.branchId);
 
   moduleData.transactions.forEach((txn: any) => {
-    if (!transactionInvolvesClient(txn, clientRef)) return;
+    if (!transactionInvolvesClient(txn, clientRef, matchOpts)) return;
 
     if (txn.type === 'OUTWARD') {
-      if (txn.amountType === 'CREDIT' && isTransactionSender(txn, clientRef)) {
+      if (txn.amountType === 'CREDIT' && isTransactionSender(txn, clientRef, matchOpts)) {
         totalDebit += (txn.amount || 0) + (txn.commission || 0);
       } else {
         totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
       }
     } else if (txn.type === 'INWARD') {
-      if (txn.amountType === 'CREDIT' && isTransactionReceiver(txn, clientRef)) {
+      if (txn.amountType === 'CREDIT' && isTransactionReceiver(txn, clientRef, matchOpts)) {
         totalCredit += txn.amount || 0;
       } else {
         totalDebit += txn.amount || 0;
@@ -65,7 +69,7 @@ export function calculateClientBalance(
   });
 
   moduleData.accounting.forEach((entry: any) => {
-    if (accountingEntryInvolvesClient(entry, clientRef)) {
+    if (accountingEntryInvolvesClient(entry, clientRef, matchOpts)) {
       if (entry.type === 'INCOME') {
         totalCredit += entry.creditAmount || entry.amount || 0;
       } else if (entry.type === 'EXPENSE') {
@@ -75,22 +79,22 @@ export function calculateClientBalance(
   });
 
   moduleData.hawala.forEach((entry: any) => {
-    if (isPartyNameMatch(entry.partyA, clientRef, entry.branchId)) {
+    if (isPartyNameMatch(entry.partyA, clientRef, entry.branchId, matchOpts)) {
       totalCredit += entry.amount || 0;
     }
-    if (isPartyNameMatch(entry.partyB, clientRef, entry.branchId)) {
+    if (isPartyNameMatch(entry.partyB, clientRef, entry.branchId, matchOpts)) {
       totalDebit += entry.amount || 0;
     }
   });
 
   moduleData.specialEntry.forEach((entry: any) => {
-    if (isPartyNameMatch(entry.partyA, clientRef, entry.branchId)) {
+    if (isPartyNameMatch(entry.partyA, clientRef, entry.branchId, matchOpts)) {
       totalDebit += entry.amountA || 0;
     }
-    if (isPartyNameMatch(entry.partyB, clientRef, entry.branchId)) {
+    if (isPartyNameMatch(entry.partyB, clientRef, entry.branchId, matchOpts)) {
       totalCredit += entry.amountB || 0;
     }
-    if (isPartyNameMatch(entry.partyC, clientRef, entry.branchId)) {
+    if (isPartyNameMatch(entry.partyC, clientRef, entry.branchId, matchOpts)) {
       const amountC = entry.amountC || 0;
       if (amountC > 0) {
         totalCredit += amountC;

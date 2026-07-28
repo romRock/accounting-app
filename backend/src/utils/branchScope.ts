@@ -10,15 +10,44 @@ export function isSuperAdminUser(permissions: unknown): boolean {
   return (permissions as { masterData?: string })?.masterData === 'full_access';
 }
 
-async function getBranchUserIds(
+/**
+ * Users whose null-branchId legacy rows should appear inside a branch scope:
+ * - anyone assigned via UserBranch
+ * - anyone with primary user.branchId (active or inactive — historical creators)
+ * - Super Admin users (they often create without stamping branchId)
+ */
+async function getBranchCreatorIdsForLegacyNull(
   prisma: PrismaClient,
   branchId: string
 ): Promise<string[]> {
-  const users = await prisma.user.findMany({
-    where: { branchId, isActive: true, isDeleted: false },
-    select: { id: true },
+  const [fromAssignments, fromPrimary, usersWithRoles] = await Promise.all([
+    prisma.userBranch.findMany({
+      where: { branchId },
+      select: { userId: true },
+    }),
+    prisma.user.findMany({
+      where: { branchId },
+      select: { id: true },
+    }),
+    prisma.user.findMany({
+      where: { isDeleted: false },
+      select: {
+        id: true,
+        role: { select: { permissions: true } },
+      },
+    }),
+  ]);
+
+  const ids = new Set<string>();
+  fromAssignments.forEach((row) => ids.add(row.userId));
+  fromPrimary.forEach((user) => ids.add(user.id));
+  usersWithRoles.forEach((user) => {
+    if (isSuperAdminUser(user.role?.permissions)) {
+      ids.add(user.id);
+    }
   });
-  return users.map((user) => user.id);
+
+  return [...ids];
 }
 
 async function getBranchUserIdsForBranches(
@@ -27,26 +56,10 @@ async function getBranchUserIdsForBranches(
 ): Promise<string[]> {
   if (branchIds.length === 0) return [];
 
-  const fromAssignments = await prisma.userBranch.findMany({
-    where: { branchId: { in: branchIds } },
-    select: { userId: true },
-  });
-
-  const fromPrimary = await prisma.user.findMany({
-    where: {
-      branchId: { in: branchIds },
-      isActive: true,
-      isDeleted: false,
-    },
-    select: { id: true },
-  });
-
-  return [
-    ...new Set([
-      ...fromAssignments.map((row) => row.userId),
-      ...fromPrimary.map((user) => user.id),
-    ]),
-  ];
+  const nested = await Promise.all(
+    branchIds.map((id) => getBranchCreatorIdsForLegacyNull(prisma, id))
+  );
+  return [...new Set(nested.flat())];
 }
 
 function buildSingleBranchEntryFilter(
@@ -84,8 +97,9 @@ export function getMasterBranchFilter(
 }
 
 /**
- * Transactional entries: same-branch users share all records.
- * Also includes legacy rows with null branchId created by branch users.
+ * Transactional entries: same-branch users share all records stamped with that branchId.
+ * Also includes legacy null-branchId rows created by branch users or Super Admin.
+ * Super Admin with no active branch → unscoped (sees everything).
  */
 export async function getEntryBranchFilter(
   prisma: PrismaClient,
@@ -94,9 +108,11 @@ export async function getEntryBranchFilter(
   assignedBranchIds?: string[],
   activeBranchId?: string | null
 ): Promise<Record<string, unknown>> {
-  if (isSuperAdmin) return {};
+  // Super Admin unrestricted only when not explicitly scoped to a branch
+  if (isSuperAdmin && !activeBranchId) return {};
+
   if (activeBranchId) {
-    const branchUserIds = await getBranchUserIds(prisma, activeBranchId);
+    const branchUserIds = await getBranchCreatorIdsForLegacyNull(prisma, activeBranchId);
     return buildSingleBranchEntryFilter(activeBranchId, branchUserIds);
   }
 
@@ -110,7 +126,7 @@ export async function getEntryBranchFilter(
   if (branchIds.length === 0) return { branchId: EMPTY_BRANCH_SCOPE };
 
   if (branchIds.length === 1) {
-    const branchUserIds = await getBranchUserIds(prisma, branchIds[0]);
+    const branchUserIds = await getBranchCreatorIdsForLegacyNull(prisma, branchIds[0]);
     return buildSingleBranchEntryFilter(branchIds[0], branchUserIds);
   }
 
@@ -158,6 +174,9 @@ export async function resolveActiveTransactionBranchId(
   const userId = req.user?.id;
   if (!userId) return null;
 
+  const permissions = req.user?.role?.permissions;
+  const isSuperAdmin = isSuperAdminUser(permissions);
+
   const assignedBranchIds =
     req.user?.assignedBranchIds ??
     (await getUserAssignedBranchIds(prisma, userId));
@@ -168,7 +187,8 @@ export async function resolveActiveTransactionBranchId(
     : headerValue;
 
   if (headerBranchId) {
-    if (!assignedBranchIds.includes(headerBranchId)) {
+    // Super Admin may act on any branch; others only on assigned
+    if (!isSuperAdmin && !assignedBranchIds.includes(headerBranchId)) {
       throw createError('Branch not assigned to user', 403);
     }
     return headerBranchId;

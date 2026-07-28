@@ -457,7 +457,7 @@ export default function BalanceSheetPage() {
             </div>
           )}
 
-          <div className={`px-8 py-4 rounded-2xl font-bold text-3xl shadow-md border-2 backdrop-blur-md ${
+          <div className={`w-full sm:w-auto text-center px-4 sm:px-8 py-3 sm:py-4 rounded-2xl font-bold text-xl sm:text-3xl shadow-md border-2 backdrop-blur-md ${
             totals.netPayable > 0
               ? 'bg-gradient-to-r from-green-400/80 to-green-600/80 border-green-700 text-white'
               : totals.netPayable < 0
@@ -470,14 +470,14 @@ export default function BalanceSheetPage() {
 
         {/* Balance Sheet Table */}
         <Card className="shadow-lg border-orange-200/40 bg-gradient-to-br from-white via-orange-50/95 to-orange-100/80 backdrop-blur-md relative z-10">
-          <CardContent className="p-6">
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
+          <CardContent className="p-3 sm:p-6">
+            <div className="overflow-x-auto -mx-1 px-1">
+              <table className="w-full min-w-[640px] border-collapse">
                 {/* Table Header */}
                 <thead>
                   <tr className="bg-gradient-to-r from-orange-600 via-orange-700 to-orange-800 text-white">
                     <th
-                      className="px-4 py-3 text-left font-semibold text-sm cursor-pointer hover:bg-orange-900/50"
+                      className="px-3 sm:px-4 py-3 text-left font-semibold text-xs sm:text-sm cursor-pointer hover:bg-orange-900/50 whitespace-nowrap"
                       onClick={() => handleSort('accountName')}
                     >
                       Income Side (To Collect)

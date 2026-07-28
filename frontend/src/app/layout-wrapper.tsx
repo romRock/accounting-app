@@ -568,45 +568,45 @@ export default function LayoutWrapper({
       }`}>
         {/* Top Bar */}
         <div className="app-main-header flex-shrink-0 fixed w-full top-0 z-50" style={{ zIndex: 9999999 }}>
-          <div className="app-main-header-inner flex items-center justify-between px-4 sm:px-6 lg:px-8 h-20">
-            <div className="flex items-center space-x-4">
+          <div className="app-main-header-inner flex items-center gap-2 px-2 sm:px-6 lg:px-8 h-14 sm:h-20">
+            {/* Mobile only: small logo on the left */}
+            <Link
+              href="/dashboard"
+              className="lg:hidden flex-shrink-0 flex items-center"
+              aria-label="Home"
+            >
+              <AppLogo width={36} height={36} className="object-contain" priority />
+            </Link>
+
+            {/* Center: page tabs / branch / controls (scroll on mobile) */}
+            <div className="flex items-center gap-2 sm:space-x-4 min-w-0 flex-1 overflow-x-auto overflow-y-hidden scrollbar-thin-mobile">
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                className="hidden lg:flex relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 bg-gradient-to-br from-orange-500 via-orange-400 to-orange-500 text-white backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 flex-shrink-0"
+                title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
               >
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                <svg
+                  className="h-6 w-6 relative z-10 transition-transform duration-500 group-hover:rotate-12"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  {isSidebarCollapsed ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                  )}
                 </svg>
               </Button>
-              <Button
-  variant="ghost"
-  size="sm"
-  onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-  className="hidden lg:flex relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 bg-gradient-to-br from-orange-500 via-orange-400 to-orange-500 text-white backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000"
-  title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
->
-  <svg
-    className="h-6 w-6 relative z-10 transition-transform duration-500 group-hover:rotate-12"
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    {isSidebarCollapsed ? (
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-    ) : (
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-    )}
-  </svg>
-</Button>
               
               {/* Branch selector — transactions, accounting, hawala, special entry */}
               {['/transactions', '/accounting', '/hawala', '/spl'].includes(pathname) &&
                 assignedBranches.length > 0 && (
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
                   {assignedBranches.length === 1 ? (
-                    <div className="relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md px-4 py-2 font-medium text-sm bg-orange-600 border-orange-400 text-white">
+                    <div className="relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 font-medium text-xs sm:text-sm bg-orange-600 border-orange-400 text-white">
                       <span className="relative z-10">{assignedBranches[0].code}</span>
                     </div>
                   ) : (
@@ -621,7 +621,7 @@ export default function LayoutWrapper({
                           new CustomEvent('setTransactionBranch', { detail: e.target.value })
                         );
                       }}
-                      className="h-10 min-w-[120px] rounded-2xl border border-orange-500/30 bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 px-4 text-sm font-medium text-orange-100 focus:border-orange-400 focus:outline-none"
+                      className="h-9 sm:h-10 min-w-[100px] max-w-[140px] sm:max-w-none rounded-2xl border border-orange-500/30 bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 px-2 sm:px-4 text-xs sm:text-sm font-medium text-orange-100 focus:border-orange-400 focus:outline-none"
                       aria-label="Select branch"
                     >
                       {assignedBranches.map((branch) => (
@@ -636,7 +636,7 @@ export default function LayoutWrapper({
 
               {/* Transaction Tabs - Only show on transactions page with RBAC */}
               {pathname === '/transactions' && (
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center gap-2 sm:space-x-3 flex-shrink-0">
                   {hasPermission('transactions', 'outward') && (
                     <button
                       onClick={() => {
@@ -645,7 +645,7 @@ export default function LayoutWrapper({
                         const event = new CustomEvent('setTransactionTab', { detail: 'outward' });
                         window.dispatchEvent(event);
                       }}
-                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-2.5 sm:px-4 py-1.5 sm:py-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
                         activeTransactionTab === 'outward'
                           ? 'bg-orange-600 border-orange-400 text-white'
                           : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
@@ -662,7 +662,7 @@ export default function LayoutWrapper({
                         const event = new CustomEvent('setTransactionTab', { detail: 'inward' });
                         window.dispatchEvent(event);
                       }}
-                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-2.5 sm:px-4 py-1.5 sm:py-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
                         activeTransactionTab === 'inward'
                           ? 'bg-orange-600 border-orange-400 text-white'
                           : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
@@ -676,7 +676,7 @@ export default function LayoutWrapper({
               
               {/* Master Tabs - Only show on master page */}
               {pathname === '/master' && (
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center gap-2 sm:space-x-3 flex-shrink-0">
                   {hasPermission('master', 'users') && (
                     <button
                       onClick={() => {
@@ -685,7 +685,7 @@ export default function LayoutWrapper({
                         const event = new CustomEvent('setMasterTab', { detail: 'users' });
                         window.dispatchEvent(event);
                       }}
-                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-2.5 sm:px-4 py-1.5 sm:py-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
                       activeMasterTab === 'users'
                         ? 'bg-orange-600 border-orange-400 text-white'
                         : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
@@ -702,7 +702,7 @@ export default function LayoutWrapper({
                         const event = new CustomEvent('setMasterTab', { detail: 'roles' });
                         window.dispatchEvent(event);
                       }}
-                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-2.5 sm:px-4 py-1.5 sm:py-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
                       activeMasterTab === 'roles'
                         ? 'bg-orange-600 border-orange-400 text-white'
                         : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
@@ -719,7 +719,7 @@ export default function LayoutWrapper({
                         const event = new CustomEvent('setMasterTab', { detail: 'centers' });
                         window.dispatchEvent(event);
                       }}
-                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-2.5 sm:px-4 py-1.5 sm:py-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
                       activeMasterTab === 'centers'
                         ? 'bg-orange-600 border-orange-400 text-white'
                         : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
@@ -736,7 +736,7 @@ export default function LayoutWrapper({
                         const event = new CustomEvent('setMasterTab', { detail: 'clients' });
                         window.dispatchEvent(event);
                       }}
-                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-2.5 sm:px-4 py-1.5 sm:py-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
                       activeMasterTab === 'clients'
                         ? 'bg-orange-600 border-orange-400 text-white'
                         : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
@@ -753,7 +753,7 @@ export default function LayoutWrapper({
                         const event = new CustomEvent('setMasterTab', { detail: 'branches' });
                         window.dispatchEvent(event);
                       }}
-                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-2.5 sm:px-4 py-1.5 sm:py-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
                       activeMasterTab === 'branches'
                         ? 'bg-orange-600 border-orange-400 text-white'
                         : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
@@ -797,7 +797,7 @@ export default function LayoutWrapper({
               
               {/* Accounting Tabs - Only show on accounting page */}
               {pathname === '/accounting' && (
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center gap-2 sm:space-x-3 flex-shrink-0">
                   <button
                     onClick={() => {
                       setActiveAccountingTab('accounts');
@@ -805,7 +805,7 @@ export default function LayoutWrapper({
                       const event = new CustomEvent('setAccountingTab', { detail: 'accounts' });
                       window.dispatchEvent(event);
                     }}
-                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-2.5 sm:px-4 py-1.5 sm:py-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
                       activeAccountingTab === 'accounts'
                         ? 'bg-orange-600 border-orange-400 text-white'
                         : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
@@ -820,7 +820,7 @@ export default function LayoutWrapper({
                       const event = new CustomEvent('setAccountingTab', { detail: 'category' });
                       window.dispatchEvent(event);
                     }}
-                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                    className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-2.5 sm:px-4 py-1.5 sm:py-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
                       activeAccountingTab === 'category'
                         ? 'bg-orange-600 border-orange-400 text-white'
                         : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
@@ -865,7 +865,7 @@ export default function LayoutWrapper({
               
               {/* Reports — Customer Report tab + other reports dropdown */}
               {pathname === '/reports' && (
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center gap-2 sm:space-x-3 flex-shrink-0">
                   {hasPermission('reports', 'report_6') && (
                     <button
                       onClick={() => {
@@ -874,7 +874,7 @@ export default function LayoutWrapper({
                         const event = new CustomEvent('setActiveReport', { detail: 'customer' });
                         window.dispatchEvent(event);
                       }}
-                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm ${
+                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-2.5 sm:px-4 py-1.5 sm:py-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
                         activeReport === 'customer'
                           ? 'bg-orange-600 border-orange-400 text-white'
                           : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:border-orange-400/60 hover:text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
@@ -886,7 +886,7 @@ export default function LayoutWrapper({
                   <div className="relative z-[200]" ref={reportDropdownRef}>
                     <button
                       onClick={() => setReportDropdownOpen(!reportDropdownOpen)}
-                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-orange-400/60 hover:text-white active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-4 py-2 font-medium text-sm flex space-x-2 ${
+                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-orange-400/60 hover:text-white active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-2.5 sm:px-4 py-1.5 sm:py-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 flex space-x-2 ${
                         activeReport !== 'customer'
                           ? 'bg-gradient-to-br from-orange-500 via-orange-400 to-orange-500 text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
                           : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:from-orange-900 hover:via-gray-900 hover:to-black'
@@ -937,28 +937,51 @@ export default function LayoutWrapper({
                 </div>
               )}
             </div>
+
+            {/* Mobile only: hamburger on the right */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="lg:hidden flex-shrink-0 h-10 w-10 p-0 text-gray-700 hover:text-gray-900 hover:bg-orange-100/80 rounded-xl border border-orange-200/60"
+              aria-label="Open menu"
+            >
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </Button>
           </div>
         </div>
 
         {/* Page Content - Scrollable area */}
         <main className="flex-1 bg-white overflow-y-auto overflow-x-hidden">
-          <div className="p-2 sm:p-4 lg:p-6">
+          <div className="p-2 sm:p-4 lg:p-6 max-w-[100vw]">
             {children}
           </div>
         </main>
       </div>
 
       {/* Mobile Mega Sidebar */}
-      <div className={`fixed inset-0 z-50 lg:hidden ${
+      <div className={`fixed inset-0 z-[100000000] lg:hidden ${
         sidebarOpen ? 'block' : 'hidden'
       }`}>
         <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setSidebarOpen(false)} />
         <div className="fixed inset-y-0 left-0 w-full max-w-sm sidebar-shell flex flex-col">
-          <div className="sidebar-header flex items-center justify-center h-16 flex-shrink-0">
-            <AppLogo width={160} height={40} className="object-contain" priority />
+          <div className="sidebar-header flex items-center justify-between h-20 px-3 flex-shrink-0">
+            <AppLogo width={120} height={32} className="object-contain" priority />
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(false)}
+              className="h-10 w-10 inline-flex items-center justify-center rounded-xl text-gray-700 hover:bg-orange-100/80 border border-orange-200/60"
+              aria-label="Close menu"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
           
-          <nav className="sidebar-nav flex-1 mt-2 px-2 pb-3 min-h-0">
+          <nav className="sidebar-nav flex-1 pt-4 px-2 pb-3 min-h-0">
             <SidebarStars count={56} />
             <div className="space-y-1.5 relative z-[2] px-2">
               {navigation.map((item) => (

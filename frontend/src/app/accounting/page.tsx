@@ -609,7 +609,6 @@ export default function AccountingPage() {
   const contactFieldClass = `${glassBase} bg-white/95 border border-gray-200/90 text-gray-900 placeholder:text-gray-500 focus:ring-2 focus:ring-orange-400/30 focus:border-orange-300 shadow-[inset_0_2px_8px_rgba(0,0,0,0.05)]`;
   const contactTypeaheadClass = `${glassBase} !rounded-2xl !bg-white/95 !border-gray-200/90 !text-gray-900 placeholder:!text-gray-500 focus:!ring-2 focus:!ring-orange-400/30 focus:!border-orange-300 shadow-[inset_0_2px_8px_rgba(0,0,0,0.05)]`;
   const isCategoryIncome = categoryForm.type === 'INCOME';
-  const categoryTypeSelectClass = isCategoryIncome ? incomeSelectClass : expenseSelectClass;
 
   return (
     <>
@@ -662,7 +661,17 @@ export default function AccountingPage() {
 
                 <div className={`space-y-4 rounded-2xl border bg-white p-4 sm:p-5 shadow-sm ${isIncome ? 'border-emerald-200' : 'border-red-200'}`}>
                   <h3 className={`text-lg font-semibold border-b pb-2 ${isIncome ? 'text-emerald-900 border-emerald-200' : 'text-red-900 border-red-200'}`}>
-                    {isIncome ? 'Income Entry' : 'Expense Entry'}
+                    {isIncome ? (
+                      <>
+                        <span className="font-extrabold">JAMA</span>
+                        <span className="font-medium"> (Income)</span> Entry
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-extrabold">UDHAR</span>
+                        <span className="font-medium"> (Expense)</span> Entry
+                      </>
+                    )}
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
@@ -695,16 +704,37 @@ export default function AccountingPage() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="amountType" className={`text-sm font-medium ${typeLabelClass}`}>Amount Type</Label>
-                      <select
-                        id="amountType"
-                        value={transactionForm.amountType}
-                        onChange={(e) => setTransactionForm(prev => ({ ...prev, amountType: e.target.value as 'INCOME' | 'EXPENSE' }))}
-                        className={`w-full mt-1 h-10 px-3 text-sm ${typeSelectClass}`}
-                      >
-                        <option value="INCOME">INCOME</option>
-                        <option value="EXPENSE">EXPENSE</option>
-                      </select>
+                      <Label className={`text-sm font-medium ${typeLabelClass}`}>Amount Type</Label>
+                      <div className="mt-1 grid grid-cols-2 gap-2" role="group" aria-label="Amount Type">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setTransactionForm((prev) => ({ ...prev, amountType: 'INCOME', category: '' }))
+                          }
+                          className={`h-10 rounded-lg border px-2 text-sm transition-colors ${
+                            isIncome
+                              ? 'border-emerald-500 bg-emerald-100 text-emerald-950 shadow-sm'
+                              : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          <span className="font-extrabold">JAMA</span>
+                          <span className="font-medium"> (Income)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setTransactionForm((prev) => ({ ...prev, amountType: 'EXPENSE', category: '' }))
+                          }
+                          className={`h-10 rounded-lg border px-2 text-sm transition-colors ${
+                            !isIncome
+                              ? 'border-red-500 bg-red-100 text-red-950 shadow-sm'
+                              : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          <span className="font-extrabold">UDHAR</span>
+                          <span className="font-medium"> (Expense)</span>
+                        </button>
+                      </div>
                     </div>
                     <div>
                       <Label htmlFor="category" className={`text-sm font-medium ${typeLabelClass}`}>Category</Label>
@@ -752,7 +782,7 @@ export default function AccountingPage() {
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-2">
+                <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
                       <Button
                         onClick={saveTransaction}
                         className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
@@ -882,16 +912,20 @@ export default function AccountingPage() {
 
                 </div>
               </CardHeader>
-              <CardContent className="p-4">
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
+              <CardContent className="p-3 sm:p-4">
+                <div className="overflow-x-auto -mx-1 px-1">
+                  <table className="w-full min-w-[720px] border-collapse">
                     <thead>
                       <tr className="bg-gradient-to-r from-orange-600 via-orange-700 to-orange-800 text-white">
-                        <th className="px-4 py-3 text-left text-sm font-bold">Date</th>
-                        <th className="px-4 py-3 text-left text-sm font-bold">Time</th>
-                        <th className="px-4 py-3 text-left text-sm font-bold">Type</th>
-                        <th className="px-4 py-3 text-right text-sm font-bold">Income</th>
-                        <th className="px-4 py-3 text-right text-sm font-bold">Expense</th>
+                        <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-bold whitespace-nowrap">Date</th>
+                        <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-bold whitespace-nowrap">Time</th>
+                        <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-bold whitespace-nowrap">Type</th>
+                        <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-bold whitespace-nowrap">
+                          <span className="font-extrabold">JAMA</span> (Income)
+                        </th>
+                        <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-bold whitespace-nowrap">
+                          <span className="font-extrabold">UDHAR</span> (Expense)
+                        </th>
                         <th className="px-4 py-3 text-left text-sm font-bold">Category</th>
                         <th className="px-4 py-3 text-left text-sm font-bold">Account</th>
                         <th className="px-4 py-3 text-left text-sm font-bold">Remark</th>
@@ -920,14 +954,18 @@ export default function AccountingPage() {
                             transaction.date,
                             transaction.createdAt,
                           )}</td>
-                          <td className="px-4 py-3 text-sm">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              transaction.type === 'INCOME' 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-red-100 text-red-800'
-                            }`}>
-                              {transaction.type || (transaction.accountType === 'INCOME_ACCOUNT' ? 'INCOME' : 'EXPENSE')}
-                            </span>
+                          <td className="px-3 sm:px-4 py-3 text-sm">
+                            {(transaction.type === 'INCOME' || transaction.accountType === 'INCOME_ACCOUNT') ? (
+                              <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-800 whitespace-nowrap">
+                                <span className="font-extrabold">JAMA</span>
+                                <span className="font-medium"> (Income)</span>
+                              </span>
+                            ) : (
+                              <span className="px-2 py-1 rounded text-xs bg-red-100 text-red-800 whitespace-nowrap">
+                                <span className="font-extrabold">UDHAR</span>
+                                <span className="font-medium"> (Expense)</span>
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-sm text-right text-green-600 font-bold">
                             {(transaction.type === 'INCOME' || transaction.accountType === 'INCOME_ACCOUNT') ? formatCurrency(transaction.amount || transaction.creditAmount || 0) : ''}
@@ -966,36 +1004,53 @@ export default function AccountingPage() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="categoryType" className={`text-sm font-medium ${isCategoryIncome ? 'text-emerald-800' : 'text-red-800'}`}>Type</Label>
-                    <select
-                      id="categoryType"
-                      value={categoryForm.type}
-                      onChange={(e) => setCategoryForm(prev => ({ ...prev, type: e.target.value as 'INCOME' | 'EXPENSE' }))}
-                      className={`w-full mt-1 h-10 px-3 text-sm ${categoryTypeSelectClass}`}
-                    >
-                      <option value="INCOME">Income</option>
-                      <option value="EXPENSE">Expense</option>
-                    </select>
+                    <Label className={`text-sm font-medium ${isCategoryIncome ? 'text-emerald-800' : 'text-red-800'}`}>Type</Label>
+                    <div className="mt-1 grid grid-cols-2 gap-2" role="group" aria-label="Category Type">
+                      <button
+                        type="button"
+                        onClick={() => setCategoryForm((prev) => ({ ...prev, type: 'INCOME' }))}
+                        className={`h-10 rounded-lg border px-2 text-sm transition-colors ${
+                          isCategoryIncome
+                            ? 'border-emerald-500 bg-emerald-100 text-emerald-950 shadow-sm'
+                            : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span className="font-extrabold">JAMA</span>
+                        <span className="font-medium"> (Income)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCategoryForm((prev) => ({ ...prev, type: 'EXPENSE' }))}
+                        className={`h-10 rounded-lg border px-2 text-sm transition-colors ${
+                          !isCategoryIncome
+                            ? 'border-red-500 bg-red-100 text-red-950 shadow-sm'
+                            : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span className="font-extrabold">UDHAR</span>
+                        <span className="font-medium"> (Expense)</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
                 
-                <div className="mt-4 flex items-center gap-2">
+                <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                   <Button
                     onClick={saveCategory}
-                    className="bg-green-600 hover:bg-green-700 text-white"
+                    className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
                   >
                     {selectedCategory ? 'Update Category' : 'Add Category'}
                   </Button>
                   <Button
                     onClick={clearCategoryForm}
-                    className="bg-gray-500 hover:bg-gray-600 text-white"
+                    className="bg-gray-500 hover:bg-gray-600 text-white w-full sm:w-auto"
                   >
                     Clear
                   </Button>
                   {selectedCategory && (
                     <Button
                       onClick={() => deleteCategory(selectedCategory.id)}
-                      className="bg-red-600 hover:bg-red-700 text-white"
+                      className="bg-red-600 hover:bg-red-700 text-white w-full sm:w-auto"
                     >
                       Delete
                     </Button>
@@ -1026,13 +1081,17 @@ export default function AccountingPage() {
                         >
                           <td className="px-4 py-3 text-sm text-gray-900">{category.name}</td>
                           <td className="px-4 py-3 text-sm">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              category.type === 'INCOME' 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-red-100 text-red-800'
-                            }`}>
-                              {category.type}
-                            </span>
+                            {category.type === 'INCOME' ? (
+                              <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-800 whitespace-nowrap">
+                                <span className="font-extrabold">JAMA</span>
+                                <span className="font-medium"> (Income)</span>
+                              </span>
+                            ) : (
+                              <span className="px-2 py-1 rounded text-xs bg-red-100 text-red-800 whitespace-nowrap">
+                                <span className="font-extrabold">UDHAR</span>
+                                <span className="font-medium"> (Expense)</span>
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-sm">
                             <div className="flex items-center gap-2">

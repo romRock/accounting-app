@@ -122,6 +122,8 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
       entries: ClientLedgerEntry[];
       dayExpenseTotal: number;
       dayIncomeTotal: number;
+      dayExpenseCount: number;
+      dayIncomeCount: number;
     }> = [];
 
     if (filteredClientLedger.length === 0) return groups;
@@ -168,6 +170,8 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
         entries,
         dayExpenseTotal: entries.reduce((sum, e) => sum + (e.debit || 0), 0),
         dayIncomeTotal: entries.reduce((sum, e) => sum + (e.credit || 0), 0),
+        dayExpenseCount: entries.filter((e) => (e.debit || 0) > 0).length,
+        dayIncomeCount: entries.filter((e) => (e.credit || 0) > 0).length,
       });
     });
 
@@ -321,9 +325,9 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
         className="fixed top-0 inset-0 bg-white z-[1000000000] flex flex-col overflow-hidden"
         style={{ marginTop: 0 }}
       >
-        <div className="border-b border-gray-200 bg-gradient-to-r from-gray-50 via-blue-50 to-gray-50 px-4 py-2 flex items-center justify-between flex-shrink-0 relative">
-          <div className="flex items-center space-x-3">
-            <h1 className="text-lg font-bold text-gray-900">{client.name} - Ledger</h1>
+        <div className="border-b border-gray-200 bg-gradient-to-r from-gray-50 via-blue-50 to-gray-50 px-3 sm:px-4 py-2 flex items-start sm:items-center justify-between gap-2 flex-shrink-0 relative">
+          <div className="flex items-start sm:items-center gap-2 sm:gap-3 flex-wrap min-w-0 flex-1">
+            <h1 className="text-base sm:text-lg font-bold text-gray-900 break-words">{client.name} - Ledger</h1>
             <span className="text-xs text-gray-500">
               From{' '}
               {client.createdAt
@@ -334,7 +338,7 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
             </span>
             {filteredClientLedger.length > 0 && (
               <div
-                className={`px-6 py-1 rounded-lg font-bold text-xl shadow-lg border-2 ${
+                className={`px-3 sm:px-6 py-1 rounded-lg font-bold text-base sm:text-xl shadow-lg border-2 ${
                   filteredClientLedger[filteredClientLedger.length - 1].balance >= 0
                     ? 'bg-gradient-to-r from-green-400 to-green-600 border-green-700 text-white'
                     : 'bg-gradient-to-r from-red-400 to-red-600 border-red-700 text-white'
@@ -347,7 +351,7 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
           </div>
           <button
             onClick={handleClose}
-            className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-full p-2 transition-colors"
+            className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-full p-2 transition-colors flex-shrink-0"
             title="Close tab"
           >
             <svg
@@ -362,9 +366,9 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
           </button>
         </div>
 
-        <div className="border-b border-gray-200 bg-white px-4 py-2 flex-shrink-0">
-          <div className="flex items-center space-x-3 flex-wrap gap-2">
-            <div className="flex items-center space-x-2">
+        <div className="border-b border-gray-200 bg-white px-3 sm:px-4 py-2 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
               <input
                 type="checkbox"
                 id="ledgerFilterByDate"
@@ -396,7 +400,7 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
                 Date
               </Label>
               {ledgerFilterByDate && (
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
                     type="button"
                     onClick={() => {
@@ -434,22 +438,22 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
                       type="date"
                       value={ledgerDateFilter}
                       onChange={(e) => setLedgerDateFilter(e.target.value)}
-                      className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm w-36"
+                      className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm w-full max-w-[11rem] sm:w-36"
                     />
                   ) : (
-                    <div className="flex items-center space-x-1">
+                    <div className="flex items-center gap-1 flex-wrap">
                       <Input
                         type="date"
                         value={ledgerStartDate}
                         onChange={(e) => setLedgerStartDate(e.target.value)}
-                        className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm w-36"
+                        className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm w-full max-w-[11rem] sm:w-36"
                       />
                       <span className="text-gray-500 text-xs">to</span>
                       <Input
                         type="date"
                         value={ledgerEndDate}
                         onChange={(e) => setLedgerEndDate(e.target.value)}
-                        className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm w-36"
+                        className="h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white text-sm w-full max-w-[11rem] sm:w-36"
                       />
                     </div>
                   )}
@@ -461,9 +465,10 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
               placeholder="Search name, number, amount, date..."
               value={ledgerSearchTerm}
               onChange={(e) => setLedgerSearchTerm(e.target.value)}
-              className="bg-white h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm w-56 placeholder:text-gray-600"
+              className="bg-white h-8 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-sm w-full sm:w-56 placeholder:text-gray-600"
             />
 
+            <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
             <Button
               onClick={() => {
                 setLedgerFilterByDate(false);
@@ -474,7 +479,7 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
                 setLedgerSearchTerm('');
               }}
               variant="outline"
-              className="bg-black hover:bg-gray-800 text-white border border-gray-300 hover:border-gray-400 h-8 text-sm px-3"
+              className="bg-black hover:bg-gray-800 text-white border border-gray-300 hover:border-gray-400 h-8 text-sm px-3 flex-1 sm:flex-none"
             >
               Reset
             </Button>
@@ -482,7 +487,7 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
               onClick={() => exportClientLedger('excel')}
               disabled={ledgerExporting || filteredClientLedger.length === 0}
               variant="outline"
-              className="bg-green-600 hover:bg-green-700 text-white border border-green-300 hover:border-green-400 h-8 text-sm px-3"
+              className="bg-green-600 hover:bg-green-700 text-white border border-green-300 hover:border-green-400 h-8 text-sm px-3 flex-1 sm:flex-none"
             >
               Excel
             </Button>
@@ -490,16 +495,17 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
               onClick={() => exportClientLedger('pdf')}
               disabled={ledgerExporting || filteredClientLedger.length === 0}
               variant="outline"
-              className="bg-red-600 hover:bg-red-700 text-white border border-red-300 hover:border-red-400 h-8 text-sm px-3"
+              className="bg-red-600 hover:bg-red-700 text-white border border-red-300 hover:border-red-400 h-8 text-sm px-3 flex-1 sm:flex-none"
             >
               PDF
             </Button>
+            </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto p-4">
+        <div className="flex-1 overflow-auto p-2 sm:p-4">
           <Card className="shadow-lg border-gray-200/50 bg-gradient-to-br from-gray-100/90 via-blue-100/80 to-purple-100/75 backdrop-blur-md relative z-10 h-full flex flex-col">
-            <div className="px-4 py-2 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+            <div className="px-3 sm:px-4 py-2 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
               <span className="text-sm font-medium text-gray-900">
                 Ledger Data ({filteredClientLedger.length} records)
               </span>
@@ -508,14 +514,14 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
               {loading ? (
                 <AccountingLoader message="Loading ledger..." />
               ) : filteredClientLedger.length === 0 ? (
-                <div className="text-center py-8">
+                <div className="text-center py-8 px-3">
                   <p className="text-gray-500">
                     No ledger entries found. Please try adjusting your filters.
                   </p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full bg-white border border-gray-200 rounded-lg">
+                  <table className="w-full min-w-[860px] bg-white border border-gray-200 rounded-lg">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
                         <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 w-10">
@@ -645,6 +651,19 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
                               {group.dayIncomeTotal > 0
                                 ? formatCurrency(group.dayIncomeTotal)
                                 : '-'}
+                            </td>
+                            <td className="px-3 py-2 text-sm text-right text-gray-500">-</td>
+                            <td className="px-3 py-2 text-sm text-center text-gray-500">-</td>
+                          </tr>
+                          <tr className="bg-slate-50 border-t border-gray-200">
+                            <td colSpan={5} className="px-3 py-2 text-sm font-bold text-gray-900 text-right">
+                              Day Total Entries
+                            </td>
+                            <td className="px-3 py-2 text-sm font-bold text-right text-red-600 border-r border-gray-200">
+                              {group.dayExpenseCount > 0 ? group.dayExpenseCount : '-'}
+                            </td>
+                            <td className="px-3 py-2 text-sm font-bold text-right text-green-600 border-r border-gray-200">
+                              {group.dayIncomeCount > 0 ? group.dayIncomeCount : '-'}
                             </td>
                             <td className="px-3 py-2 text-sm text-right text-gray-500">-</td>
                             <td className="px-3 py-2 text-sm text-center text-gray-500">-</td>

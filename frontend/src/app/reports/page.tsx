@@ -1987,14 +1987,14 @@ export default function ReportsPage() {
                   <p className="text-gray-500">No clients found.</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border border-orange-200/60 rounded-lg overflow-hidden">
+                <div className="overflow-x-auto -mx-1 px-1">
+                  <table className="w-full min-w-[640px] border border-orange-200/60 rounded-lg overflow-hidden">
                     <thead>
                       <tr className="bg-gradient-to-r from-orange-600 via-orange-700 to-orange-800 text-white">
                         {getColumns().map((column, index) => (
                           <th
                             key={index}
-                            className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-orange-500/30 last:border-r-0"
+                            className="px-3 sm:px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-orange-500/30 last:border-r-0 whitespace-nowrap"
                           >
                             {column}
                           </th>

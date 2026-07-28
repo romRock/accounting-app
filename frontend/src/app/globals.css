@@ -526,3 +526,44 @@ button.sidebar-signout:hover,
   }
 }
 
+/* Mobile UX: prevent broken layouts, improve touch scroll on tables/toolbars */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.scrollbar-thin-mobile {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.scrollbar-thin-mobile::-webkit-scrollbar {
+  height: 4px;
+}
+
+.scrollbar-thin-mobile::-webkit-scrollbar-thumb {
+  background: rgba(249, 115, 22, 0.45);
+  border-radius: 999px;
+}
+
+@media (max-width: 1023px) {
+  .app-main-header {
+    left: 0;
+    right: 0;
+    width: 100%;
+  }
+
+  .app-main-header-inner {
+    min-height: 3.5rem;
+  }
+}
+
+@media (max-width: 639px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px; /* avoid iOS zoom on focus */
+  }
+}
+

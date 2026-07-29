@@ -11,6 +11,7 @@ import {
   getEntryBranchFilter,
   getMasterBranchFilter,
   isSuperAdminUser,
+  getActiveBranchHeaderFromRequest,
 } from '../../utils/branchScope';
 
 const prisma = new PrismaClient();
@@ -357,14 +358,33 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
     const assignedBranchIds = (req as any).user?.assignedBranchIds as string[] | undefined;
     const userPermissions = (req as any).user?.role?.permissions as any;
     const isSuperAdmin = isSuperAdminUser(userPermissions);
-    
+
+    // Honor layout branch selector (same X-Active-Branch-Id as other modules)
+    const headerBranchId = getActiveBranchHeaderFromRequest(req);
+    if (
+      headerBranchId &&
+      !isSuperAdmin &&
+      assignedBranchIds &&
+      assignedBranchIds.length > 0 &&
+      !assignedBranchIds.includes(headerBranchId)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'Branch not assigned to user',
+      });
+    }
+    const activeBranchId = headerBranchId;
+
     const entryBranchFilter = await getEntryBranchFilter(
       prisma,
       userBranchId,
       isSuperAdmin,
-      assignedBranchIds
+      assignedBranchIds,
+      activeBranchId
     );
-    const masterBranchFilter = getMasterBranchFilter(userBranchId, isSuperAdmin, assignedBranchIds);
+    const masterBranchFilter = activeBranchId
+      ? { branchId: activeBranchId }
+      : getMasterBranchFilter(userBranchId, isSuperAdmin, assignedBranchIds);
     
     // Use Indian timezone (Asia/Kolkata) for date calculations
     const now = new Date();

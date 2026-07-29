@@ -671,8 +671,8 @@ export default function LayoutWrapper({
                 </svg>
               </Button>
               
-              {/* Branch selector — transactions, accounting, hawala, special entry */}
-              {['/transactions', '/accounting', '/hawala', '/spl'].includes(pathname) &&
+              {/* Branch selector — dashboard + entry modules */}
+              {['/dashboard', '/transactions', '/accounting', '/hawala', '/spl'].includes(pathname) &&
                 assignedBranches.length > 0 && (
                 <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
                   {assignedBranches.length === 1 ? (

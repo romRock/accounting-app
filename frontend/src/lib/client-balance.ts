@@ -57,18 +57,31 @@ const sortByAmountDesc = (rows: ClientBalanceRow[]) =>
   [...rows].sort((a, b) => b.amount - a.amount);
 
 /** Dashboard customer review: top N clients by highest collection (income) or payout (expense) first. */
-export async function getDashboardCustomerReview(limit = 10): Promise<{
+export async function getDashboardCustomerReview(
+  limit = 10,
+  branchId?: string | null,
+): Promise<{
   incomeClients: ClientBalanceRow[];
   expenseClients: ClientBalanceRow[];
 }> {
-  const moduleData = await fetchAllModuleData();
-  const allClients = await transactionApi.getClients();
+  const branchOpts = branchId ? { branchId } : undefined;
+  const moduleData = await fetchAllModuleHistoryData(branchOpts);
+  const allClients = await transactionApi.getClients(
+    branchOpts ?? { useDefaultBranchHeader: true },
+  );
 
   const incomeClients: ClientBalanceRow[] = [];
   const expenseClients: ClientBalanceRow[] = [];
 
   for (const client of allClients) {
-    const { balance } = calculateClientBalance(client, moduleData);
+    const clientBranchId = client.branchId || branchId || undefined;
+    const { balance } = calculateClientBalance(
+      { ...client, branchId: clientBranchId },
+      moduleData,
+      getLedgerMatchOptions(clientBranchId, {
+        historyIsBranchScoped: Boolean(branchId),
+      }),
+    );
 
     if (balance < 0) {
       incomeClients.push({ name: client.name, amount: Math.abs(balance) });

@@ -3,9 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store';
+import { useBranchStore } from '@/store/branch-store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, Activity, Users, MapPin, FileText } from 'lucide-react';
 import { getDashboardCustomerReview } from '@/lib/client-balance';
+import { getActiveBranchHeaders } from '@/lib/branch-headers';
 import { formatCurrency } from '@/lib/utils';
 
 // Dashboard Metrics Interfaces
@@ -31,6 +33,9 @@ interface DashboardMetrics {
 export default function DashboardPage() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const activeTransactionBranchId = useBranchStore(
+    (state) => state.activeTransactionBranchId,
+  );
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -101,19 +106,24 @@ export default function DashboardPage() {
     }
   }, [user, router]);
 
-  // Fetch dashboard metrics
+  // Fetch dashboard metrics for selected date + active branch
   useEffect(() => {
     const fetchDashboardMetrics = async () => {
       try {
         setLoading(true);
-        
+        setError(null);
+
         const { accessToken } = useAuthStore.getState();
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/dashboard/metrics?date=${selectedDate}`, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/dashboard/metrics?date=${selectedDate}`,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+              ...getActiveBranchHeaders(),
+            },
           },
-        });
+        );
 
         if (!response.ok) {
           throw new Error('Failed to fetch dashboard metrics');
@@ -134,7 +144,7 @@ export default function DashboardPage() {
     };
 
     fetchDashboardMetrics();
-  }, [selectedDate]);
+  }, [selectedDate, activeTransactionBranchId]);
 
   // Listen for custom events from layout wrapper
   useEffect(() => {
@@ -150,12 +160,12 @@ export default function DashboardPage() {
     };
   }, []);
 
-  // Customer review — top 10 each side, highest amount first (collection = red, payout = green)
+  // Customer review — scoped to active branch (same selector as metrics)
   useEffect(() => {
     const fetchCustomerReview = async () => {
       try {
         setCustomerReviewLoading(true);
-        const data = await getDashboardCustomerReview(10);
+        const data = await getDashboardCustomerReview(10, activeTransactionBranchId);
         setCustomerReview(data);
       } catch (error: unknown) {
         console.error('Error fetching customer review:', error);
@@ -166,7 +176,7 @@ export default function DashboardPage() {
     };
 
     fetchCustomerReview();
-  }, []);
+  }, [activeTransactionBranchId]);
 
   const formatDashboardAmount = (amount: number) =>
     formatCurrency(amount, { minimumFractionDigits: 0, maximumFractionDigits: 0 });

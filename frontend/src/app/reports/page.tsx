@@ -19,6 +19,7 @@ import { fetchAllModuleHistoryData } from '@/lib/fetch-all-history';
 import {
   buildClientLedgerEntries,
   getClientBalanceFromLedgerEntries,
+  getLedgerMatchOptions,
 } from '@/lib/client-ledger';
 import { compareEntriesByTimeAsc } from '@/lib/entry-sort';
 import { getStoredCommissions } from '@/lib/transaction-commission-display';
@@ -275,20 +276,35 @@ export default function ReportsPage() {
     const balances: Record<string, { balance: number; credit: number; debit: number }> = {};
 
     try {
-      const branchOpts = getReportBranchOptions();
-      const moduleData = await fetchAllModuleHistoryData(
-        branchOpts ?? { useDefaultBranchHeader: false }
-      );
+      // One shared module fetch — then per-client ledger build (same as opening a ledger tab)
+      const byBranch = new Map<string, Awaited<ReturnType<typeof fetchAllModuleHistoryData>>>();
+
+      const loadModuleData = async (branchId?: string) => {
+        const key = branchId || '__all__';
+        if (!byBranch.has(key)) {
+          const data = await fetchAllModuleHistoryData(
+            branchId
+              ? { branchId }
+              : { useDefaultBranchHeader: false }
+          );
+          byBranch.set(key, data);
+        }
+        return byBranch.get(key)!;
+      };
 
       for (const client of clientList) {
+        // Same scope as opening a client ledger tab (client.branchId only)
+        const clientBranchId = client.branchId || undefined;
+        const moduleData = await loadModuleData(clientBranchId);
         const entries = buildClientLedgerEntries(
           {
             id: client.id,
             name: client.name,
             knownNames: client.knownNames || [client.name],
-            branchId: client.branchId || branchOpts?.branchId,
+            branchId: clientBranchId,
           },
           moduleData,
+          getLedgerMatchOptions(clientBranchId),
         );
         balances[client.id] = getClientBalanceFromLedgerEntries(entries);
       }

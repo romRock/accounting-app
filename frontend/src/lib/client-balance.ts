@@ -1,18 +1,15 @@
 /**
- * Client balance calculation — same logic as Final Balance Sheet page.
- * Used by dashboard customer review only; balance sheet page is unchanged.
+ * Client balance calculation — same ledger builder as customer report + client ledger.
+ * Used by dashboard customer review; balance sheet page uses the builder directly.
  */
 import { transactionApi } from '@/lib/transactions';
 import { fetchAllModuleHistoryData, ModuleHistoryData } from '@/lib/fetch-all-history';
+import type { ClientMatchOptions } from '@/lib/client-match';
 import {
-  accountingEntryInvolvesClient,
-  isPartyNameMatch,
-  isTransactionReceiver,
-  isTransactionSender,
-  transactionInvolvesClient,
-  type ClientMatchOptions,
-} from '@/lib/client-match';
-import { getLedgerMatchOptions } from '@/lib/client-ledger';
+  buildClientLedgerEntries,
+  getClientBalanceFromLedgerEntries,
+  getLedgerMatchOptions,
+} from '@/lib/client-ledger';
 
 export interface ClientBalanceRow {
   name: string;
@@ -40,72 +37,18 @@ export function calculateClientBalance(
   moduleData: ModuleDataCache,
   matchOptions?: ClientMatchOptions,
 ) {
-  let totalCredit = 0;
-  let totalDebit = 0;
-  const clientRef = {
-    id: client.id || '',
-    name: client.name,
-    knownNames: client.knownNames || [client.name],
-    branchId: client.branchId,
-  };
   const matchOpts = matchOptions ?? getLedgerMatchOptions(client.branchId);
-
-  moduleData.transactions.forEach((txn: any) => {
-    if (!transactionInvolvesClient(txn, clientRef, matchOpts)) return;
-
-    if (txn.type === 'OUTWARD') {
-      if (txn.amountType === 'CREDIT' && isTransactionSender(txn, clientRef, matchOpts)) {
-        totalDebit += (txn.amount || 0) + (txn.commission || 0);
-      } else {
-        totalCredit += (txn.amount || 0) + (txn.centerCommission || 0);
-      }
-    } else if (txn.type === 'INWARD') {
-      if (txn.amountType === 'CREDIT' && isTransactionReceiver(txn, clientRef, matchOpts)) {
-        totalCredit += txn.amount || 0;
-      } else {
-        totalDebit += txn.amount || 0;
-      }
-    }
-  });
-
-  moduleData.accounting.forEach((entry: any) => {
-    if (accountingEntryInvolvesClient(entry, clientRef, matchOpts)) {
-      if (entry.type === 'INCOME') {
-        totalCredit += entry.creditAmount || entry.amount || 0;
-      } else if (entry.type === 'EXPENSE') {
-        totalDebit += entry.debitAmount || entry.amount || 0;
-      }
-    }
-  });
-
-  moduleData.hawala.forEach((entry: any) => {
-    if (isPartyNameMatch(entry.partyA, clientRef, entry.branchId, matchOpts)) {
-      totalCredit += entry.amount || 0;
-    }
-    if (isPartyNameMatch(entry.partyB, clientRef, entry.branchId, matchOpts)) {
-      totalDebit += entry.amount || 0;
-    }
-  });
-
-  moduleData.specialEntry.forEach((entry: any) => {
-    if (isPartyNameMatch(entry.partyA, clientRef, entry.branchId, matchOpts)) {
-      totalDebit += entry.amountA || 0;
-    }
-    if (isPartyNameMatch(entry.partyB, clientRef, entry.branchId, matchOpts)) {
-      totalCredit += entry.amountB || 0;
-    }
-    if (isPartyNameMatch(entry.partyC, clientRef, entry.branchId, matchOpts)) {
-      const amountC = entry.amountC || 0;
-      if (amountC > 0) {
-        totalCredit += amountC;
-      } else {
-        totalDebit += Math.abs(amountC);
-      }
-    }
-  });
-
-  const balance = totalCredit - totalDebit;
-  return { balance, credit: totalCredit, debit: totalDebit };
+  const entries = buildClientLedgerEntries(
+    {
+      id: client.id || '',
+      name: client.name,
+      knownNames: client.knownNames || [client.name],
+      branchId: client.branchId,
+    },
+    moduleData,
+    matchOpts,
+  );
+  return getClientBalanceFromLedgerEntries(entries);
 }
 
 const sortByAmountDesc = (rows: ClientBalanceRow[]) =>

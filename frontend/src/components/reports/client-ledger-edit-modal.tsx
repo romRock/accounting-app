@@ -5,8 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DatePicker } from '@/components/ui/date-picker';
-import { ClientTypeahead } from '@/components/ui/client-typeahead';
-import { CityTypeahead } from '@/components/ui/typeahead';
 import AccountingLoader from '@/components/ui/accounting-loader';
 import UpdatedEntryBadge from '@/components/reports/updated-entry-badge';
 import {
@@ -21,12 +19,6 @@ import { updateSpecialEntry, deleteSpecialEntry, SpecialEntry } from '@/lib/spec
 import { showDeleteToast, showErrorToast, showUpdateToast } from '@/lib/toast';
 import { getStoredCommissions } from '@/lib/transaction-commission-display';
 import { Save, Trash2, X } from 'lucide-react';
-
-interface LedgerClientOption {
-  id: string;
-  name: string;
-  mobileNumber?: string;
-}
 
 interface ClientLedgerEditModalProps {
   entry: ClientLedgerEntry | null;
@@ -51,7 +43,6 @@ function toTimeInput(value?: string): string {
   }
 }
 
-const LEDGER_TYPEAHEAD_Z = 1000000002;
 const OUTWARD_MIN_COMMISSION = 50;
 
 function calculateOutwardCommissionsFromAmount(amount: number) {
@@ -105,8 +96,6 @@ export default function ClientLedgerEditModal({
   const [sourceRecord, setSourceRecord] = useState<ClientLedgerSourceRecord | null>(null);
   const [categories, setCategories] = useState<Array<{ id: string; name: string; type: string }>>([]);
   const [selectedCenter, setSelectedCenter] = useState<City | null>(null);
-  const [selectedSenderClient, setSelectedSenderClient] = useState<LedgerClientOption | null>(null);
-  const [selectedReceiverClient, setSelectedReceiverClient] = useState<LedgerClientOption | null>(null);
   const [autoCommission, setAutoCommission] = useState(true);
   const [txnAmount, setTxnAmount] = useState(0);
 
@@ -119,12 +108,10 @@ export default function ClientLedgerEditModal({
   const labelClass = 'text-sm font-medium text-gray-800';
   const inactiveFieldClass = `${glassBase} bg-slate-100/80 border border-slate-200/90 text-slate-600 cursor-not-allowed`;
   const datePickerClass = `${glassBase} h-10 border border-blue-200/80 bg-gradient-to-br from-blue-50/70 via-slate-100/50 to-slate-100/70 text-slate-800 hover:from-blue-50 hover:via-blue-50/80 hover:to-slate-100/80 shadow-[inset_0_2px_8px_rgba(59,130,246,0.12)]`;
-  const centerFieldClass = `${glassBase} !rounded-xl !bg-blue-50/70 !border-blue-300/80 !text-blue-950 placeholder:!text-blue-400/80 focus:!ring-2 focus:!ring-blue-500/35 focus:!border-blue-500`;
   const timeFieldClass = `${glassBase} bg-white/90 border border-slate-200/90 text-slate-900 focus:ring-2 focus:ring-slate-400/25 focus:border-slate-400`;
   const creditFieldClass = `${glassBase} bg-red-50/85 border border-red-300/80 text-red-900 placeholder:text-red-400 focus:ring-2 focus:ring-red-500/35 focus:border-red-500`;
   const creditReadonlyClass = `${glassBase} bg-red-100/70 border border-red-200/80 text-red-800 font-semibold cursor-default`;
   const contactFieldClass = `${glassBase} bg-white/95 border border-gray-200/90 text-gray-900 placeholder:text-gray-500 focus:ring-2 focus:ring-orange-400/30 focus:border-orange-300`;
-  const contactTypeaheadClass = `${glassBase} !rounded-xl !bg-white/95 !border-gray-200/90 !text-gray-900 placeholder:!text-gray-500 focus:!ring-2 focus:!ring-orange-400/30 focus:!border-orange-300`;
   const selectFieldClass = `${glassBase} h-10 w-full border border-gray-300/90 bg-white/95 px-3 text-sm text-gray-900 focus:ring-2 focus:ring-orange-400/30 focus:border-orange-300`;
   const sectionClass = 'rounded-xl border border-gray-200 bg-white/95 p-3 shadow-sm';
   const compactGridClass = 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6';
@@ -169,8 +156,6 @@ export default function ClientLedgerEditModal({
     setSourceRecord(null);
     setConfirmDelete(false);
     setSelectedCenter(null);
-    setSelectedSenderClient(null);
-    setSelectedReceiverClient(null);
     setAutoCommission(false);
     setTxnAmount(0);
 
@@ -187,6 +172,7 @@ export default function ClientLedgerEditModal({
           case 'Transaction': {
             const txn = record as Transaction;
             const stored = getStoredCommissions(txn);
+            const useAuto = Boolean(txn.autoCommission);
             setTxnForm({
               ...txn,
               date: toDateInput(txn.date),
@@ -195,31 +181,17 @@ export default function ClientLedgerEditModal({
               commission: stored.commission,
               bookingCommission: stored.bookingCommission,
               centerCommission: stored.centerCommission,
-              autoCommission: false,
+              autoCommission: useAuto,
               cuttingCommission: txn.type === 'INWARD' ? stored.bookingCommission : undefined,
             });
             setTxnAmount(Number(txn.amount) || 0);
-            setAutoCommission(false);
+            setAutoCommission(useAuto);
             if (txn.center) {
               setSelectedCenter({
                 id: txn.center.id,
                 name: txn.center.name,
                 code: txn.center.code,
                 state: '',
-              });
-            }
-            if (txn.type === 'OUTWARD' && txn.senderClient) {
-              setSelectedSenderClient({
-                id: txn.senderClient.id,
-                name: txn.senderClient.name,
-                mobileNumber: txn.senderClient.phone,
-              });
-            }
-            if (txn.type === 'INWARD' && txn.receiverClient) {
-              setSelectedReceiverClient({
-                id: txn.receiverClient.id,
-                name: txn.receiverClient.name,
-                mobileNumber: txn.receiverClient.phone,
               });
             }
             break;
@@ -284,8 +256,6 @@ export default function ClientLedgerEditModal({
 
   const txnType = (entry?.transactionType || txnForm.type || 'OUTWARD') as 'OUTWARD' | 'INWARD';
   const isInwardTxn = txnType === 'INWARD';
-  const senderUsesClientPicker = txnType === 'OUTWARD';
-  const receiverUsesClientPicker = txnType === 'INWARD';
 
   useEffect(() => {
     if (!open || loading || entry?.module !== 'Transaction' || !autoCommission) return;
@@ -324,69 +294,51 @@ export default function ClientLedgerEditModal({
     }
   }, [open, loading, entry?.module, txnAmount, autoCommission, isInwardTxn]);
 
-  useEffect(() => {
-    if (!open) return;
-    transactionApi.getClients().catch(() => {});
-  }, [open]);
-
   if (!open || !entry) return null;
 
   const handleSave = async () => {
-    if (!entry) return;
+    if (!entry || !sourceRecord) return;
     setSaving(true);
     try {
       switch (entry.module) {
         case 'Transaction': {
+          const original = sourceRecord as Transaction;
           const txn = txnForm as Transaction & { cuttingCommission?: number };
-          const type = entry.transactionType || txn.type;
+          const type = entry.transactionType || original.type || txn.type;
 
-          if (type === 'OUTWARD' && !selectedSenderClient?.id && !txn.senderClientId) {
-            showErrorToast('Please select a client for sender');
-            setSaving(false);
-            return;
-          }
-          if (type === 'INWARD' && !selectedReceiverClient?.id && !txn.receiverClientId) {
-            showErrorToast('Please select a client for receiver');
-            setSaving(false);
-            return;
-          }
-          if (!txn.centerId) {
-            showErrorToast('Please select a center');
+          if (!original.centerId && !txn.centerId) {
+            showErrorToast('Center is missing on this entry');
             setSaving(false);
             return;
           }
 
           const transactionData: Record<string, unknown> = {
-            transactionId: txn.transactionId,
-            tokenNo: txn.tokenNo,
-            date: txn.date,
-            time: txn.time,
-            centerId: txn.centerId,
-            amount: Number(txn.amount) || 0,
+            transactionId: original.transactionId,
+            tokenNo: original.tokenNo,
+            date: toDateInput(original.date) || txn.date,
+            time: toTimeInput(original.time) || txn.time,
+            centerId: original.centerId || txn.centerId,
+            amount: Number(txnAmount) || 0,
             amountType: 'CREDIT',
             commission: Number(txn.commission) || 0,
             bookingCommission: Number(txn.bookingCommission) || 0,
             centerCommission: Number(txn.centerCommission) || 0,
-            receiverName: txn.receiverName || '',
-            receiverNumber: txn.receiverNumber || '',
-            senderName: txn.senderName || '',
-            senderNumber: txn.senderNumber || '',
-            remark: txn.remark || '',
+            receiverName: original.receiverName || '',
+            receiverNumber: original.receiverNumber || '',
+            senderName: original.senderName || '',
+            senderNumber: original.senderNumber || '',
+            remark: original.remark || '',
             type,
-            status: txn.status ?? true,
+            status: original.status ?? true,
             autoCommission,
             statusTime: new Date().toISOString(),
           };
 
-          if (selectedSenderClient?.id) {
-            transactionData.senderClientId = selectedSenderClient.id;
-          } else if (txn.senderClientId) {
-            transactionData.senderClientId = txn.senderClientId;
+          if (original.senderClientId) {
+            transactionData.senderClientId = original.senderClientId;
           }
-          if (selectedReceiverClient?.id) {
-            transactionData.receiverClientId = selectedReceiverClient.id;
-          } else if (txn.receiverClientId) {
-            transactionData.receiverClientId = txn.receiverClientId;
+          if (original.receiverClientId) {
+            transactionData.receiverClientId = original.receiverClientId;
           }
 
           if (type === 'INWARD') {
@@ -399,14 +351,20 @@ export default function ClientLedgerEditModal({
           break;
         }
         case 'Accounting': {
+          const original = sourceRecord as AccountingEntry;
           const amountValue = parseFloat(accForm.amount) || 0;
+          const originalPartyId =
+            original.party?.id ||
+            original.partyId ||
+            original.accountId ||
+            '';
           await accountingApi.updateAccountEntry(entry.sourceId, {
             date: accForm.date,
             time: accForm.time,
             categoryId: accForm.categoryId,
             amount: amountValue,
             description: accForm.remark,
-            partyId: accForm.account,
+            partyId: originalPartyId,
             totalAmount: amountValue,
             type: accForm.amountType,
             status: 'COMPLETED',
@@ -416,12 +374,12 @@ export default function ClientLedgerEditModal({
         case 'Hawala': {
           const original = sourceRecord as HawalaEntry;
           await updateHawala(entry.sourceId, {
-            date: hawalaForm.date,
-            time: hawalaForm.time,
-            partyA: hawalaForm.partyA,
-            partyB: hawalaForm.partyB,
+            date: toDateInput(original.date) || hawalaForm.date,
+            time: toTimeInput(original.time) || hawalaForm.time,
+            partyA: original.partyA,
+            partyB: original.partyB,
             amount: parseInt(hawalaForm.amount, 10) || 0,
-            remark: hawalaForm.remark || undefined,
+            remark: original.remark || undefined,
             createdBy: original.createdBy,
           });
           break;
@@ -429,15 +387,15 @@ export default function ClientLedgerEditModal({
         case 'Special Entry': {
           const original = sourceRecord as SpecialEntry;
           await updateSpecialEntry(entry.sourceId, {
-            date: splForm.date,
-            time: splForm.time,
-            partyA: splForm.partyA,
+            date: toDateInput(original.date) || splForm.date,
+            time: toTimeInput(original.time) || splForm.time,
+            partyA: original.partyA,
             amountA: parseFloat(splForm.amountA) || 0,
-            partyB: splForm.partyB,
+            partyB: original.partyB,
             amountB: parseFloat(splForm.amountB) || 0,
-            partyC: splForm.partyC,
+            partyC: original.partyC,
             amountC: amountCDelta,
-            remark: splForm.remark,
+            remark: original.remark || '',
           });
           break;
         }
@@ -477,7 +435,13 @@ export default function ClientLedgerEditModal({
           await deleteSpecialEntry(entry.sourceId);
           break;
       }
-      showDeleteToast(`${entry.module} entry deleted successfully`);
+      showDeleteToast(
+        entry.module === 'Hawala'
+          ? 'Hawala entry deleted for both parties'
+          : entry.module === 'Special Entry'
+            ? 'Special entry deleted for all 3 parties'
+            : `${entry.module} entry deleted successfully`
+      );
       onSaved();
       onClose();
     } catch (error) {
@@ -507,6 +471,16 @@ export default function ClientLedgerEditModal({
               Ref: {entry.reference}
               <UpdatedEntryBadge createdAt={entry.createdAt} updatedAt={entry.updatedAt} />
             </p>
+            <p className="mt-1 text-xs text-amber-700">
+              {entry.module === 'Transaction' &&
+                'Ledger edit: amount and commission only. Center and parties are locked — delete and re-add to change them.'}
+              {entry.module === 'Accounting' &&
+                'Ledger edit: amount and amount type (JAMA/UDHAR). Client/account is locked — delete and re-add to change party.'}
+              {entry.module === 'Hawala' &&
+                'Ledger edit: amount only. Parties locked. Delete removes the entry from both clients.'}
+              {entry.module === 'Special Entry' &&
+                'Ledger edit: amounts only. Parties locked. Delete removes the entry from all 3 clients.'}
+            </p>
           </div>
           <button
             type="button"
@@ -534,35 +508,27 @@ export default function ClientLedgerEditModal({
                 </div>
                 <div>
                   <Label className={labelClass}>Date</Label>
-                  <DatePicker
+                  <Input
+                    readOnly
                     value={txnForm.date || ''}
-                    onChange={(date) => setTxnForm((prev) => ({ ...prev, date }))}
-                    className={`mt-1 h-9 text-sm ${datePickerClass}`}
-                    iconClassName="text-blue-500"
+                    className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
                   />
                 </div>
                 <div>
                   <Label className={labelClass}>Time</Label>
                   <Input
+                    readOnly
                     type="time"
                     value={txnForm.time || ''}
-                    onChange={(e) => setTxnForm((prev) => ({ ...prev, time: e.target.value }))}
-                    className={`mt-1 h-9 ${timeFieldClass} text-sm`}
+                    className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
                   />
                 </div>
                 <div className="col-span-2">
-                  <CityTypeahead
-                    id="ledger-txn-center"
-                    label="Center"
+                  <Label className={labelClass}>Center</Label>
+                  <Input
+                    readOnly
                     value={selectedCenter?.name || txnForm.center?.name || ''}
-                    onChange={(_value, city) => {
-                      setSelectedCenter(city || null);
-                      setTxnForm((prev) => ({ ...prev, centerId: city?.id || '' }));
-                    }}
-                    placeholder="Search center..."
-                    className={`h-9 ${centerFieldClass}`}
-                    usePortal
-                    dropdownZIndex={LEDGER_TYPEAHEAD_Z}
+                    className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
                   />
                 </div>
               </div>
@@ -679,102 +645,44 @@ export default function ClientLedgerEditModal({
                 <div className="col-span-2">
                   <Label className={labelClass}>Remark</Label>
                   <Input
+                    readOnly
                     value={txnForm.remark || ''}
-                    onChange={(e) => setTxnForm((prev) => ({ ...prev, remark: e.target.value }))}
-                    className={`mt-1 h-9 ${contactFieldClass} text-sm`}
+                    className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
                   />
                 </div>
               </div>
 
               <div className={compactGridClass}>
                 <div>
-                  {receiverUsesClientPicker ? (
-                    <ClientTypeahead
-                      id="ledger-txn-receiver"
-                      label="Receiver Name"
-                      value={txnForm.receiverName || ''}
-                      onChange={(value, client) => {
-                        setTxnForm((prev) => ({
-                          ...prev,
-                          receiverName: client?.name || value,
-                          receiverNumber: client?.mobileNumber || prev.receiverNumber,
-                        }));
-                        if (client) {
-                          setSelectedReceiverClient({
-                            id: client.id,
-                            name: client.name,
-                            mobileNumber: client.mobileNumber,
-                          });
-                        } else {
-                          setSelectedReceiverClient(null);
-                        }
-                      }}
-                      placeholder="Search receiver..."
-                      className={`h-9 ${contactTypeaheadClass}`}
-                      dropdownZIndex={LEDGER_TYPEAHEAD_Z}
-                    />
-                  ) : (
-                    <>
-                      <Label className={labelClass}>Receiver Name</Label>
-                      <Input
-                        value={txnForm.receiverName || ''}
-                        onChange={(e) => setTxnForm((prev) => ({ ...prev, receiverName: e.target.value }))}
-                        className={`mt-1 h-9 ${contactFieldClass} text-sm`}
-                      />
-                    </>
-                  )}
+                  <Label className={labelClass}>Receiver Name</Label>
+                  <Input
+                    readOnly
+                    value={txnForm.receiverName || ''}
+                    className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
+                  />
                 </div>
                 <div>
                   <Label className={labelClass}>Receiver No.</Label>
                   <Input
+                    readOnly
                     value={txnForm.receiverNumber || ''}
-                    onChange={(e) => setTxnForm((prev) => ({ ...prev, receiverNumber: e.target.value }))}
-                    className={`mt-1 h-9 ${contactFieldClass} text-sm`}
+                    className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
                   />
                 </div>
                 <div>
-                  {senderUsesClientPicker ? (
-                    <ClientTypeahead
-                      id="ledger-txn-sender"
-                      label="Sender Name"
-                      value={txnForm.senderName || ''}
-                      onChange={(value, client) => {
-                        setTxnForm((prev) => ({
-                          ...prev,
-                          senderName: client?.name || value,
-                          senderNumber: client?.mobileNumber || prev.senderNumber,
-                        }));
-                        if (client) {
-                          setSelectedSenderClient({
-                            id: client.id,
-                            name: client.name,
-                            mobileNumber: client.mobileNumber,
-                          });
-                        } else {
-                          setSelectedSenderClient(null);
-                        }
-                      }}
-                      placeholder="Search sender..."
-                      className={`h-9 ${contactTypeaheadClass}`}
-                      dropdownZIndex={LEDGER_TYPEAHEAD_Z}
-                    />
-                  ) : (
-                    <>
-                      <Label className={labelClass}>Sender Name</Label>
-                      <Input
-                        value={txnForm.senderName || ''}
-                        onChange={(e) => setTxnForm((prev) => ({ ...prev, senderName: e.target.value }))}
-                        className={`mt-1 h-9 ${contactFieldClass} text-sm`}
-                      />
-                    </>
-                  )}
+                  <Label className={labelClass}>Sender Name</Label>
+                  <Input
+                    readOnly
+                    value={txnForm.senderName || ''}
+                    className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
+                  />
                 </div>
                 <div>
                   <Label className={labelClass}>Sender No.</Label>
                   <Input
+                    readOnly
                     value={txnForm.senderNumber || ''}
-                    onChange={(e) => setTxnForm((prev) => ({ ...prev, senderNumber: e.target.value }))}
-                    className={`mt-1 h-9 ${contactFieldClass} text-sm`}
+                    className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
                   />
                 </div>
               </div>
@@ -821,8 +729,8 @@ export default function ClientLedgerEditModal({
                   }
                   className={`mt-1 ${selectFieldClass}`}
                 >
-                  <option value="INCOME">INCOME</option>
-                  <option value="EXPENSE">EXPENSE</option>
+                  <option value="INCOME">JAMA (Income)</option>
+                  <option value="EXPENSE">UDHAR (Expense)</option>
                 </select>
               </div>
               <div>
@@ -840,16 +748,10 @@ export default function ClientLedgerEditModal({
               </div>
               <div>
                 <Label className={labelClass}>Account</Label>
-                <ClientTypeahead
-                  id="ledger-acc-account"
-                  label=""
+                <Input
+                  readOnly
                   value={accForm.account}
-                  onChange={(value, client) =>
-                    setAccForm((prev) => ({ ...prev, account: client?.name || value }))
-                  }
-                  placeholder="Search account..."
-                  className={`mt-1 h-9 ${contactTypeaheadClass}`}
-                  dropdownZIndex={LEDGER_TYPEAHEAD_Z}
+                  className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
                 />
               </div>
               <div className="md:col-span-2">
@@ -865,20 +767,19 @@ export default function ClientLedgerEditModal({
             <div className={`${sectionClass} ${compactGridClass}`}>
               <div>
                 <Label className={labelClass}>Date</Label>
-                <DatePicker
+                <Input
+                  readOnly
                   value={hawalaForm.date}
-                  onChange={(date) => setHawalaForm((prev) => ({ ...prev, date }))}
-                  className={`mt-1 text-sm ${datePickerClass}`}
-                  iconClassName="text-blue-500"
+                  className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
                 />
               </div>
               <div>
                 <Label className={labelClass}>Time</Label>
                 <Input
+                  readOnly
                   type="time"
                   value={hawalaForm.time}
-                  onChange={(e) => setHawalaForm((prev) => ({ ...prev, time: e.target.value }))}
-                  className={`mt-1 ${timeFieldClass} text-sm`}
+                  className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
                 />
               </div>
               <div>
@@ -892,38 +793,26 @@ export default function ClientLedgerEditModal({
               </div>
               <div>
                 <Label className={`${labelClass} text-emerald-800`}>Jama Party (Credit)</Label>
-                <ClientTypeahead
-                  id="ledger-hawala-a"
-                  label=""
+                <Input
+                  readOnly
                   value={hawalaForm.partyA}
-                  onChange={(value, client) =>
-                    setHawalaForm((prev) => ({ ...prev, partyA: client?.name || value }))
-                  }
-                  placeholder="Party A"
-                  className={`mt-1 h-9 ${contactTypeaheadClass}`}
-                  dropdownZIndex={LEDGER_TYPEAHEAD_Z}
+                  className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
                 />
               </div>
               <div>
                 <Label className={`${labelClass} text-red-800`}>Udhar Party (Debit)</Label>
-                <ClientTypeahead
-                  id="ledger-hawala-b"
-                  label=""
+                <Input
+                  readOnly
                   value={hawalaForm.partyB}
-                  onChange={(value, client) =>
-                    setHawalaForm((prev) => ({ ...prev, partyB: client?.name || value }))
-                  }
-                  placeholder="Party B"
-                  className={`mt-1 h-9 ${contactTypeaheadClass}`}
-                  dropdownZIndex={LEDGER_TYPEAHEAD_Z}
+                  className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
                 />
               </div>
               <div className="md:col-span-2">
                 <Label className={labelClass}>Remark</Label>
                 <Input
+                  readOnly
                   value={hawalaForm.remark}
-                  onChange={(e) => setHawalaForm((prev) => ({ ...prev, remark: e.target.value }))}
-                  className={`mt-1 ${contactFieldClass} text-sm`}
+                  className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
                 />
               </div>
             </div>
@@ -931,20 +820,19 @@ export default function ClientLedgerEditModal({
             <div className={`${sectionClass} ${compactGridClass}`}>
               <div>
                 <Label className={labelClass}>Date</Label>
-                <DatePicker
+                <Input
+                  readOnly
                   value={splForm.date}
-                  onChange={(date) => setSplForm((prev) => ({ ...prev, date }))}
-                  className={`mt-1 text-sm ${datePickerClass}`}
-                  iconClassName="text-blue-500"
+                  className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
                 />
               </div>
               <div>
                 <Label className={labelClass}>Time</Label>
                 <Input
+                  readOnly
                   type="time"
                   value={splForm.time}
-                  onChange={(e) => setSplForm((prev) => ({ ...prev, time: e.target.value }))}
-                  className={`mt-1 ${timeFieldClass} text-sm`}
+                  className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
                 />
               </div>
               <div>
@@ -958,16 +846,10 @@ export default function ClientLedgerEditModal({
               </div>
               <div>
                 <Label className={`${labelClass} text-red-800`}>Party A (Udhar)</Label>
-                <ClientTypeahead
-                  id="ledger-spl-a"
-                  label=""
+                <Input
+                  readOnly
                   value={splForm.partyA}
-                  onChange={(value, client) =>
-                    setSplForm((prev) => ({ ...prev, partyA: client?.name || value }))
-                  }
-                  placeholder="Party A"
-                  className={`mt-1 h-9 ${contactTypeaheadClass}`}
-                  dropdownZIndex={LEDGER_TYPEAHEAD_Z}
+                  className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
                 />
               </div>
               <div>
@@ -981,16 +863,10 @@ export default function ClientLedgerEditModal({
               </div>
               <div>
                 <Label className={`${labelClass} text-emerald-800`}>Party B (Jama)</Label>
-                <ClientTypeahead
-                  id="ledger-spl-b"
-                  label=""
+                <Input
+                  readOnly
                   value={splForm.partyB}
-                  onChange={(value, client) =>
-                    setSplForm((prev) => ({ ...prev, partyB: client?.name || value }))
-                  }
-                  placeholder="Party B"
-                  className={`mt-1 h-9 ${contactTypeaheadClass}`}
-                  dropdownZIndex={LEDGER_TYPEAHEAD_Z}
+                  className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
                 />
               </div>
               <div>
@@ -1008,24 +884,18 @@ export default function ClientLedgerEditModal({
                 <Label className={amountCDelta >= 0 ? `${labelClass} text-emerald-800` : `${labelClass} text-red-800`}>
                   Party C (+/-)
                 </Label>
-                <ClientTypeahead
-                  id="ledger-spl-c"
-                  label=""
+                <Input
+                  readOnly
                   value={splForm.partyC}
-                  onChange={(value, client) =>
-                    setSplForm((prev) => ({ ...prev, partyC: client?.name || value }))
-                  }
-                  placeholder="Party C"
-                  className={`mt-1 h-9 ${contactTypeaheadClass}`}
-                  dropdownZIndex={LEDGER_TYPEAHEAD_Z}
+                  className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
                 />
               </div>
               <div className="md:col-span-2">
                 <Label className={labelClass}>Remark</Label>
                 <Input
+                  readOnly
                   value={splForm.remark}
-                  onChange={(e) => setSplForm((prev) => ({ ...prev, remark: e.target.value }))}
-                  className={`mt-1 ${contactFieldClass} text-sm`}
+                  className={`mt-1 h-9 ${inactiveFieldClass} text-sm`}
                 />
               </div>
             </div>
@@ -1046,7 +916,15 @@ export default function ClientLedgerEditModal({
               }
             >
               <Trash2 className="mr-2 h-4 w-4" />
-              {deleting ? 'Deleting...' : confirmDelete ? 'Confirm Delete' : 'Delete Entry'}
+              {deleting
+                ? 'Deleting...'
+                : confirmDelete
+                  ? entry.module === 'Hawala'
+                    ? 'Confirm delete (both parties)'
+                    : entry.module === 'Special Entry'
+                      ? 'Confirm delete (all 3 parties)'
+                      : 'Confirm Delete'
+                  : 'Delete Entry'}
             </Button>
             {confirmDelete && !deleting && (
               <button

@@ -12,6 +12,7 @@ import {
   ClientLedgerEntry,
   clientLedgerEntryMatchesSearch,
   fetchClientLedgerEntries,
+  getClientBalanceFromLedgerEntries,
 } from '@/lib/client-ledger';
 import { showErrorToast, Toaster } from '@/lib/toast';
 import { escapeHtml } from '@/lib/security';
@@ -153,9 +154,14 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
     const balanceMap: Record<string, number> = {};
 
     sortedDatesAsc.forEach((date) => {
-      balanceMap[date] = allEntriesSorted
-        .filter((entry) => getIndianDateKey(entry.date) < date)
-        .reduce((sum, entry) => sum + (entry.credit || 0) - (entry.debit || 0), 0);
+      // Same closing total as last ledger row before this date (unchanged credit−debit math)
+      const priorEntries = allEntriesSorted.filter(
+        (entry) => getIndianDateKey(entry.date) < date
+      );
+      balanceMap[date] =
+        priorEntries.length > 0
+          ? priorEntries[priorEntries.length - 1].balance
+          : 0;
     });
 
     const sortedDatesDesc = Object.keys(dateGroups).sort(
@@ -336,18 +342,21 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
                   ? formatDate(filteredClientLedger[0].date)
                   : 'N/A'}
             </span>
-            {filteredClientLedger.length > 0 && (
+            {clientLedger.length > 0 && (() => {
+              const { balance: ledgerBalance } = getClientBalanceFromLedgerEntries(clientLedger);
+              return (
               <div
                 className={`px-3 sm:px-6 py-1 rounded-lg font-bold text-base sm:text-xl shadow-lg border-2 ${
-                  filteredClientLedger[filteredClientLedger.length - 1].balance >= 0
+                  ledgerBalance >= 0
                     ? 'bg-gradient-to-r from-green-400 to-green-600 border-green-700 text-white'
                     : 'bg-gradient-to-r from-red-400 to-red-600 border-red-700 text-white'
                 }`}
               >
                 Balance:{' '}
-                {formatCurrency(filteredClientLedger[filteredClientLedger.length - 1].balance)}
+                {formatCurrency(ledgerBalance)}
               </div>
-            )}
+              );
+            })()}
           </div>
           <button
             onClick={handleClose}

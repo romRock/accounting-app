@@ -20,9 +20,9 @@ import {
   type ClientMatchOptions,
 } from '@/lib/client-match';
 import { formatCurrency, formatDate, matchesTableSearch } from '@/lib/utils';
-import { useAuthStore } from '@/store';
 
 export type ClientLedgerModule = 'Transaction' | 'Accounting' | 'Hawala' | 'Special Entry';
+
 
 
 export interface ClientLedgerEntry {
@@ -113,26 +113,9 @@ function isClientLedgerCreditTransaction(txn: { amountType?: string | null }): b
   return amountType === 'CREDIT' || amountType === 'ACCOUNT / CREDIT';
 }
 
-function isCurrentUserSuperAdmin(): boolean {
-  try {
-    const user = useAuthStore.getState().user;
-    const raw = user?.role?.permissions;
-    const permissions =
-      typeof raw === 'string' ? JSON.parse(raw) : raw;
-    return permissions?.masterData === 'full_access';
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Branch users fetch history already scoped to the client branch — allow null-branchId
- * name matches so SA-created legacy rows appear. Super Admin list APIs ignore the
- * branch header (unscoped), so keep null name-match off for them.
- */
-export function getLedgerMatchOptions(clientBranchId?: string | null): ClientMatchOptions {
-  if (!clientBranchId || isCurrentUserSuperAdmin()) return {};
-  return { treatNullEntryBranchAsMatch: true };
+/** Same match options for Super Admin and branch users (balances stay aligned). */
+export function getLedgerMatchOptions(_clientBranchId?: string | null): ClientMatchOptions {
+  return {};
 }
 
 /** Build ledger rows for a client from pre-fetched module data (shared by ledger view + customer report). */

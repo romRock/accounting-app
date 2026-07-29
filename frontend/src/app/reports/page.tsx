@@ -360,19 +360,19 @@ export default function ReportsPage() {
 
       if (activeReport === 'combo') {
         const branchOptions = getReportBranchOptions();
-        // Fetch both inward and outward transactions for combo report
+        // Same branch + date scope as Booking/Cutting (full day pages, no leftover search)
         const [inwardResponse, outwardResponse] = await Promise.all([
           transactionApi.getTransactions({
             type: 'INWARD',
-            page: currentPage,
-            limit: 100,
+            page: 1,
+            limit: 10000,
             dateFrom,
             dateTo,
           }, branchOptions),
           transactionApi.getTransactions({
             type: 'OUTWARD',
-            page: currentPage,
-            limit: 100,
+            page: 1,
+            limit: 10000,
             dateFrom,
             dateTo,
           }, branchOptions)
@@ -395,12 +395,11 @@ export default function ReportsPage() {
         setRefundSummary(refundData.summary || null);
         setReportData([]); // no regular data for this report
       } else {
-        // Fetch regular transaction data for other reports
+        // Booking / Cutting / Amount Type — branch + date only on API; search is client-side
         response = await transactionApi.getTransactions({
           type: activeReport === 'inward' ? 'INWARD' : 'OUTWARD',
-          search: searchTerm,
-          page: currentPage,
-          limit: 10000, // High limit to ensure all entries are fetched
+          page: 1,
+          limit: 10000,
           dateFrom,
           dateTo,
           ...(activeReport === 'amount-type' && filters.amountType && filters.amountType.trim() && { amountType: filters.amountType })
@@ -1153,28 +1152,6 @@ export default function ReportsPage() {
 
   // Filter data based on search and filters (matching transaction page logic)
   const filteredData = reportData.filter(transaction => {
-    // For combo report, only filter by date, no search/filter by customer names
-    if (activeReport === 'combo') {
-      return matchesDateFilter(
-        transaction.date,
-        filterByDate,
-        dateFilter,
-        isSelectingRange,
-        startDate,
-        endDate,
-      );
-    }
-
-    // For other reports, use existing filtering logic
-    const searchLower = searchTerm.toLowerCase();
-    const matchesSearch = searchTerm === '' ||
-      transaction.receiverName?.toLowerCase().includes(searchLower) ||
-      transaction.senderName?.toLowerCase().includes(searchLower) ||
-      transaction.transactionId?.toLowerCase().includes(searchLower) ||
-      transaction.centerId?.toLowerCase().includes(searchLower) ||
-      transaction.receiverNumber?.toLowerCase().includes(searchLower) ||
-      transaction.senderNumber?.toLowerCase().includes(searchLower);
-
     const matchesDate = matchesDateFilter(
       transaction.date,
       filterByDate,
@@ -1184,12 +1161,27 @@ export default function ReportsPage() {
       endDate,
     );
 
-    // Apply center filter
-    const matchesCenter = !filters.center ||
-      transaction.center?.name?.toLowerCase().includes(filters.center.toLowerCase()) ||
-      transaction.centerId?.toLowerCase().includes(filters.center.toLowerCase());
+    // Combo: date only (same day scope as Booking/Cutting fetch)
+    if (activeReport === 'combo') {
+      return matchesDate;
+    }
 
-    // Apply amount type filter
+    // Booking / Cutting / others: optional search + center + amount type on top of date
+    const searchLower = searchTerm.trim().toLowerCase();
+    const matchesSearch = !searchLower ||
+      transaction.receiverName?.toLowerCase().includes(searchLower) ||
+      transaction.senderName?.toLowerCase().includes(searchLower) ||
+      transaction.transactionId?.toLowerCase().includes(searchLower) ||
+      transaction.centerId?.toLowerCase().includes(searchLower) ||
+      transaction.center?.name?.toLowerCase().includes(searchLower) ||
+      transaction.receiverNumber?.toLowerCase().includes(searchLower) ||
+      transaction.senderNumber?.toLowerCase().includes(searchLower);
+
+    const centerTerm = (filters.center || '').trim().toLowerCase();
+    const matchesCenter = !centerTerm ||
+      transaction.center?.name?.toLowerCase().includes(centerTerm) ||
+      transaction.centerId?.toLowerCase().includes(centerTerm);
+
     const matchesAmountType = !filters.amountType || filters.amountType.trim() === '' ||
       transaction.amountType === filters.amountType ||
       (filters.amountType === 'CREDIT' && (transaction.amountType === 'CREDIT' || transaction.amountType === 'ACCOUNT / CREDIT'));
@@ -1434,10 +1426,13 @@ export default function ReportsPage() {
     }
   }, [isAuthenticated, router]);
 
-  // Listen for report changes from header
+  // Listen for report changes from header — clear leftover search/center so Booking/Cutting match Combo
   useEffect(() => {
     const handleReportChange = (e: CustomEvent) => {
       setActiveReport(e.detail);
+      setSearchTerm('');
+      setFilters((prev) => ({ ...prev, center: '' }));
+      setCurrentPage(1);
     };
 
     window.addEventListener('setActiveReport', handleReportChange as EventListener);
@@ -1652,10 +1647,20 @@ export default function ReportsPage() {
                           onClick={() => {
                             setStartDate('');
                             setEndDate('');
-                            setDateFilter('');
                             setIsSelectingRange(false);
+                            // Keep current single date; only default to today if empty
+                            if (!dateFilter) {
+                              const today = new Date();
+                              const currentDate =
+                                today.getFullYear() +
+                                '-' +
+                                String(today.getMonth() + 1).padStart(2, '0') +
+                                '-' +
+                                String(today.getDate()).padStart(2, '0');
+                              setDateFilter(currentDate);
+                            }
                           }}
-                          className={`px-3 py-1 text-xs rounded ${!isSelectingRange && !dateFilter
+                          className={`px-3 py-1 text-xs rounded ${!isSelectingRange
                               ? 'bg-orange-600 text-white'
                               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                             }`}

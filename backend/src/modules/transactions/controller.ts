@@ -290,9 +290,17 @@ export const getTransactions = async (req: Request, res: Response) => {
     if (allDates === 'true') {
       // no date filter
     } else if (dateFrom || dateTo) {
+      // Parse YYYY-MM-DD as full Indian calendar days (avoid UTC-midnight cutting off IST entries)
       where.date = {};
-      if (dateFrom) where.date.gte = new Date(dateFrom as string);
-      if (dateTo) where.date.lte = new Date(dateTo as string);
+      if (dateFrom) {
+        const ymd = String(dateFrom).slice(0, 10);
+        where.date.gte = new Date(`${ymd}T00:00:00+05:30`);
+      }
+      if (dateTo) {
+        const ymd = String(dateTo).slice(0, 10);
+        const dayStart = new Date(`${ymd}T00:00:00+05:30`);
+        where.date.lt = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+      }
     } else {
       // Default: filter to current day (Indian timezone)
       where.date = {

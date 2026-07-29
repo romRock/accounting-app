@@ -24,11 +24,12 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      // pagead2 required so AdSense verification script is not blocked by CSP
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pagead2.googlesyndication.com",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self' data:",
-      `connect-src 'self' ${apiOrigin}`,
+      `connect-src 'self' ${apiOrigin} https://pagead2.googlesyndication.com`,
       "frame-ancestors 'self'",
       "base-uri 'self'",
       "form-action 'self'",

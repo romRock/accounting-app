@@ -31,6 +31,13 @@ export const WHATSAPP_CONTACT_URL = `https://wa.me/${WHATSAPP_NUMBER}`;
 export const RESOURCE_MANUAL_PDF = '/resources/cct-learning-manual.pdf';
 export const RESOURCE_ANDROID_APK = '/resources/cct.apk';
 
+/**
+ * Google AdSense publisher ID (verification only — no ad units / Auto Ads).
+ * Override with NEXT_PUBLIC_ADSENSE_CLIENT_ID.
+ */
+export const ADSENSE_CLIENT_ID =
+  process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID || 'ca-pub-8500706503954080';
+
 /** Favicon pack: frontend/public/images/favicon_io */
 export const FAVICON = {
   ico: '/images/favicon_io/favicon.ico',

@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import LayoutWrapper from "./layout-wrapper";
 import {
   APP_NAME,
   APP_DESCRIPTION,
   APP_TAB_TITLE,
+  ADSENSE_CLIENT_ID,
   FAVICON,
 } from "@/lib/app-branding";
 
@@ -72,6 +74,16 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning={true}>
+        {/* AdSense site verification only — no ad units / Auto Ads */}
+        {ADSENSE_CLIENT_ID ? (
+          <Script
+            id="google-adsense"
+            async
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
+            crossOrigin="anonymous"
+            strategy="afterInteractive"
+          />
+        ) : null}
         <LayoutWrapper>
           {children}
         </LayoutWrapper>

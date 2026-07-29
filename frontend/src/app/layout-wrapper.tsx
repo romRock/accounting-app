@@ -257,7 +257,12 @@ export default function LayoutWrapper({
     const checkAuth = () => {
       const { isAuthenticated: currentAuthState } = useAuthStore.getState();
       const isPublicPath =
-        pathname === '/login' || pathname === '/' || pathname === '/terms';
+        pathname === '/login' ||
+        pathname === '/' ||
+        pathname === '/terms' ||
+        // SEO files must never be treated as app routes (avoids client redirect to home)
+        pathname === '/robots.txt' ||
+        pathname === '/sitemap.xml';
 
       if (!currentAuthState && !isPublicPath) {
         // Default public entry is home; login is only via explicit /login or CTAs
@@ -301,8 +306,14 @@ export default function LayoutWrapper({
     );
   }
 
-  // Show loading state while checking auth (public pages render immediately)
-  if (isCheckingAuth && pathname !== '/login' && pathname !== '/' && pathname !== '/terms') {
+  if (
+    isCheckingAuth &&
+    pathname !== '/login' &&
+    pathname !== '/' &&
+    pathname !== '/terms' &&
+    pathname !== '/robots.txt' &&
+    pathname !== '/sitemap.xml'
+  ) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -310,7 +321,13 @@ export default function LayoutWrapper({
     );
   }
 
-  if (pathname === '/login' || pathname === '/' || pathname === '/terms') {
+  if (
+    pathname === '/login' ||
+    pathname === '/' ||
+    pathname === '/terms' ||
+    pathname === '/robots.txt' ||
+    pathname === '/sitemap.xml'
+  ) {
     return (
       <>
         <TermsConsentModal />

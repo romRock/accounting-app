@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import LayoutWrapper from "./layout-wrapper";
 import {
@@ -61,6 +60,11 @@ export const metadata: Metadata = {
     title: APP_NAME,
     description: APP_DESCRIPTION,
   },
+  other: ADSENSE_CLIENT_ID
+    ? {
+        "google-adsense-account": ADSENSE_CLIENT_ID,
+      }
+    : undefined,
 };
 
 export default function RootLayout({
@@ -73,17 +77,17 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col" suppressHydrationWarning={true}>
-        {/* AdSense site verification only — no ad units / Auto Ads */}
+      <head>
+        {/* Google AdSense verification — exact official snippet in initial HTML */}
         {ADSENSE_CLIENT_ID ? (
-          <Script
-            id="google-adsense"
+          <script
             async
             src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
             crossOrigin="anonymous"
-            strategy="afterInteractive"
           />
         ) : null}
+      </head>
+      <body className="min-h-full flex flex-col" suppressHydrationWarning={true}>
         <LayoutWrapper>
           {children}
         </LayoutWrapper>

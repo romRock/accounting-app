@@ -1808,6 +1808,14 @@ app.post('/api/users/add', authenticateToken, requireRole(['Admin', 'Super Admin
         message: 'Full name, mobile number, password, and role are required'
       });
     }
+
+    const emailTrimmed = typeof email === 'string' ? email.trim() : '';
+    if (!emailTrimmed) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required for login'
+      });
+    }
     
     // Check if user with same mobile number already exists
     const existingUser = await prisma.user.findFirst({
@@ -1822,6 +1830,21 @@ app.post('/api/users/add', authenticateToken, requireRole(['Admin', 'Super Admin
       return res.status(400).json({
         success: false,
         message: 'User with this mobile number already exists'
+      });
+    }
+
+    const existingEmail = await prisma.user.findFirst({
+      where: {
+        email: emailTrimmed,
+        isActive: true,
+        isDeleted: false,
+      },
+    });
+
+    if (existingEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'User with this email already exists',
       });
     }
     
@@ -1843,7 +1866,7 @@ app.post('/api/users/add', authenticateToken, requireRole(['Admin', 'Super Admin
         firstName: firstName,
         lastName: lastName,
         phone: mobileNumber,
-        email: email || null,
+        email: emailTrimmed,
         password: hashedPassword,
         role: {
           connect: {
@@ -1900,102 +1923,151 @@ app.post('/api/users/add', authenticateToken, requireRole(['Admin', 'Super Admin
   }
 });
 
-// Update user (Admin only)
-app.post('/api/users/update', authenticateToken, requireRole(['Admin', 'Super Admin']), async (req, res) => {
+// Update user:
+// - Admin / Super Admin: full update (role + branches) for any user
+// - Any authenticated user: can update ONLY their own profile (name, mobile, email, password)
+app.post('/api/users/update', authenticateToken, async (req, res) => {
   try {
     console.log('=== UPDATE USER API CALLED ===');
     console.log('Request body:', req.body);
     console.log('User from token:', req.user?.email, 'Role:', req.user?.role?.name);
-    
+
     const { id, fullName, mobileNumber, email, password, roleId, branchId, branchIds } = req.body;
-    
-    if (!id || !fullName || !mobileNumber || !roleId) {
-      return res.status(400).json({
+    const actorId = req.user?.id;
+    const actorRoleName = req.user?.role?.name || '';
+    const isUserManager =
+      actorRoleName === 'Admin' || actorRoleName === 'Super Admin';
+    const isSelfUpdate = Boolean(actorId && id && actorId === id);
+
+    if (!isUserManager && !isSelfUpdate) {
+      return res.status(403).json({
         success: false,
-        message: 'ID, full name, mobile number, and role are required'
+        message: 'You can only update your own profile',
       });
     }
-    
-    // Check if user exists
+
+    if (!id || !fullName || !mobileNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID, full name, and mobile number are required',
+      });
+    }
+
+    const emailTrimmed = typeof email === 'string' ? email.trim() : '';
+    if (!emailTrimmed) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required for login',
+      });
+    }
+
+    if (isUserManager && !isSelfUpdate && !roleId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Role is required',
+      });
+    }
+
     const existingUser = await prisma.user.findFirst({
       where: {
         id: id,
         isActive: true,
-        isDeleted: false
-      }
+        isDeleted: false,
+      },
     });
-    
+
     if (!existingUser) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found',
       });
     }
-    
-    // Check if another user has same mobile number
+
     const duplicateUser = await prisma.user.findFirst({
       where: {
         phone: mobileNumber,
         id: { not: id },
         isActive: true,
-        isDeleted: false
-      }
+        isDeleted: false,
+      },
     });
-    
+
     if (duplicateUser) {
       return res.status(400).json({
         success: false,
-        message: 'Another user with this mobile number already exists'
+        message: 'Another user with this mobile number already exists',
       });
     }
-    
-    // Parse full name to first and last name
+
+    const duplicateEmail = await prisma.user.findFirst({
+      where: {
+        email: emailTrimmed,
+        id: { not: id },
+        isActive: true,
+        isDeleted: false,
+      },
+    });
+
+    if (duplicateEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'Another user with this email already exists',
+      });
+    }
+
     const nameParts = fullName.trim().split(' ');
     const firstName = nameParts[0] || '';
     const lastName = nameParts.slice(1).join(' ') || '';
-    
-    // Prepare update data
+
+    // Self-service: never allow changing role or branches
+    const effectiveRoleId =
+      isUserManager && roleId ? roleId : existingUser.roleId;
+
     const updateData: any = {
-      firstName: firstName,
-      lastName: lastName,
+      firstName,
+      lastName,
       phone: mobileNumber,
-      email: email || null,
-      roleId: roleId
+      username: mobileNumber,
+      email: emailTrimmed,
+      roleId: effectiveRoleId,
     };
 
     const normalizedBranchIds = normalizeBranchIds(branchIds, branchId);
+    const shouldSyncBranches =
+      isUserManager && (branchId !== undefined || branchIds !== undefined);
 
-    if (branchId !== undefined || branchIds !== undefined) {
+    if (shouldSyncBranches) {
       updateData.branchId = normalizedBranchIds[0] || null;
     }
-    
-    // Update password only if provided
+
     if (password && password.trim() !== '') {
       const bcrypt = require('bcryptjs');
       const hashedPassword = await bcrypt.hash(password, 10);
       updateData.password = hashedPassword;
     }
-    
-    // Update user
+
     const updatedUser = await prisma.user.update({
       where: { id: id },
-      data: updateData
+      data: updateData,
     });
 
-    if (branchId !== undefined || branchIds !== undefined) {
+    if (shouldSyncBranches) {
       try {
         await syncUserBranches(prisma, updatedUser.id, normalizedBranchIds);
       } catch (branchError) {
         return res.status(400).json({
           success: false,
-          message: branchError instanceof Error ? branchError.message : 'Failed to assign branches',
+          message:
+            branchError instanceof Error
+              ? branchError.message
+              : 'Failed to assign branches',
         });
       }
     }
-    
+
     console.log('User updated successfully:', updatedUser.id);
     const assignedBranches = await getUserBranchesWithDetails(prisma, updatedUser.id);
-    
+
     res.json({
       success: true,
       message: 'User updated successfully',
@@ -2003,23 +2075,22 @@ app.post('/api/users/update', authenticateToken, requireRole(['Admin', 'Super Ad
         id: updatedUser.id,
         fullName: firstName + ' ' + lastName,
         mobileNumber: mobileNumber,
-        email: email || '',
-        roleId: roleId,
-        branchId: updatedUser.branchId ?? normalizedBranchIds[0] ?? null,
+        email: emailTrimmed,
+        roleId: updatedUser.roleId,
+        branchId: updatedUser.branchId ?? assignedBranches[0]?.id ?? null,
         branchIds: assignedBranches.map((branch) => branch.id),
         branches: assignedBranches,
         status: 'Active',
         createdAt: updatedUser.createdAt,
-        updatedAt: updatedUser.updatedAt
-      }
+        updatedAt: updatedUser.updatedAt,
+      },
     });
-    
   } catch (error) {
     console.error('Error updating user:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to update user',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });

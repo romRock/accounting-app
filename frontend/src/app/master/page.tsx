@@ -13,6 +13,8 @@ import { transactionApi } from '@/lib/transactions';
 import { showSuccessToast, showUpdateToast, showDeleteToast, showErrorToast, Toaster } from '@/lib/toast';
 import { masterApi } from '@/lib/master';
 import { safeJsonStringify } from '@/lib/api';
+import { Eye, EyeOff } from 'lucide-react';
+import { authApi } from '@/lib/auth';
 
 // Data Interfaces
 interface User {
@@ -150,6 +152,7 @@ export default function MasterPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilterId, setBranchFilterId] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const getPermissions = () => {
     if (!user?.role?.permissions) return null;
@@ -165,6 +168,9 @@ export default function MasterPage() {
 
   const isSuperAdmin = () => getPermissions()?.masterData === 'full_access';
 
+  /** Super Admin only: full users list / create / delete / role+branch assign */
+  const canManageAllUsers = () => isSuperAdmin();
+
   // Admin for users/roles/branches tabs (super admin or explicit section access)
   const isAdmin = () => {
     if (isSuperAdmin()) return true;
@@ -177,6 +183,8 @@ export default function MasterPage() {
 
   // Check if user has access to specific master section
   const hasMasterAccess = (section: 'users' | 'roles' | 'cities' | 'clients' | 'branches') => {
+    // Every authenticated user can open Users (self-profile for non–super-admin)
+    if (section === 'users') return true;
     const permissions = getPermissions();
     if (!permissions) return false;
     if (permissions.masterData === 'full_access') return true;
@@ -279,6 +287,24 @@ export default function MasterPage() {
     const event = new CustomEvent('setMasterTab', { detail: firstAllowed });
     window.dispatchEvent(event);
   }, [isAuthenticated, user, activeTab]);
+
+  // Non–super-admin: Users tab is self-profile only (no create / no other users)
+  useEffect(() => {
+    if (!user || canManageAllUsers()) return;
+    if (activeTab !== 'users') return;
+
+    setEditingId(user.id);
+    setShowPassword(false);
+    setUserForm({
+      fullName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+      mobileNumber: user.phone || '',
+      email: user.email || '',
+      password: '',
+      roleId: user.role?.id || '',
+      branchId: user.branch?.id,
+      branchIds: user.branches?.map((b) => b.id) || (user.branch?.id ? [user.branch.id] : []),
+    });
+  }, [user, activeTab]);
 
   const assignedBranches = useBranchStore((s) => s.assignedBranches);
 
@@ -588,7 +614,7 @@ export default function MasterPage() {
     if (hasMasterAccess('cities')) loadCenters(); // "Centers" tab
     if (hasMasterAccess('clients')) loadClients(); // "Clients" tab
     if (hasMasterAccess('roles')) loadRoles(); // "Roles" tab
-    if (hasMasterAccess('users')) loadUsers(); // "Users" tab
+    if (hasMasterAccess('users') && canManageAllUsers()) loadUsers(); // Super Admin full list only
     if (hasMasterAccess('branches') || isSuperAdmin() || hasMasterAccess('cities') || hasMasterAccess('clients')) {
       loadBranches(); // Branches list for city/client assignment
     }
@@ -630,12 +656,20 @@ export default function MasterPage() {
   const handleAdd = () => {
     switch (activeTab) {
       case 'users':
+        if (!canManageAllUsers()) {
+          showErrorToast('Only Super Admin can create users');
+          return;
+        }
+        if (!userForm.email?.trim()) {
+          showErrorToast('Email is required for login');
+          return;
+        }
         if (userForm.fullName && userForm.mobileNumber && userForm.password && userForm.roleId) {
           // Make API call to add user
           transactionApi.addUser(
             userForm.fullName,
             userForm.mobileNumber,
-            userForm.email || '',
+            userForm.email.trim(),
             userForm.password,
             userForm.roleId,
             userForm.branchIds?.[0] || userForm.branchId,
@@ -646,6 +680,7 @@ export default function MasterPage() {
               // Reload users list
               loadUsers();
               setUserForm({});
+              setShowPassword(false);
               showSuccessToast('User added successfully');
             } else {
               showErrorToast('Failed to add user: ' + response.message);
@@ -893,8 +928,10 @@ export default function MasterPage() {
     setEditingId(item.id);
     switch (activeTab) {
       case 'users':
+        setShowPassword(false);
         setUserForm({
           ...item,
+          password: '',
           branchIds: item.branchIds || (item.branchId ? [item.branchId] : []),
         });
         break;
@@ -924,6 +961,10 @@ export default function MasterPage() {
     if (confirm('Are you sure you want to delete this item?')) {
       switch (activeTab) {
         case 'users':
+          if (!canManageAllUsers()) {
+            showErrorToast('Only Super Admin can delete users');
+            return;
+          }
           // Make API call to delete user
           transactionApi.deleteUser(id)
           .then(() => {
@@ -1049,24 +1090,59 @@ export default function MasterPage() {
     
     switch (activeTab) {
       case 'users':
+        if (!canManageAllUsers() && editingId !== user?.id) {
+          showErrorToast('You can only update your own profile');
+          return;
+        }
+        if (!userForm.fullName?.trim() || !userForm.mobileNumber?.trim()) {
+          showErrorToast('Full name and mobile number are required');
+          return;
+        }
+        if (!userForm.email?.trim()) {
+          showErrorToast('Email is required for login');
+          return;
+        }
+        if (canManageAllUsers() && !userForm.roleId) {
+          showErrorToast('Role is required');
+          return;
+        }
         // Make API call to update user
         transactionApi.updateUser(
           editingId!,
           userForm.fullName!,
           userForm.mobileNumber!,
-          userForm.email || '',
+          userForm.email.trim(),
           userForm.password || '',
-          userForm.roleId!,
-          userForm.branchIds?.[0] || userForm.branchId,
-          userForm.branchIds
+          userForm.roleId || user?.role?.id || '',
+          canManageAllUsers() ? (userForm.branchIds?.[0] || userForm.branchId) : undefined,
+          canManageAllUsers() ? userForm.branchIds : undefined
         )
-        .then((response) => {
+        .then(async (response) => {
           if (response.success) {
-            // Reload users list
-            loadUsers();
-            setUserForm({});
-            setEditingId(null);
-            showUpdateToast('User updated successfully');
+            if (canManageAllUsers()) {
+              loadUsers();
+              setUserForm({});
+              setEditingId(null);
+              setShowPassword(false);
+            } else {
+              // Refresh local auth profile after self-update
+              try {
+                const { accessToken } = useAuthStore.getState();
+                if (accessToken) {
+                  const profile = await authApi.getProfile(accessToken);
+                  useAuthStore.setState({ user: profile as any });
+                }
+              } catch {
+                // keep form values if profile refresh fails
+              }
+              setUserForm((prev) => ({ ...prev, password: '' }));
+              setShowPassword(false);
+            }
+            showUpdateToast(
+              canManageAllUsers()
+                ? 'User updated successfully'
+                : 'Your profile updated successfully'
+            );
           } else {
             showErrorToast('Failed to update user: ' + response.message);
           }
@@ -1363,8 +1439,17 @@ export default function MasterPage() {
                 {/* User Form */}
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    {editingId ? 'Edit User' : 'Add New User'}
+                    {canManageAllUsers()
+                      ? editingId
+                        ? 'Edit User'
+                        : 'Add New User'
+                      : 'My Profile'}
                   </h3>
+                  {!canManageAllUsers() && (
+                    <p className="mb-4 text-sm text-gray-600">
+                      You can update your name, mobile, email, and password only. Role and branches are managed by Super Admin.
+                    </p>
+                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
                       <Label htmlFor="fullName" className="text-sm font-medium text-gray-700">Full Name</Label>
@@ -1376,7 +1461,7 @@ export default function MasterPage() {
                         placeholder="Enter full name"
                       />
                     </div>
-                                        <div>
+                    <div>
                       <Label htmlFor="mobileNumber" className="text-sm font-medium text-gray-700">Mobile Number</Label>
                       <Input
                         id="mobileNumber"
@@ -1387,109 +1472,145 @@ export default function MasterPage() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="email" className="text-sm font-medium text-gray-700">Email (Optional)</Label>
+                      <Label htmlFor="email" className="text-sm font-medium text-gray-700">Email</Label>
                       <Input
                         id="email"
+                        type="email"
                         value={userForm.email || ''}
                         onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
                         className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 placeholder-gray-500"
-                        placeholder="Enter email address"
+                        placeholder="Enter email for login"
+                        required
                       />
                     </div>
                     <div>
-                      <Label htmlFor="password" className="text-sm font-medium text-gray-700">Password</Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        value={userForm.password || ''}
-                        onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                        className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm mt-1 text-gray-900 placeholder-gray-500"
-                        placeholder="Enter password"
-                      />
-                    </div>
-                                        <div>
-                      <Label htmlFor="roleId" className="text-sm font-medium text-gray-700">Role</Label>
-                      <select
-                        id="roleId"
-                        value={userForm.roleId || ''}
-                        onChange={(e) => setUserForm({ ...userForm, roleId: e.target.value })}
-                        className="w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-sm mt-1 text-gray-900"
-                      >
-                        <option value="">Select Role</option>
-                        {roles.map((role) => (
-                          <option key={role.id} value={role.id}>
-                            {role.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <Label className="text-sm font-medium text-gray-700">Branches (Optional)</Label>
-                      <div className="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-md border border-gray-300 bg-white p-3">
-                        {branches.length === 0 ? (
-                          <p className="text-sm text-gray-500">No branches available</p>
-                        ) : (
-                          branches.map((branch) => {
-                            const selectedBranchIds = userForm.branchIds || [];
-                            const isChecked = selectedBranchIds.includes(branch.id);
-
-                            return (
-                              <label
-                                key={branch.id}
-                                className="flex cursor-pointer items-center gap-2 text-sm text-gray-900"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => {
-                                    const nextBranchIds = isChecked
-                                      ? selectedBranchIds.filter((id) => id !== branch.id)
-                                      : [...selectedBranchIds, branch.id];
-                                    setUserForm({
-                                      ...userForm,
-                                      branchIds: nextBranchIds,
-                                      branchId: nextBranchIds[0],
-                                    });
-                                  }}
-                                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                />
-                                <span>{branch.name} ({branch.code})</span>
-                              </label>
-                            );
-                          })
-                        )}
+                      <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+                        Password{editingId ? ' (leave blank to keep)' : ''}
+                      </Label>
+                      <div className="relative mt-1">
+                        <Input
+                          id="password"
+                          type={showPassword ? 'text' : 'password'}
+                          value={userForm.password || ''}
+                          onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                          className="bg-white border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900 placeholder-gray-500 pr-10"
+                          placeholder={editingId ? 'Enter new password' : 'Enter password'}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((prev) => !prev)}
+                          className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 hover:text-gray-800"
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
                       </div>
                     </div>
-                                      </div>
+                    {canManageAllUsers() && (
+                      <>
+                        <div>
+                          <Label htmlFor="roleId" className="text-sm font-medium text-gray-700">Role</Label>
+                          <select
+                            id="roleId"
+                            value={userForm.roleId || ''}
+                            onChange={(e) => setUserForm({ ...userForm, roleId: e.target.value })}
+                            className="w-full h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-sm mt-1 text-gray-900"
+                          >
+                            <option value="">Select Role</option>
+                            {roles.map((role) => (
+                              <option key={role.id} value={role.id}>
+                                {role.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700">Branches (Optional)</Label>
+                          <div className="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-md border border-gray-300 bg-white p-3">
+                            {branches.length === 0 ? (
+                              <p className="text-sm text-gray-500">No branches available</p>
+                            ) : (
+                              branches.map((branch) => {
+                                const selectedBranchIds = userForm.branchIds || [];
+                                const isChecked = selectedBranchIds.includes(branch.id);
+
+                                return (
+                                  <label
+                                    key={branch.id}
+                                    className="flex cursor-pointer items-center gap-2 text-sm text-gray-900"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => {
+                                        const nextBranchIds = isChecked
+                                          ? selectedBranchIds.filter((id) => id !== branch.id)
+                                          : [...selectedBranchIds, branch.id];
+                                        setUserForm({
+                                          ...userForm,
+                                          branchIds: nextBranchIds,
+                                          branchId: nextBranchIds[0],
+                                        });
+                                      }}
+                                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span>{branch.name} ({branch.code})</span>
+                                  </label>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                   
                   {/* Action Buttons */}
                   <div className="flex items-center space-x-3 mt-6">
                     <Button
-                      onClick={editingId ? handleUpdate : handleAdd}
+                      onClick={
+                        canManageAllUsers()
+                          ? editingId
+                            ? handleUpdate
+                            : handleAdd
+                          : handleUpdate
+                      }
                       className="bg-blue-600 hover:bg-blue-700 text-white"
                     >
-                      {editingId ? 'Update' : 'Add User'}
+                      {canManageAllUsers()
+                        ? editingId
+                          ? 'Update'
+                          : 'Add User'
+                        : 'Update Profile'}
                     </Button>
-                    <Button
-                      onClick={handleClear}
-                      variant="outline"
-                      className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400"
-                    >
-                      Clear
-                    </Button>
-                    {editingId && (
-                      <Button
-                        onClick={() => handleDelete(editingId)}
-                        variant="destructive"
-                        className="bg-red-600 hover:bg-red-700 text-white"
-                      >
-                        Delete
-                      </Button>
+                    {canManageAllUsers() && (
+                      <>
+                        <Button
+                          onClick={() => {
+                            handleClear();
+                            setShowPassword(false);
+                          }}
+                          variant="outline"
+                          className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400"
+                        >
+                          Clear
+                        </Button>
+                        {editingId && (
+                          <Button
+                            onClick={() => handleDelete(editingId)}
+                            variant="destructive"
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                          >
+                            Delete
+                          </Button>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
 
-                {/* Users Table */}
+                {/* Users Table — Super Admin only */}
+                {canManageAllUsers() && (
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-gray-900">Users List</h3>
@@ -1557,6 +1678,7 @@ export default function MasterPage() {
                     </div>
                   )}
                 </div>
+                )}
               </div>
             )}
 

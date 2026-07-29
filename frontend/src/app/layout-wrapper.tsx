@@ -209,10 +209,12 @@ export default function LayoutWrapper({
         if (permissions.masterData === 'full_access') {
           return true;
         }
+        // All authenticated users can open Master → Users (self profile only)
+        if (!action || action === 'users') {
+          return true;
+        }
         // Handle granular master permissions
-        if (action === 'users') {
-          return permissions.master?.users === 'all';
-        } else if (action === 'roles') {
+        if (action === 'roles') {
           return permissions.master?.roles === 'all';
         } else if (action === 'cities') {
           return permissions.master?.cities === 'all';
@@ -677,8 +679,8 @@ export default function LayoutWrapper({
               {/* Master Tabs - Only show on master page */}
               {pathname === '/master' && (
                 <div className="flex items-center gap-2 sm:space-x-3 flex-shrink-0">
-                  {hasPermission('master', 'users') && (
-                    <button
+                  {/* Users tab: available to all authenticated users (self-profile for non–super-admin) */}
+                  <button
                       onClick={() => {
                         setActiveMasterTab('users');
                         // Dispatch event for master page
@@ -693,7 +695,6 @@ export default function LayoutWrapper({
                     >
                       <span className="relative z-10">Users</span>
                     </button>
-                  )}
                   {hasPermission('master', 'roles') && (
                     <button
                       onClick={() => {

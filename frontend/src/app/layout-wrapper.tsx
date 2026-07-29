@@ -12,6 +12,7 @@ import { Calendar } from 'lucide-react';
 import ScrollToTop from '@/components/ScrollToTop';
 import { SidebarStars } from '@/components/layout/sidebar-stars';
 import { ExcelExportIcon, PdfExportIcon } from '@/components/icons/export-format-icons';
+import TermsConsentModal from '@/components/legal/terms-consent-modal';
 
 export default function LayoutWrapper({
   children,
@@ -255,27 +256,37 @@ export default function LayoutWrapper({
     // Only run auth checks after component has mounted to avoid hydration issues
     const checkAuth = () => {
       const { isAuthenticated: currentAuthState } = useAuthStore.getState();
-      
-      if (!currentAuthState && pathname !== '/login') {
-        router.push('/login');
+      const isPublicPath =
+        pathname === '/login' || pathname === '/' || pathname === '/terms';
+
+      if (!currentAuthState && !isPublicPath) {
+        // Default public entry is home; login is only via explicit /login or CTAs
+        router.push('/');
       }
-      
-      // Check route permissions if authenticated
-      if (currentAuthState && pathname !== '/login') {
+
+      // Logged-in users hitting the marketing home go to dashboard
+      if (currentAuthState && pathname === '/') {
+        router.push('/dashboard');
+        setIsCheckingAuth(false);
+        return;
+      }
+
+      // Check route permissions if authenticated (terms stays public for logged-in users too)
+      if (currentAuthState && !isPublicPath) {
         const routePermissions = getRoutePermissions(pathname);
         if (routePermissions && !hasPermission(routePermissions.module, routePermissions.action)) {
           // Redirect to dashboard if no access
           router.push('/dashboard');
         }
       }
-      
+
       // Stop checking auth after initial check
       setIsCheckingAuth(false);
     };
 
     // Delay auth checks to avoid hydration mismatch
     const timer = setTimeout(checkAuth, 500);
-    
+
     return () => {
       clearTimeout(timer);
     };
@@ -290,8 +301,8 @@ export default function LayoutWrapper({
     );
   }
 
-  // Show loading state while checking auth
-  if (isCheckingAuth && pathname !== '/login') {
+  // Show loading state while checking auth (public pages render immediately)
+  if (isCheckingAuth && pathname !== '/login' && pathname !== '/' && pathname !== '/terms') {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -299,8 +310,13 @@ export default function LayoutWrapper({
     );
   }
 
-  if (pathname === '/login') {
-    return <>{children}</>;
+  if (pathname === '/login' || pathname === '/' || pathname === '/terms') {
+    return (
+      <>
+        <TermsConsentModal />
+        {children}
+      </>
+    );
   }
 
   // Client ledger opens in its own tab — fullscreen view without app chrome
@@ -432,6 +448,8 @@ export default function LayoutWrapper({
   });
 
   return (
+    <>
+    <TermsConsentModal />
     <div className="min-h-screen bg-white flex">
       {/* Sidebar - Collapsible on desktop */}
       <div className={`hidden lg:flex sidebar-shell flex-col h-screen fixed left-0 top-0 transition-all duration-300 ${
@@ -1079,5 +1097,6 @@ export default function LayoutWrapper({
       </div>
       <ScrollToTop />
     </div>
+    </>
   );
 }

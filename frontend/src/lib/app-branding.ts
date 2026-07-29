@@ -8,6 +8,29 @@ export const APP_TAB_TITLE = `${APP_NAME} — ${APP_TAGLINE}`;
 /** Sidebar / UI logo */
 export const LOGO_PATH = '/images/logo.png';
 
+/**
+ * Public landing / support contact.
+ * Override via NEXT_PUBLIC_SUPPORT_PHONE / NEXT_PUBLIC_WHATSAPP_NUMBER (digits only for WhatsApp).
+ */
+export const SUPPORT_PHONE_DISPLAY =
+  process.env.NEXT_PUBLIC_SUPPORT_PHONE || '+91 87806 70096';
+export const SUPPORT_PHONE_TEL = (
+  process.env.NEXT_PUBLIC_SUPPORT_PHONE || '+918780670096'
+).replace(/[^\d+]/g, '');
+export const WHATSAPP_NUMBER = (
+  process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ||
+  process.env.NEXT_PUBLIC_SUPPORT_PHONE ||
+  '918780670096'
+).replace(/\D/g, '');
+export const WHATSAPP_TRIAL_MESSAGE =
+  'Hi, I want to start a 15-day trial of Client Credit Tracker.';
+export const WHATSAPP_CHAT_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(WHATSAPP_TRIAL_MESSAGE)}`;
+export const WHATSAPP_CONTACT_URL = `https://wa.me/${WHATSAPP_NUMBER}`;
+
+/** Public downloads (frontend/public/resources) */
+export const RESOURCE_MANUAL_PDF = '/resources/cct-learning-manual.pdf';
+export const RESOURCE_ANDROID_APK = '/resources/cct.apk';
+
 /** Favicon pack: frontend/public/images/favicon_io */
 export const FAVICON = {
   ico: '/images/favicon_io/favicon.ico',

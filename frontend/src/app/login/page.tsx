@@ -108,35 +108,15 @@ export default function LoginPage() {
     'border-red-500/80 bg-red-950/40 text-white focus-visible:border-red-400 focus-visible:ring-red-500/45';
 
   return (
-    <div className="login-page-root fixed inset-0 flex w-full items-center justify-center px-3 sm:px-4">
-      {/* Static SVG background */}
-      <div className="login-page-bg pointer-events-none fixed inset-0" aria-hidden />
-
-      {/* Darker overlay */}
-      <div
-        className="pointer-events-none fixed inset-0 bg-gradient-to-br from-black/[0.50] via-black/50 to-black/[0.50]"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none fixed inset-0 bg-black/65"
-        aria-hidden
-      />
-
+    <div className="login-page-root fixed inset-0 flex w-full items-center justify-center bg-slate-700 px-3 sm:px-4">
       <div className="relative z-10 flex w-full max-w-[420px] flex-col items-center justify-center gap-3 sm:gap-4">
-        {/* Logo + branding */}
-        <div className="flex shrink-0 flex-col items-center text-center">
-          <AppLogo
-            width={112}
-            height={112}
-            className="h-24 w-24 object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.5)] sm:h-28 sm:w-28"
-            priority
-          />
-          <h1 className="inline-flex items-center gap-4 rounded-full border border-blue-400/25 bg-black/40 px-3 py-1 text-[15px] font-bold uppercase tracking-[0.18em] text-blue-100 sm:text-[20px]">
-          <Sparkles className="h-5 w-5 text-blue-400" aria-hidden />
+        <div className="flex shrink-0 flex-col items-center text-center mt-5">
+          <h1 className="inline-flex items-center gap-4 rounded-full border border-white/25 bg-black/25 px-3 py-1 text-[15px] font-bold uppercase tracking-[0.18em] text-white sm:text-[20px]">
+          <Sparkles className="h-5 w-5 text-blue-300" aria-hidden />
             {APP_NAME}
-            <Sparkles className="h-5 w-5 text-blue-400" aria-hidden />
+            <Sparkles className="h-5 w-5 text-blue-300" aria-hidden />
           </h1>
-          <p className="mt-1 hidden max-w-xl text-xs leading-snug text-slate-300 sm:block sm:text-xs">
+          <p className="mt-1 hidden max-w-xl text-xs leading-snug text-white/85 sm:block sm:text-xs">
             {APP_DESCRIPTION}
           </p>
         </div>
@@ -242,7 +222,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="shrink-0 text-center text-[10px] text-white font-semibold sm:text-base rounded-full border border-blue-400/25 bg-black/40 px-4 py-2">
+        <p className="shrink-0 text-center text-[10px] font-semibold text-white sm:text-base rounded-full border border-white/20 bg-black/25 px-4 py-2">
           © 2026 · Romil Hingrajiya · +91 87806 70096
         </p>
       </div>

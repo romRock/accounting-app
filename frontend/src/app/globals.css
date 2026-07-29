@@ -195,6 +195,183 @@ input[fdprocessedid] {
   }
 }
 
+/* ── Public home / landing ── */
+@keyframes home-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes home-soft-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.75;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes home-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.home-page-root {
+  min-height: 100dvh;
+  color: #e2e8f0;
+}
+
+.home-page-bg {
+  background-color: #020617;
+  background-image: url('/images/login-background.svg');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+}
+
+.home-anim-1 {
+  animation: home-fade-up 0.7s ease-out both;
+}
+
+.home-anim-2 {
+  animation: home-fade-up 0.75s ease-out 0.12s both;
+}
+
+.home-anim-3 {
+  animation: home-fade-up 0.8s ease-out 0.24s both;
+}
+
+.home-glow-orb {
+  animation: home-soft-pulse 7s ease-in-out infinite;
+}
+
+.home-float {
+  animation: home-float 5.5s ease-in-out infinite;
+}
+
+@keyframes home-wa-pulse {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(37, 211, 102, 0.65),
+      0 12px 32px -8px rgba(16, 185, 129, 0.55);
+  }
+  70% {
+    box-shadow:
+      0 0 0 18px rgba(37, 211, 102, 0),
+      0 12px 32px -8px rgba(16, 185, 129, 0.55);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(37, 211, 102, 0),
+      0 12px 32px -8px rgba(16, 185, 129, 0.55);
+  }
+}
+
+@keyframes home-pdf-pulse {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(220, 38, 38, 0.7),
+      0 12px 32px -8px rgba(185, 28, 28, 0.55);
+  }
+  70% {
+    box-shadow:
+      0 0 0 18px rgba(220, 38, 38, 0),
+      0 12px 32px -8px rgba(185, 28, 28, 0.55);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(220, 38, 38, 0),
+      0 12px 32px -8px rgba(185, 28, 28, 0.55);
+  }
+}
+
+@keyframes home-apk-pulse {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(249, 115, 22, 0.75),
+      0 12px 32px -8px rgba(234, 88, 12, 0.55);
+  }
+  70% {
+    box-shadow:
+      0 0 0 18px rgba(249, 115, 22, 0),
+      0 12px 32px -8px rgba(234, 88, 12, 0.55);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(249, 115, 22, 0),
+      0 12px 32px -8px rgba(234, 88, 12, 0.55);
+  }
+}
+
+@keyframes home-wa-bob {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-7px) scale(1.04);
+  }
+}
+
+@keyframes home-wa-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.85);
+    opacity: 0;
+  }
+}
+
+.home-wa-fab {
+  animation: home-wa-bob 2.4s ease-in-out infinite, home-wa-pulse 2s ease-out infinite;
+}
+
+.home-pdf-fab {
+  animation: home-wa-bob 2.6s ease-in-out 0.15s infinite, home-pdf-pulse 2.1s ease-out infinite;
+}
+
+.home-apk-fab {
+  animation: home-wa-bob 2.5s ease-in-out 0.35s infinite, home-apk-pulse 2.15s ease-out 0.2s infinite;
+}
+
+.home-wa-ring {
+  animation: home-wa-ring 2s ease-out infinite;
+}
+
+.home-wa-ring-delay {
+  animation: home-wa-ring 2s ease-out 0.7s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-anim-1,
+  .home-anim-2,
+  .home-anim-3,
+  .home-glow-orb,
+  .home-float,
+  .home-wa-fab,
+  .home-pdf-fab,
+  .home-apk-fab,
+  .home-wa-ring,
+  .home-wa-ring-delay {
+    animation: none;
+  }
+}
+
 /* ── Sidebar theme ── */
 @keyframes sidebar-star-drift {
   0% {

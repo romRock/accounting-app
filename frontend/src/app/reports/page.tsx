@@ -333,7 +333,12 @@ export default function ReportsPage() {
   };
 
   const fetchTransactions = async () => {
-    setLoading(true);
+    // Keep Customer Report table visible while refreshing — search must never flash a full reload
+    const keepCustomerTableVisible =
+      activeReport === 'customer' && clients.length > 0;
+    if (!keepCustomerTableVisible) {
+      setLoading(true);
+    }
     try {
       let response;
       const { dateFrom, dateTo } = getReportFetchDateRange(
@@ -345,7 +350,7 @@ export default function ReportsPage() {
       );
 
       if (activeReport === 'customer') {
-        // Customer Report: Fetch clients and calculate balances
+        // Customer Report: Fetch clients and calculate balances (search filters client-side only)
         const clientList = await fetchClients();
         await fetchAllClientBalances(clientList);
         setReportData([]); // No transaction data for customer report
@@ -1442,8 +1447,15 @@ export default function ReportsPage() {
     };
   }, []);
 
-  // Auto-generate report on mount, report switch, and date filter changes
+  // Customer Report: load once per report/branch — search filters in-memory only (no refetch)
   useEffect(() => {
+    if (activeReport !== 'customer') return;
+    generateReport();
+  }, [activeReport, filters.branchId]);
+
+  // Other reports: refetch when report type or their filters change (not on search typing)
+  useEffect(() => {
+    if (activeReport === 'customer') return;
     generateReport();
   }, [
     activeReport,
@@ -1455,20 +1467,6 @@ export default function ReportsPage() {
     filters.branchId,
     filters.amountType,
   ]);
-
-  // Refresh Customer Report when returning to this tab (ledger edits in another tab)
-  useEffect(() => {
-    if (activeReport !== 'customer') return;
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') {
-        generateReport();
-      }
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [activeReport, filters.branchId]);
 
   // Calculate summary based on filtered data
   useEffect(() => {
@@ -1998,7 +1996,20 @@ export default function ReportsPage() {
                     Customer Report Data
                   </CardTitle>
                   <CardDescription className="text-gray-600">
-                    {clients.length} clients found
+                    {(() => {
+                      const filteredCount = !searchTerm.trim()
+                        ? clients.length
+                        : clients.filter((client) => {
+                            const searchLower = searchTerm.toLowerCase();
+                            return (
+                              client.name?.toLowerCase().includes(searchLower) ||
+                              client.mobileNumber?.toLowerCase().includes(searchLower)
+                            );
+                          }).length;
+                      return searchTerm.trim()
+                        ? `${filteredCount} of ${clients.length} clients`
+                        : `${clients.length} clients found`;
+                    })()}
                   </CardDescription>
                 </div>
                 <div className="w-full sm:w-auto sm:shrink-0">
@@ -2006,6 +2017,10 @@ export default function ReportsPage() {
                     placeholder="Search clients..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
+                    onKeyDown={(e) => {
+                      // Prevent any accidental form submit / full page reload
+                      if (e.key === 'Enter') e.preventDefault();
+                    }}
                     className="bg-white w-full sm:w-56 lg:w-96 h-11 sm:h-10 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-black text-base sm:text-sm placeholder:text-gray-800"
                   />
                 </div>

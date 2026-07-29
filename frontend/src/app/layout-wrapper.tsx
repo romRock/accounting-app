@@ -68,12 +68,14 @@ export default function LayoutWrapper({
     };
   }, [isHydrated, pathname, router]);
   const [activeTransactionTab, setActiveTransactionTab] = useState<'outward' | 'inward'>('outward');
-  const [activeReport, setActiveReport] = useState<'outward' | 'inward' | 'combo' | 'outward-centerwise' | 'inward-centerwise' | 'amount-type' | 'customer' | 'transaction-refund'>('customer');
+  const [activeReport, setActiveReport] = useState<'outward' | 'inward' | 'combo' | 'outward-centerwise' | 'inward-centerwise' | 'amount-type' | 'transaction' | 'customer' | 'transaction-refund'>('customer');
   const [activeMasterTab, setActiveMasterTab] = useState<'users' | 'roles' | 'centers' | 'clients' | 'branches'>('users');
   const [activeBalanceSheetTab, setActiveBalanceSheetTab] = useState<'final' | 'statutory'>('final');
   const [activeAccountingTab, setActiveAccountingTab] = useState<'accounts' | 'category' | 'reports'>('accounts');
   const [reportDropdownOpen, setReportDropdownOpen] = useState(false);
+  const [reportMenuPos, setReportMenuPos] = useState({ top: 0, left: 0 });
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const reportDropdownButtonRef = useRef<HTMLButtonElement>(null);
   const reportDropdownRef = useRef<HTMLDivElement>(null);
 
   const getSelectedReportButtonLabel = (
@@ -81,13 +83,20 @@ export default function LayoutWrapper({
   ): string => {
     if (report === 'outward') return 'Booking Report';
     if (report === 'inward') return 'Cutting Report';
-    return `${report.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())} Report`;
+    if (report === 'transaction') return 'Transaction Report';
+    if (report === 'transaction-refund') return 'Transaction Refund Report';
+    if (report === 'amount-type') return 'Amount Type Report';
+    if (report === 'combo') return 'Combo Report';
+    return `${report.replace('-', ' ').replace(/\b\w/g, (l) => l.toUpperCase())} Report`;
   };
 
   // Close report dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (reportDropdownRef.current && !reportDropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const inButton = reportDropdownButtonRef.current?.contains(target);
+      const inMenu = reportDropdownRef.current?.contains(target);
+      if (!inButton && !inMenu) {
         setReportDropdownOpen(false);
       }
     };
@@ -98,6 +107,24 @@ export default function LayoutWrapper({
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [reportDropdownOpen]);
+
+  // Keep fixed dropdown aligned when header scrolls/resizes
+  useEffect(() => {
+    if (!reportDropdownOpen) return;
+    const updatePos = () => {
+      const btn = reportDropdownButtonRef.current;
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      setReportMenuPos({ top: rect.bottom + 8, left: rect.left });
+    };
+    updatePos();
+    window.addEventListener('resize', updatePos);
+    window.addEventListener('scroll', updatePos, true);
+    return () => {
+      window.removeEventListener('resize', updatePos);
+      window.removeEventListener('scroll', updatePos, true);
     };
   }, [reportDropdownOpen]);
 
@@ -197,11 +224,17 @@ export default function LayoutWrapper({
       case 'reports':
         // Strict RBAC - only allow if user has explicit reports permission
         if (action && action.startsWith('report_')) {
-          // Check for specific report permission
-          return permissions.reports?.[action] === true;
+          const reportsPerm = permissions.reports;
+          if (reportsPerm === 'all') return true;
+          if (!reportsPerm || typeof reportsPerm !== 'object') return false;
+          const flag = (reportsPerm as Record<string, unknown>)[action];
+          // Accept boolean true and common persisted truthy forms
+          return flag === true || flag === 'true' || flag === 1 || flag === '1';
         }
-        return permissions.reports?.read || permissions.reports?.write ||
-               Object.values(permissions.reports || {}).some(Boolean);
+        return permissions.reports === 'all' ||
+               permissions.reports?.read || permissions.reports?.write ||
+               (typeof permissions.reports === 'object' &&
+                 Object.values(permissions.reports || {}).some(Boolean));
       case 'balanceSheet':
         // Strict RBAC - only allow if user has explicit balanceSheet permission
         return permissions.balanceSheet === 'all' || permissions.balanceSheet?.read || permissions.balanceSheet?.write;
@@ -919,57 +952,83 @@ export default function LayoutWrapper({
                       <span className="relative z-10">Customer Report</span>
                     </button>
                   )}
-                  <div className="relative z-[200]" ref={reportDropdownRef}>
-                    <button
-                      onClick={() => setReportDropdownOpen(!reportDropdownOpen)}
-                      className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-orange-400/60 hover:text-white active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-2.5 sm:px-4 py-1.5 sm:py-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 flex space-x-2 ${
-                        activeReport !== 'customer'
-                          ? 'bg-gradient-to-br from-orange-500 via-orange-400 to-orange-500 text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
-                          : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:from-orange-900 hover:via-gray-900 hover:to-black'
-                      }`}
-                    >
-                      <span className="relative z-10">
-                        {activeReport === 'customer' ? 'Reports' : getSelectedReportButtonLabel(activeReport)}
-                      </span>
-                      <svg className="w-4 h-4 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
+                  {(() => {
+                    const dropdownReports = [
+                      { id: 'outward', name: 'Booking Report', permission: 'report_1' },
+                      { id: 'inward', name: 'Cutting Report', permission: 'report_2' },
+                      { id: 'combo', name: 'Combo Report', permission: 'report_3' },
+                      { id: 'amount-type', name: 'Amount Type Report', permission: 'report_4' },
+                      { id: 'transaction', name: 'Transaction Report', permission: 'report_5' },
+                      { id: 'transaction-refund', name: 'Transaction Refund Report', permission: 'report_7' },
+                    ].filter((report) => hasPermission('reports', report.permission));
 
-                    {reportDropdownOpen && (
-                      <div className="absolute top-full left-0 mt-2 w-64 bg-white backdrop-blur-2xl border-2 border-orange-300 rounded-2xl shadow-xl shadow-orange-200/50 z-[210]">
-                        <div className="py-2">
-                          {[
-                            { id: 'outward', name: 'Booking Report', permission: 'report_1' },
-                            { id: 'inward', name: 'Cutting Report', permission: 'report_2' },
-                            { id: 'combo', name: 'Combo Report', permission: 'report_3' },
-                            { id: 'amount-type', name: 'Amount Type Report', permission: 'report_4' },
-                            { id: 'transaction', name: 'Transaction Report', permission: 'report_5' },
-                            { id: 'transaction-refund', name: 'Transaction Refund Report', permission: 'report_7' },
-                          ].filter((report) => {
-                            return hasPermission('reports', report.permission);
-                          }).map((report) => (
-                            <button
-                              key={report.id}
-                              onClick={() => {
-                                setActiveReport(report.id as any);
-                                setReportDropdownOpen(false);
-                                const event = new CustomEvent('setActiveReport', { detail: report.id });
-                                window.dispatchEvent(event);
-                              }}
-                              className={`w-full text-left px-4 py-2 text-sm transition-all duration-200 ${
-                                activeReport === report.id
-                                  ? 'bg-orange-500 text-white font-medium'
-                                  : 'text-gray-800 hover:bg-orange-500/20'
-                              }`}
-                            >
-                              {report.name}
-                            </button>
-                          ))}
+                    if (dropdownReports.length === 0) return null;
+
+                    return (
+                      <>
+                        <div className="relative flex-shrink-0">
+                          <button
+                            ref={reportDropdownButtonRef}
+                            type="button"
+                            onClick={() => {
+                              const btn = reportDropdownButtonRef.current;
+                              if (btn) {
+                                const rect = btn.getBoundingClientRect();
+                                setReportMenuPos({ top: rect.bottom + 8, left: rect.left });
+                              }
+                              setReportDropdownOpen((open) => !open);
+                            }}
+                            className={`relative overflow-hidden items-center justify-center rounded-2xl border border-orange-500/30 backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-orange-400/60 hover:text-white active:scale-95 before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(249,115,22,0.25),transparent)] before:translate-x-[-150%] hover:before:translate-x-[150%] before:transition-transform before:duration-1000 px-2.5 sm:px-4 py-1.5 sm:py-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 flex space-x-2 ${
+                              activeReport !== 'customer'
+                                ? 'bg-gradient-to-br from-orange-500 via-orange-400 to-orange-500 text-white hover:from-orange-900 hover:via-gray-900 hover:to-black'
+                                : 'bg-gradient-to-br from-gray-900 via-gray-800 to-orange-950 text-orange-200 hover:from-orange-900 hover:via-gray-900 hover:to-black'
+                            }`}
+                          >
+                            <span className="relative z-10">
+                              {activeReport === 'customer' ? 'Reports' : getSelectedReportButtonLabel(activeReport)}
+                            </span>
+                            <svg className="w-4 h-4 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
                         </div>
-                      </div>
-                    )}
-                  </div>
+                        {/* Fixed menu escapes header overflow-y-hidden clipping */}
+                        {reportDropdownOpen && (
+                          <div
+                            ref={reportDropdownRef}
+                            className="fixed w-64 bg-white backdrop-blur-2xl border-2 border-orange-300 rounded-2xl shadow-xl shadow-orange-200/50"
+                            style={{
+                              top: reportMenuPos.top,
+                              left: reportMenuPos.left,
+                              zIndex: 10000050,
+                            }}
+                          >
+                            <div className="py-2 max-h-[70vh] overflow-y-auto">
+                              {dropdownReports.map((report) => (
+                                <button
+                                  key={report.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveReport(report.id as typeof activeReport);
+                                    setReportDropdownOpen(false);
+                                    const event = new CustomEvent('setActiveReport', { detail: report.id });
+                                    window.dispatchEvent(event);
+                                  }}
+                                  className={`w-full text-left px-4 py-2 text-sm transition-all duration-200 ${
+                                    activeReport === report.id
+                                      ? 'bg-orange-500 text-white font-medium'
+                                      : 'text-gray-800 hover:bg-orange-500/20'
+                                  }`}
+                                >
+                                  {report.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>

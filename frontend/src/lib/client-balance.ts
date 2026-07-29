@@ -37,7 +37,9 @@ export function calculateClientBalance(
   moduleData: ModuleDataCache,
   matchOptions?: ClientMatchOptions,
 ) {
-  const matchOpts = matchOptions ?? getLedgerMatchOptions(client.branchId);
+  const matchOpts = matchOptions ?? getLedgerMatchOptions(client.branchId, {
+    historyIsBranchScoped: false,
+  });
   const entries = buildClientLedgerEntries(
     {
       id: client.id || '',

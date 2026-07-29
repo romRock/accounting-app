@@ -51,6 +51,16 @@ function branchAllowsNameMatch(
   return entryBranchId === client.branchId;
 }
 
+/** ID link is authoritative, but never attribute another branch's stamped row to this client. */
+function idMatchAllowsBranch(
+  entryBranchId: string | null | undefined,
+  client: ClientRef,
+): boolean {
+  if (!client.branchId) return true;
+  if (entryBranchId == null || entryBranchId === '') return true;
+  return entryBranchId === client.branchId;
+}
+
 export function isTransactionReceiver(
   txn: {
     receiverName?: string | null;
@@ -60,7 +70,9 @@ export function isTransactionReceiver(
   client: ClientRef,
   options?: ClientMatchOptions,
 ): boolean {
-  if (client.id && txn.receiverClientId === client.id) return true;
+  if (client.id && txn.receiverClientId === client.id) {
+    return idMatchAllowsBranch(txn.branchId, client);
+  }
   if (!branchAllowsNameMatch(txn.branchId, client, options)) return false;
   return nameMatchesClient(txn.receiverName, client);
 }
@@ -74,7 +86,9 @@ export function isTransactionSender(
   client: ClientRef,
   options?: ClientMatchOptions,
 ): boolean {
-  if (client.id && txn.senderClientId === client.id) return true;
+  if (client.id && txn.senderClientId === client.id) {
+    return idMatchAllowsBranch(txn.branchId, client);
+  }
   if (!branchAllowsNameMatch(txn.branchId, client, options)) return false;
   return nameMatchesClient(txn.senderName, client);
 }
@@ -115,7 +129,9 @@ export function accountingEntryInvolvesClient(
   client: ClientRef,
   options?: ClientMatchOptions,
 ): boolean {
-  if (client.id && entry.partyId === client.id) return true;
+  if (client.id && entry.partyId === client.id) {
+    return idMatchAllowsBranch(entry.branchId, client);
+  }
   if (!branchAllowsNameMatch(entry.branchId, client, options)) return false;
   return nameMatchesClient(entry.party?.name, client);
 }

@@ -304,7 +304,9 @@ export default function ReportsPage() {
             branchId: clientBranchId,
           },
           moduleData,
-          getLedgerMatchOptions(clientBranchId),
+          getLedgerMatchOptions(clientBranchId, {
+            historyIsBranchScoped: Boolean(clientBranchId),
+          }),
         );
         balances[client.id] = getClientBalanceFromLedgerEntries(entries);
       }
@@ -1453,6 +1455,20 @@ export default function ReportsPage() {
     filters.branchId,
     filters.amountType,
   ]);
+
+  // Refresh Customer Report when returning to this tab (ledger edits in another tab)
+  useEffect(() => {
+    if (activeReport !== 'customer') return;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        generateReport();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [activeReport, filters.branchId]);
 
   // Calculate summary based on filtered data
   useEffect(() => {

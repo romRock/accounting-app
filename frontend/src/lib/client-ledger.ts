@@ -113,8 +113,19 @@ function isClientLedgerCreditTransaction(txn: { amountType?: string | null }): b
   return amountType === 'CREDIT' || amountType === 'ACCOUNT / CREDIT';
 }
 
-/** Same match options for Super Admin and branch users (balances stay aligned). */
-export function getLedgerMatchOptions(_clientBranchId?: string | null): ClientMatchOptions {
+/**
+ * Match options aligned with backend getEntryBranchFilter.
+ * `historyIsBranchScoped` must be true only when module data was fetched with that branchId
+ * (Customer Report / client ledger). Unscoped fetches (dashboard all-branch) must keep this false
+ * so legacy null-branch rows from other branches do not name-match.
+ */
+export function getLedgerMatchOptions(
+  clientBranchId?: string | null,
+  options?: { historyIsBranchScoped?: boolean },
+): ClientMatchOptions {
+  if (clientBranchId && options?.historyIsBranchScoped) {
+    return { treatNullEntryBranchAsMatch: true };
+  }
   return {};
 }
 
@@ -131,7 +142,12 @@ export function buildClientLedgerEntries(
     knownNames: client.knownNames || [client.name],
     branchId: client.branchId,
   };
-  const matchOpts = matchOptions ?? getLedgerMatchOptions(client.branchId);
+  const matchOpts =
+    matchOptions ??
+    getLedgerMatchOptions(client.branchId, {
+      // Caller did not pass options — assume unscoped unless they used fetchClientLedgerEntries
+      historyIsBranchScoped: false,
+    });
   const branchLookup = getBranchCodeLookup();
 
   const { transactions: allTxns, accounting: accEntries, hawala: hawalaEntries, specialEntry: splEntries } = data;
@@ -278,7 +294,19 @@ export function buildClientLedgerEntries(
     }
   });
 
-  ledgerEntries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  // Stable chrono order so same-day running balances (and closing) never shuffle
+  ledgerEntries.sort((a, b) => {
+    const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+    if (dateDiff !== 0) return dateDiff;
+    const timeA = a.time || '';
+    const timeB = b.time || '';
+    if (timeA !== timeB) return timeA.localeCompare(timeB);
+    const createdDiff =
+      new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+    if (createdDiff !== 0) return createdDiff;
+    return (a.sourceId || '').localeCompare(b.sourceId || '');
+  });
+
   let runningBalance = 0;
   ledgerEntries.forEach((entry) => {
     runningBalance += (entry.credit || 0) - (entry.debit || 0);
@@ -314,7 +342,13 @@ export async function fetchClientLedgerEntries(client: ClientLedgerClient): Prom
       ? { branchId: client.branchId }
       : { useDefaultBranchHeader: false }
   );
-  return buildClientLedgerEntries(client, data, getLedgerMatchOptions(client.branchId));
+  return buildClientLedgerEntries(
+    client,
+    data,
+    getLedgerMatchOptions(client.branchId, {
+      historyIsBranchScoped: Boolean(client.branchId),
+    }),
+  );
 }
 
 /** Match ledger row against any visible/searchable value (name, number, amount, date, etc.). */

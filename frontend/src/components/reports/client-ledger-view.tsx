@@ -86,7 +86,13 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [client.id, client.name]);
+  }, [client.id, client.name, client.branchId]);
+
+  const getIndianDateKey = (dateStr: string) => {
+    const entryDate = new Date(dateStr);
+    const indianDate = new Date(entryDate.getTime() + 5.5 * 60 * 60 * 1000);
+    return indianDate.toISOString().split('T')[0];
+  };
 
   const toggleRowCheck = (index: number) => {
     const newCheckedRows = new Set(checkedRows);
@@ -104,7 +110,8 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
     }
 
     if (ledgerFilterByDate) {
-      const entryDate = new Date(entry.date).toISOString().split('T')[0];
+      // Same IST day key as day grouping (avoids UTC off-by-one dropping rows)
+      const entryDate = getIndianDateKey(entry.date);
       if (ledgerIsSelectingRange) {
         if (ledgerStartDate && entryDate < ledgerStartDate) return false;
         if (ledgerEndDate && entryDate > ledgerEndDate) return false;
@@ -120,6 +127,7 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
     const groups: Array<{
       date: string;
       openingBalance: number;
+      closingBalance: number;
       entries: ClientLedgerEntry[];
       dayExpenseTotal: number;
       dayIncomeTotal: number;
@@ -128,12 +136,6 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
     }> = [];
 
     if (filteredClientLedger.length === 0) return groups;
-
-    const getIndianDateKey = (dateStr: string) => {
-      const entryDate = new Date(dateStr);
-      const indianDate = new Date(entryDate.getTime() + 5.5 * 60 * 60 * 1000);
-      return indianDate.toISOString().split('T')[0];
-    };
 
     const dateGroups: Record<string, ClientLedgerEntry[]> = {};
     filteredClientLedger.forEach((entry) => {
@@ -148,13 +150,18 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
       (a, b) => new Date(a).getTime() - new Date(b).getTime()
     );
 
-    const allEntriesSorted = [...clientLedger].sort(
-      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
+    const allEntriesSorted = [...clientLedger].sort((a, b) => {
+      const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      const timeA = a.time || '';
+      const timeB = b.time || '';
+      if (timeA !== timeB) return timeA.localeCompare(timeB);
+      return (a.sourceId || '').localeCompare(b.sourceId || '');
+    });
     const balanceMap: Record<string, number> = {};
 
     sortedDatesAsc.forEach((date) => {
-      // Same closing total as last ledger row before this date (unchanged credit−debit math)
+      // Opening = prior day closing (same credit−debit running math)
       const priorEntries = allEntriesSorted.filter(
         (entry) => getIndianDateKey(entry.date) < date
       );
@@ -170,12 +177,18 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
 
     sortedDatesDesc.forEach((date) => {
       const entries = dateGroups[date];
+      const dayExpenseTotal = entries.reduce((sum, e) => sum + (e.debit || 0), 0);
+      const dayIncomeTotal = entries.reduce((sum, e) => sum + (e.credit || 0), 0);
+      const openingBalance = balanceMap[date];
+      // Day formula: opening + income − expense = closing
+      const closingBalance = openingBalance + dayIncomeTotal - dayExpenseTotal;
       groups.push({
         date,
-        openingBalance: balanceMap[date],
+        openingBalance,
+        closingBalance,
         entries,
-        dayExpenseTotal: entries.reduce((sum, e) => sum + (e.debit || 0), 0),
-        dayIncomeTotal: entries.reduce((sum, e) => sum + (e.credit || 0), 0),
+        dayExpenseTotal,
+        dayIncomeTotal,
         dayExpenseCount: entries.filter((e) => (e.debit || 0) > 0).length,
         dayIncomeCount: entries.filter((e) => (e.credit || 0) > 0).length,
       });
@@ -351,8 +364,9 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
                     ? 'bg-gradient-to-r from-green-400 to-green-600 border-green-700 text-white'
                     : 'bg-gradient-to-r from-red-400 to-red-600 border-red-700 text-white'
                 }`}
+                title="Full history closing: Σ income − Σ expense (same as Customer Report)"
               >
-                Balance:{' '}
+                Closing Balance:{' '}
                 {formatCurrency(ledgerBalance)}
               </div>
               );
@@ -675,6 +689,22 @@ export default function ClientLedgerView({ client }: ClientLedgerViewProps) {
                               {group.dayIncomeCount > 0 ? group.dayIncomeCount : '-'}
                             </td>
                             <td className="px-3 py-2 text-sm text-right text-gray-500">-</td>
+                            <td className="px-3 py-2 text-sm text-center text-gray-500">-</td>
+                          </tr>
+                          <tr
+                            className={`${group.closingBalance >= 0 ? 'bg-green-100' : 'bg-red-100'} border-t border-gray-300`}
+                          >
+                            <td colSpan={5} className="px-3 py-2 text-sm font-bold text-gray-900 text-right">
+                              Day Closing (Opening + Income − Expense)
+                            </td>
+                            <td colSpan={2} className="px-3 py-2 text-sm text-right text-gray-500 border-r border-gray-200">
+                              —
+                            </td>
+                            <td
+                              className={`px-3 py-2 text-sm font-bold text-right ${group.closingBalance >= 0 ? 'text-green-700' : 'text-red-700'}`}
+                            >
+                              {formatCurrency(group.closingBalance)}
+                            </td>
                             <td className="px-3 py-2 text-sm text-center text-gray-500">-</td>
                           </tr>
                           <tr className="border-b-2 border-gray-300">

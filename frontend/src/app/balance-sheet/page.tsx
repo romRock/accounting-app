@@ -13,6 +13,7 @@ import { transactionApi } from '@/lib/transactions';
 import {
   buildClientLedgerEntries,
   getClientBalanceFromLedgerEntries,
+  getLedgerMatchOptions,
 } from '@/lib/client-ledger';
 
 // Balance Sheet Entry Structure
@@ -103,16 +104,20 @@ export default function BalanceSheetPage() {
     const expenseEntries: BalanceSheetEntry[] = [];
 
     for (const client of allClients) {
+      const clientBranchId =
+        client.branchId ||
+        (selectedBranchId !== ALL_BRANCHES ? selectedBranchId : undefined);
+      const historyIsBranchScoped =
+        Boolean(selectedBranchId && selectedBranchId !== ALL_BRANCHES);
       const entries = buildClientLedgerEntries(
         {
           id: client.id,
           name: client.name,
           knownNames: client.knownNames || [client.name],
-          branchId:
-            client.branchId ||
-            (selectedBranchId !== ALL_BRANCHES ? selectedBranchId : undefined),
+          branchId: clientBranchId,
         },
         moduleData,
+        getLedgerMatchOptions(clientBranchId, { historyIsBranchScoped }),
       );
       const { balance } = getClientBalanceFromLedgerEntries(entries);
 

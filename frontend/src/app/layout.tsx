@@ -65,6 +65,9 @@ export const metadata: Metadata = {
         "google-adsense-account": ADSENSE_CLIENT_ID,
       }
     : undefined,
+  verification: {
+    google: ADSENSE_CLIENT_ID?.replace('ca-pub-', ''),
+  },
 };
 
 export default function RootLayout({

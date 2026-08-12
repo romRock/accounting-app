@@ -10,11 +10,17 @@ const sora = Sora({
 });
 
 export const metadata: Metadata = {
-  title: `${APP_NAME} — Home`,
-  description: APP_DESCRIPTION,
+  title: `Client Credit Tracker | Client Credit & Payment Management`,
+  description: 'Client Credit Tracker helps businesses manage client credit, track outstanding balances, record payments, and maintain organized transaction history. Simple, reliable credit management for small businesses.',
   openGraph: {
-    title: APP_NAME,
-    description: APP_DESCRIPTION,
+    title: 'Client Credit Tracker | Client Credit & Payment Management',
+    description: 'Client Credit Tracker helps businesses manage client credit, track outstanding balances, record payments, and maintain organized transaction history.',
+    url: 'https://client-credit-tracker.in/',
+    siteName: APP_NAME,
+    type: 'website',
+  },
+  alternates: {
+    canonical: 'https://client-credit-tracker.in/',
   },
 };
 

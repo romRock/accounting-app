@@ -20,7 +20,18 @@ import {
   MessageCircle,
   Phone,
   Scale,
+  CheckCircle,
+  Users,
+  TrendingUp,
+  Shield,
+  Zap,
+  FileText,
+  HelpCircle,
+  ChevronDown,
+  ChevronUp,
+  ArrowRight as ArrowRightIcon,
 } from 'lucide-react';
+import { useState } from 'react';
 
 const FEATURES = [
   {
@@ -37,6 +48,172 @@ const FEATURES = [
     icon: Scale,
     title: 'Reports that match the books',
     text: 'Customer report, day totals, and balance sheet stay aligned with ledger rules you already use.',
+  },
+] as const;
+
+const HOW_IT_WORKS_STEPS = [
+  {
+    step: '1',
+    title: 'Add Clients',
+    description: 'Add and organize client information with contact details and account setup.',
+  },
+  {
+    step: '2',
+    title: 'Record Credit Transactions',
+    description: 'Record credit transactions when you provide goods or services to clients.',
+  },
+  {
+    step: '3',
+    title: 'Record Payments',
+    description: 'Track payments made by clients to update their outstanding balances.',
+  },
+  {
+    step: '4',
+    title: 'Monitor Outstanding Balances',
+    description: 'View real-time outstanding amounts for each client across all transaction types.',
+  },
+  {
+    step: '5',
+    title: 'Review Transaction History',
+    description: 'Access complete historical account activity for accurate record-keeping.',
+  },
+] as const;
+
+const WHY_CHOOSE_US = [
+  {
+    icon: CheckCircle,
+    title: 'Organized Client Records',
+    description: 'Centralized client information with easy access to account details and transaction history.',
+  },
+  {
+    icon: TrendingUp,
+    title: 'Easier Credit Tracking',
+    description: 'Real-time outstanding balance tracking across booking, accounting, hawala, and special entries.',
+  },
+  {
+    icon: Shield,
+    title: 'Centralized Transaction History',
+    description: 'Complete transaction records with proper categorization and easy search functionality.',
+  },
+  {
+    icon: Zap,
+    title: 'Simple Workflow',
+    description: 'Intuitive interface designed for daily credit work with minimal training required.',
+  },
+] as const;
+
+const USE_CASES = [
+  {
+    title: 'Small Businesses',
+    description: 'Local shops and service providers who offer credit to regular customers.',
+  },
+  {
+    title: 'Traders & Wholesalers',
+    description: 'Businesses that sell products on credit to retailers and other businesses.',
+  },
+  {
+    title: 'Retail Businesses',
+    description: 'Stores that maintain customer accounts for credit purchases and payments.',
+  },
+  {
+    title: 'Service Businesses',
+    description: 'Service providers who track client credit for ongoing work and projects.',
+  },
+] as const;
+
+const SEO_RESOURCES = [
+  {
+    title: 'Client Credit Management Guide',
+    description: 'Learn the fundamentals of managing client credit effectively.',
+    keyword: 'Client Credit Management',
+  },
+  {
+    title: 'Credit Tracking Best Practices',
+    description: 'Discover proven methods for accurate client credit tracking.',
+    keyword: 'Client Credit Tracker',
+  },
+  {
+    title: 'Customer Payment Tracking',
+    description: 'Tools and techniques for tracking customer payments efficiently.',
+    keyword: 'Customer Credit Tracking',
+  },
+  {
+    title: 'Outstanding Payment Management',
+    description: 'Strategies for managing and collecting outstanding payments.',
+    keyword: 'Outstanding Payment Tracking',
+  },
+  {
+    title: 'Business Credit Solutions',
+    description: 'Comprehensive credit management for growing businesses.',
+    keyword: 'Business Credit Management',
+  },
+  {
+    title: 'Balance Tracking Systems',
+    description: 'How to track customer outstanding balances accurately.',
+    keyword: 'Customer Outstanding Balance',
+  },
+  {
+    title: 'Transaction Recording',
+    description: 'Best practices for recording credit transactions properly.',
+    keyword: 'Credit Transaction Tracking',
+  },
+  {
+    title: 'Client Account Organization',
+    description: 'Methods for organizing and maintaining client accounts.',
+    keyword: 'Client Account Management',
+  },
+  {
+    title: 'Small Business Credit Tools',
+    description: 'Essential tools for small business credit management.',
+    keyword: 'Small Business Credit Tracking',
+  },
+  {
+    title: 'Payment Monitoring',
+    description: 'Effective systems for monitoring client payment tracking.',
+    keyword: 'Client Payment Tracking',
+  },
+] as const;
+
+const FAQ_ITEMS = [
+  {
+    question: 'What is Client Credit Tracker?',
+    answer: 'Client Credit Tracker is a transaction and bookkeeping web application designed to help businesses manage client credit, track outstanding balances, record payments, and maintain organized transaction history across multiple branches.',
+  },
+  {
+    question: 'Who can use Client Credit Tracker?',
+    answer: 'Client Credit Tracker is suitable for small businesses, traders, wholesalers, retail businesses, and service providers who offer credit to their customers and need to track client balances and payments.',
+  },
+  {
+    question: 'What can I track with Client Credit Tracker?',
+    answer: 'You can track client credit transactions, payments, outstanding balances, transaction history, and manage multiple client accounts with comprehensive reporting capabilities.',
+  },
+  {
+    question: 'Can I track client payments?',
+    answer: 'Yes, Client Credit Tracker allows you to record and track payments made by clients, automatically updating their outstanding balances across all transaction types.',
+  },
+  {
+    question: 'Can I view outstanding client balances?',
+    answer: 'Yes, you can view real-time outstanding balances for each client, with consolidated views across booking, accounting, hawala, and special entries.',
+  },
+  {
+    question: 'Can I view transaction history?',
+    answer: 'Yes, Client Credit Tracker provides complete transaction history for each client, allowing you to review all past transactions and payments.',
+  },
+  {
+    question: 'How does Client Credit Tracker work?',
+    answer: 'Simply add clients, record credit transactions when you provide goods or services, track payments, and monitor outstanding balances. The system consolidates all data for easy reporting and analysis.',
+  },
+  {
+    question: 'Is Client Credit Tracker suitable for small businesses?',
+    answer: 'Yes, Client Credit Tracker is specifically designed for small businesses that need to manage client credit without complex accounting systems.',
+  },
+  {
+    question: 'How can I get started?',
+    answer: 'You can start a 15-day trial by contacting us via WhatsApp or phone. We will help you set up your account and guide you through the initial setup process.',
+  },
+  {
+    question: 'How does pricing work?',
+    answer: 'For the first 10 clients, the first payment is ₹25,000, then ₹15,000 yearly. After 10 clients, it will be ₹45,000 per user login.',
   },
 ] as const;
 
@@ -137,7 +314,37 @@ function FabShell({
   );
 }
 
+function FAQItem({ question, answer, isOpen, onClick }: { question: string; answer: string; isOpen: boolean; onClick: () => void }) {
+  return (
+    <div className="border-b border-slate-700/50 last:border-0">
+      <button
+        onClick={onClick}
+        className="flex w-full items-center justify-between py-4 text-left transition hover:bg-slate-800/30 px-4 sm:px-6"
+        aria-expanded={isOpen}
+      >
+        <span className="text-sm font-semibold text-white sm:text-base">{question}</span>
+        {isOpen ? (
+          <ChevronUp className="h-5 w-5 text-slate-400" aria-hidden />
+        ) : (
+          <ChevronDown className="h-5 w-5 text-slate-400" aria-hidden />
+        )}
+      </button>
+      {isOpen && (
+        <div className="px-4 pb-4 sm:px-6">
+          <p className="text-sm leading-relaxed text-slate-300 sm:text-base">{answer}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function HomeLanding() {
+  const [openFAQ, setOpenFAQ] = useState<number | null>(null);
+
+  const toggleFAQ = (index: number) => {
+    setOpenFAQ(openFAQ === index ? null : index);
+  };
+
   return (
     <div className="home-page-root relative overflow-x-hidden">
       <div className="home-page-bg pointer-events-none fixed inset-0" aria-hidden />
@@ -154,7 +361,7 @@ export default function HomeLanding() {
         aria-hidden
       />
 
-      <div className="relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-5xl flex-col px-4 pb-28 pt-5 sm:px-6 sm:pb-24 sm:pt-8">
+      <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col px-4 pb-28 pt-5 sm:px-6 sm:pb-24 sm:pt-8">
         {/* Top bar */}
         <header className="home-anim-1 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 sm:gap-3">
@@ -213,10 +420,73 @@ export default function HomeLanding() {
           </div>
         </section>
 
+        {/* Product Introduction */}
+        <section className="mt-16 rounded-2xl border border-slate-500/25 bg-gradient-to-br from-slate-950/80 via-slate-900/55 to-blue-950/40 px-6 py-8 backdrop-blur-md sm:mt-20 sm:px-8 sm:py-10" aria-labelledby="product-intro-heading">
+          <h2 id="product-intro-heading" className="mb-4 text-xl font-semibold text-white sm:mb-6 sm:text-2xl">
+            What is Client Credit Tracker?
+          </h2>
+          <div className="space-y-4 text-sm leading-relaxed text-slate-300 sm:text-base">
+            <p>
+              Client Credit Tracker is a comprehensive transaction and bookkeeping web application designed specifically for businesses that manage client credit accounts. It provides a centralized platform to track client credit, record transactions, monitor outstanding balances, and maintain organized payment history.
+            </p>
+            <p>
+              The application helps businesses streamline their credit management process by digitizing manual record-keeping, reducing errors, and providing real-time visibility into client accounts. Whether you run a small retail shop, a wholesale business, or a service-based company, Client Credit Tracker adapts to your credit tracking needs.
+            </p>
+            <p>
+              With features like multi-branch support, comprehensive transaction history, and detailed reporting, Client Credit Tracker serves as a complete solution for businesses that need to maintain accurate client credit records without the complexity of traditional accounting software.
+            </p>
+          </div>
+        </section>
+
+        {/* What Is Client Credit Management */}
+        <section className="mt-12 rounded-2xl border border-slate-500/25 bg-gradient-to-br from-slate-950/80 via-slate-900/55 to-blue-950/40 px-6 py-8 backdrop-blur-md sm:mt-16 sm:px-8 sm:py-10" aria-labelledby="credit-mgmt-heading">
+          <h2 id="credit-mgmt-heading" className="mb-4 text-xl font-semibold text-white sm:mb-6 sm:text-2xl">
+            What Is Client Credit Management?
+          </h2>
+          <div className="space-y-4 text-sm leading-relaxed text-slate-300 sm:text-base">
+            <p>
+              Client credit management is the process of tracking and managing credit extended to customers or clients. When a business provides goods or services on credit, it creates a receivable that needs to be tracked until payment is received. Proper credit management ensures that businesses maintain accurate records of who owes them money, how much they owe, and when payments are due.
+            </p>
+            <p>
+              For example, if a business provides ₹50,000 worth of goods on credit to a client, this amount becomes an outstanding balance. When the client later pays ₹20,000, the outstanding balance reduces to ₹30,000. Maintaining accurate transaction records for each credit transaction and payment is essential for financial clarity and business relationships.
+            </p>
+            <p>
+              Manual credit records can become difficult to maintain as the number of clients and transactions grows. Paper-based systems or spreadsheets may lead to errors, lost records, and time-consuming reconciliation. Digital tools like Client Credit Tracker simplify this process by automating calculations, providing instant balance updates, and maintaining a complete audit trail of all transactions.
+            </p>
+            <p>
+              Effective client credit management helps businesses maintain healthy cash flow, reduce payment delays, and build stronger relationships with clients through transparent and accurate record-keeping.
+            </p>
+          </div>
+        </section>
+
+        {/* Why Businesses Need Client Credit Tracking */}
+        <section className="mt-12 rounded-2xl border border-slate-500/25 bg-gradient-to-br from-slate-950/80 via-slate-900/55 to-blue-950/40 px-6 py-8 backdrop-blur-md sm:mt-16 sm:px-8 sm:py-10" aria-labelledby="why-credit-tracking-heading">
+          <h2 id="why-credit-tracking-heading" className="mb-4 text-xl font-semibold text-white sm:mb-6 sm:text-2xl">
+            Why Businesses Need Client Credit Tracking
+          </h2>
+          <div className="space-y-4 text-sm leading-relaxed text-slate-300 sm:text-base">
+            <p>
+              Businesses that offer credit to clients face the ongoing challenge of tracking who owes them money and ensuring timely payments. Without proper credit tracking, businesses risk losing track of outstanding balances, forgetting payment due dates, and damaging client relationships due to billing errors or disputes.
+            </p>
+            <p>
+              Client credit tracking provides several key benefits. It helps businesses maintain accurate financial records, which is essential for cash flow management and financial planning. By knowing exactly who owes what and when payments are due, businesses can follow up appropriately and maintain healthy receivables.
+            </p>
+            <p>
+              Transaction history is particularly important in credit management. Each credit transaction and payment should be recorded with details such as date, amount, and description. This historical record helps resolve disputes, provides clarity during audits, and ensures that both the business and the client have a shared understanding of the account status.
+            </p>
+            <p>
+              Outstanding balance tracking is another critical aspect. Businesses need to know at any given time the total amount owed by each client. This information helps in decision-making regarding credit limits, payment follow-ups, and overall business strategy. Digital credit tracking systems provide real-time balance updates, eliminating the need for manual calculations.
+            </p>
+            <p>
+              Ultimately, client credit tracking transforms a potentially messy and error-prone process into a systematic, reliable operation that supports business growth and financial stability.
+            </p>
+          </div>
+        </section>
+
         {/* Features / use cases */}
         <section className="home-anim-3 mt-12 sm:mt-16" aria-labelledby="home-features-heading">
-          <h2 id="home-features-heading" className="sr-only">
-            Product features
+          <h2 id="home-features-heading" className="mb-6 text-xl font-semibold text-white sm:mb-8 sm:text-2xl">
+            Key Features
           </h2>
           <ul className="grid gap-3 sm:grid-cols-3 sm:gap-4">
             {FEATURES.map(({ icon: Icon, title, text }) => (
@@ -232,6 +502,207 @@ export default function HomeLanding() {
               </li>
             ))}
           </ul>
+        </section>
+
+        {/* How It Works */}
+        <section className="mt-12 rounded-2xl border border-slate-500/25 bg-gradient-to-br from-slate-950/80 via-slate-900/55 to-blue-950/40 px-6 py-8 backdrop-blur-md sm:mt-16 sm:px-8 sm:py-10" aria-labelledby="how-it-works-heading">
+          <h2 id="how-it-works-heading" className="mb-6 text-xl font-semibold text-white sm:mb-8 sm:text-2xl">
+            How It Works
+          </h2>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {HOW_IT_WORKS_STEPS.map(({ step, title, description }) => (
+              <div key={step} className="relative">
+                <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
+                  {step}
+                </div>
+                <h3 className="mb-2 text-sm font-semibold text-white sm:text-base">{title}</h3>
+                <p className="text-xs leading-relaxed text-slate-400 sm:text-sm">{description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* PDF User Guide Section */}
+        <section className="mt-12 rounded-2xl border border-slate-500/25 bg-gradient-to-br from-slate-950/80 via-slate-900/55 to-blue-950/40 px-6 py-8 backdrop-blur-md sm:mt-16 sm:px-8 sm:py-10" aria-labelledby="user-guide-heading">
+          <h2 id="user-guide-heading" className="mb-4 text-xl font-semibold text-white sm:mb-6 sm:text-2xl">
+            Complete User Guide
+          </h2>
+          <p className="mb-6 text-sm leading-relaxed text-slate-300 sm:text-base">
+            Our comprehensive PDF manual covers everything you need to know about using Client Credit Tracker effectively. From basic setup to advanced features, the guide provides step-by-step instructions with visual examples.
+          </p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+            <a
+              href={RESOURCE_MANUAL_PDF}
+              download="CCT-Learning-Manual.pdf"
+              className="inline-flex items-center justify-center gap-3 rounded-xl border border-red-400/40 bg-red-950/40 px-6 py-4 text-sm font-semibold text-red-100 backdrop-blur-md transition hover:border-red-300/60 hover:bg-red-900/50 sm:px-8 sm:py-5"
+            >
+              <PdfFileIcon className="h-8 w-8" />
+              <div className="text-left">
+                <div className="font-semibold">Download Learning Manual</div>
+                <div className="text-xs text-red-200/70">Complete PDF Guide</div>
+              </div>
+            </a>
+            <div className="text-xs text-slate-400 sm:text-sm">
+              <p>Includes setup instructions, feature walkthroughs, and best practices for managing client credit effectively.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Why Choose Us */}
+        <section className="mt-12 rounded-2xl border border-slate-500/25 bg-gradient-to-br from-slate-950/80 via-slate-900/55 to-blue-950/40 px-6 py-8 backdrop-blur-md sm:mt-16 sm:px-8 sm:py-10" aria-labelledby="why-choose-heading">
+          <h2 id="why-choose-heading" className="mb-6 text-xl font-semibold text-white sm:mb-8 sm:text-2xl">
+            Why Choose Client Credit Tracker?
+          </h2>
+          <div className="grid gap-6 sm:grid-cols-2">
+            {WHY_CHOOSE_US.map(({ icon: Icon, title, description }) => (
+              <div key={title} className="flex gap-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-blue-400/30 bg-blue-500/10 text-blue-300">
+                  <Icon className="h-5 w-5" aria-hidden />
+                </div>
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold text-white sm:text-base">{title}</h3>
+                  <p className="text-xs leading-relaxed text-slate-400 sm:text-sm">{description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Real-World Use Cases */}
+        <section className="mt-12 rounded-2xl border border-slate-500/25 bg-gradient-to-br from-slate-950/80 via-slate-900/55 to-blue-950/40 px-6 py-8 backdrop-blur-md sm:mt-16 sm:px-8 sm:py-10" aria-labelledby="use-cases-heading">
+          <h2 id="use-cases-heading" className="mb-6 text-xl font-semibold text-white sm:mb-8 sm:text-2xl">
+            Who Can Benefit?
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {USE_CASES.map(({ title, description }) => (
+              <div key={title} className="rounded-xl border border-slate-600/30 bg-slate-950/40 px-5 py-4">
+                <h3 className="mb-2 text-sm font-semibold text-white sm:text-base">{title}</h3>
+                <p className="text-xs leading-relaxed text-slate-400 sm:text-sm">{description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* SEO Educational Resources */}
+        <section className="mt-12 rounded-2xl border border-slate-500/25 bg-gradient-to-br from-slate-950/80 via-slate-900/55 to-blue-950/40 px-6 py-8 backdrop-blur-md sm:mt-16 sm:px-8 sm:py-10" aria-labelledby="resources-heading">
+          <h2 id="resources-heading" className="mb-6 text-xl font-semibold text-white sm:mb-8 sm:text-2xl">
+            Helpful Guides & Resources
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {SEO_RESOURCES.map(({ title, description, keyword }) => (
+              <div key={title} className="rounded-xl border border-slate-600/30 bg-slate-950/40 px-5 py-4 transition hover:border-blue-400/40">
+                <div className="mb-2 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-blue-400" aria-hidden />
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-blue-300/80">{keyword}</span>
+                </div>
+                <h3 className="mb-2 text-sm font-semibold text-white sm:text-base">{title}</h3>
+                <p className="text-xs leading-relaxed text-slate-400 sm:text-sm">{description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Pricing Section */}
+        <section className="mt-12 rounded-2xl border border-slate-500/25 bg-gradient-to-br from-slate-950/80 via-slate-900/55 to-blue-950/40 px-6 py-8 backdrop-blur-md sm:mt-16 sm:px-8 sm:py-10" aria-labelledby="pricing-heading">
+          <h2 id="pricing-heading" className="mb-6 text-xl font-semibold text-white sm:mb-8 sm:text-2xl">
+            Pricing
+          </h2>
+          <div className="grid gap-6 sm:grid-cols-2">
+            {/* First 10 Clients */}
+            <div className="relative rounded-2xl border-2 border-blue-500/50 bg-gradient-to-br from-blue-950/60 to-slate-950/80 px-6 py-8 backdrop-blur-md">
+              <div className="mb-2 inline-block rounded-full bg-blue-500/20 px-3 py-1 text-xs font-semibold text-blue-200">
+                Introductory Offer
+              </div>
+              <h3 className="mb-4 text-lg font-semibold text-white sm:text-xl">First 10 Clients</h3>
+              <div className="mb-4">
+                <div className="mb-1 text-3xl font-bold text-white sm:text-4xl">₹25,000</div>
+                <div className="text-sm text-slate-300">First Payment</div>
+              </div>
+              <div className="mb-6 rounded-lg bg-slate-900/50 px-4 py-3">
+                <div className="text-lg font-semibold text-white">Then ₹15,000 / Year</div>
+              </div>
+              <p className="mb-6 text-sm leading-relaxed text-slate-300">
+                For the first 10 clients, the first payment is ₹25,000, then ₹15,000 yearly.
+              </p>
+              <Link
+                href={WHATSAPP_CHAT_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full rounded-xl border border-blue-400/40 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 px-6 py-3 text-center text-sm font-semibold text-white transition hover:from-blue-500 hover:via-blue-600 hover:to-indigo-600"
+              >
+                Get Started
+              </Link>
+            </div>
+
+            {/* After 10 Clients */}
+            <div className="rounded-2xl border border-slate-500/30 bg-gradient-to-br from-slate-950/80 to-slate-900/60 px-6 py-8 backdrop-blur-md">
+              <h3 className="mb-4 text-lg font-semibold text-white sm:text-xl">After 10 Clients</h3>
+              <div className="mb-4">
+                <div className="mb-1 text-3xl font-bold text-white sm:text-4xl">₹45,000</div>
+                <div className="text-sm text-slate-300">Per User Login</div>
+              </div>
+              <div className="mb-6 h-12 rounded-lg bg-slate-900/50 px-4 py-3">
+                <div className="text-sm text-slate-400">Standard pricing for additional users</div>
+              </div>
+              <p className="mb-6 text-sm leading-relaxed text-slate-300">
+                After 10 clients, it will be ₹45,000 per user login.
+              </p>
+              <Link
+                href={WHATSAPP_CHAT_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full rounded-xl border border-slate-400/30 bg-slate-800/50 px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-slate-700/50"
+              >
+                Contact Sales
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* FAQ Section */}
+        <section className="mt-12 rounded-2xl border border-slate-500/25 bg-gradient-to-br from-slate-950/80 via-slate-900/55 to-blue-950/40 px-6 py-8 backdrop-blur-md sm:mt-16 sm:px-8 sm:py-10" aria-labelledby="faq-heading">
+          <h2 id="faq-heading" className="mb-6 text-xl font-semibold text-white sm:mb-8 sm:text-2xl">
+            Frequently Asked Questions
+          </h2>
+          <div className="rounded-xl border border-slate-700/50 bg-slate-950/40">
+            {FAQ_ITEMS.map((item, index) => (
+              <FAQItem
+                key={index}
+                question={item.question}
+                answer={item.answer}
+                isOpen={openFAQ === index}
+                onClick={() => toggleFAQ(index)}
+              />
+            ))}
+          </div>
+        </section>
+
+        {/* Final CTA */}
+        <section className="mt-12 rounded-2xl border border-slate-500/25 bg-gradient-to-br from-slate-950/80 via-slate-900/55 to-blue-950/40 px-6 py-8 text-center backdrop-blur-md sm:mt-16 sm:px-8 sm:py-10" aria-labelledby="final-cta-heading">
+          <h2 id="final-cta-heading" className="mb-4 text-xl font-semibold text-white sm:mb-6 sm:text-2xl">
+            Keep Your Client Credit Records Organized
+          </h2>
+          <p className="mb-6 text-sm leading-relaxed text-slate-300 sm:text-base">
+            Start managing client credit more efficiently with Client Credit Tracker. Simple, reliable, and designed for daily credit work.
+          </p>
+          <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+            <Link
+              href="/login"
+              className="group inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-blue-400/40 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 px-6 text-sm font-semibold text-white shadow-[0_14px_40px_-14px_rgba(37,99,235,0.7)] transition hover:from-blue-500 hover:via-blue-600 hover:to-indigo-600 sm:min-w-[160px]"
+            >
+              Login
+              <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />
+            </Link>
+            <a
+              href={WHATSAPP_CHAT_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-emerald-400/35 bg-emerald-950/45 px-6 text-sm font-semibold text-emerald-100 backdrop-blur-md transition hover:border-emerald-300/55 hover:bg-emerald-900/55 sm:min-w-[200px]"
+            >
+              <MessageCircle className="h-4 w-4" aria-hidden />
+              Start your 15-day trial
+            </a>
+          </div>
         </section>
 
         {/* Contact */}
